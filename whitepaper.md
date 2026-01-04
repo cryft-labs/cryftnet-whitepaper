@@ -1,20 +1,28 @@
-# CryftNet (Cryft Network) Whitepaper
+<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
-**Version:** v1.6 (GitHub edition)  
-**Based on:** v1.5 (January 02, 2026)  
-**Status:** Draft  
-**Authors:** Cryft Labs (Draft)
+<p align="center">
+<strong>Version:</strong> v1.6 (GitHub edition)<br>
+<strong>Based on:</strong> v1.5 (January 02, 2026)<br>
+<strong>Status:</strong> Draft<br>
+<strong>Authors:</strong> Cryft Labs (Draft)
+</p>
 
-> This document is a technical design proposal. Some subsystems (notably CGS privacy and CRVS consensus) are specified as implementable designs, but require validation via simulation, formal review, and security audits before production use.
+<p align="center"><em>
+This document is a technical design proposal. Some subsystems (notably CGS privacy and CRVS consensus) require validation via simulation, formal review, and security audits before production use.
+</em></p>
 
-## 0.1 Revision history
+---
+
+## Revision history
 
 | Version | Date | Notes |
-|---|---|---|
+|:--------|:-----|:------|
 | v1.6 | January 02, 2026 | GitHub edition: reformatted as Markdown for version control; adds an optional “overlay mesh transport” note (Nebula as a reference implementation) without making it consensus-critical. |
 | v1.5 | January 02, 2026 | Initial consolidated draft including Smart Slots, CRVS consensus proposal, CGS, Cryftee modules, IPFS pinning rewards, and cross-network federated DAO governance. |
 
-## Contents
+---
+
+## Table of Contents
 
 - [1. Abstract](#1-abstract)
 - [2. Design goals and non-goals](#2-design-goals-and-non-goals)
@@ -33,7 +41,9 @@
 - [15. Implementation roadmap and engineering checklist](#15-implementation-roadmap-and-engineering-checklist)
 - [16. Appendices](#16-appendices)
 
-## 1 Abstract
+---
+
+## 1. Abstract
 
 CryftNet (Cryft Network) is a federation of blockchains designed to feel like Web2 in latency while
 retaining cryptographic integrity and democratic governance. The network is anchored by a Main
@@ -50,13 +60,11 @@ Cryftee-hosted plane that supports privacy-aware intent gossip, selective disclo
 privacy pools, while still enabling scheduling via slot commitments. Cryftee itself is a Rust-based
 sidecar runtime that loads signed WASM modules from a manifest, provides a versioned API over
 UDS or HTTPS, and includes a kiosk UI for operators. Cryftee modules supply chain utilities including
-BLS/TLS staking operations, IPFS node management, and private synchronization. Economic
-security is complemented by incentive alignment for availability: CryftNet includes explicit IPFS
-pinning rewards. Pin providers register, bond stake, accept pin jobs, and earn rewards based on
-verified availability proofs over time. The result is a federation where compute, consensus, privacy
-propagation, and content availability are governed and incentivized rather than assumed.
+BLS/TLS staking operations, IPFS node management, and private synchronization. Economic security is complemented by incentive alignment for availability: CryftNet includes explicit IPFS pinning rewards. Pin providers register, bond stake, accept pin jobs, and earn rewards based on verified availability proofs over time. The result is a federation where compute, consensus, privacy propagation, and content availability are governed and incentivized rather than assumed.
 
-## 2 Design goals and non-goals
+---
+
+## 2. Design goals and non-goals
 
 ### 2.1 Goals
 
@@ -78,7 +86,9 @@ voting support.
 - Perfect anonymity guarantees; privacy is treated as measurable and adversarially tested.
 - Assuming IPFS persistence without explicit incentives.
 
-## 3 Background and problem statement
+---
+
+## 3. Background and problem statement
 
 Global blockchains face two constraints: physics and contention. The speed of light and the Internet's
 routing behavior impose a lower bound on propagation. At the same time, many workloads contend
@@ -93,18 +103,19 @@ determinism and can lead to chain splits. CryftNet introduces Smart Slots: expli
 that enable deterministic, validator-consistent scheduling. When contracts cannot be parallelized,
 they fall back to serial lanes. Modern networks also depend on content distribution: portals, module
 artifacts, and application assets. IPFS makes this content-addressed and tamper-evident, but
-availability remains an economic problem. CryftNet includes pinning rewards and auditable
-availability proofs so that "the network stays alive" is not a matter of goodwill.
+availability remains an economic problem. CryftNet includes pinning rewards and auditable availability proofs so that "the network stays alive" is not a matter of goodwill.
 
-## 4 System overview
+---
 
-CryftNet is organized as a federation: - Main / Federal Chain: canonical settlement, cross-chain
-registries, global governance, and final anchor of shared state. - Regional chains: low-latency
-committees tuned for users within a latency domain. Most user activity is expected to be region-local
-and finalizes quickly. - Local chains: optional, for dense communities or enterprise enclaves. These
-settle to a region. - Cryftee plane: a sidecar runtime deployed alongside validators and infrastructure
-nodes, hosting signed modules and CGS. - IPFS plane: content-addressed distribution for portals,
-modules, and application assets, with incentives for availability.
+## 4. System overview
+
+CryftNet is organized as a federation:
+
+- **Main / Federal Chain:** canonical settlement, cross-chain registries, global governance, and final anchor of shared state.
+- **Regional chains:** low-latency committees tuned for users within a latency domain. Most user activity is expected to be region-local and finalizes quickly.
+- **Local chains:** optional, for dense communities or enterprise enclaves. These settle to a region.
+- **Cryftee plane:** a sidecar runtime deployed alongside validators and infrastructure nodes, hosting signed modules and CGS.
+- **IPFS plane:** content-addressed distribution for portals, modules, and application assets, with incentives for availability.
 
 **Figure 1: CryftNet federation overview (conceptual)**
 
@@ -137,7 +148,7 @@ formats. The federation is "edge-like" in the sense that regions provide fast se
 avoids centralized operators: validator sets are governed by DAOs and measured for eligibility using
 network performance signals.
 
-## 5 Network model and latency strategy
+## 5. Network model and latency strategy
 
 ### 5.1 Regions as latency domains
 
@@ -145,6 +156,7 @@ A region is defined as a set of validators and routing policies optimized for a 
 domain can be geographic (e.g., Midwest US) or network-derived (e.g., a set of AS paths). The key
 requirement is that a significant portion of users experience low RTT (round-trip time) to a sufficient
 number of regional validators.
+
 ### 5.2 Validator eligibility via ping measurements
 
 To prevent a "region" from being nominal only, CryftNet uses ping-based eligibility. A validator is
@@ -180,6 +192,7 @@ Clients choose a region through a combination of DNS hints, signed region metada
 Main), and direct latency probing. If a region degrades (beacon reports, missed blocks, or poor p95),
 clients fail over to a nearby region or to the Main chain for safety-critical operations. Regions can also
 choose to temporarily increase anchoring frequency to Main during instability.
+
 ### 5.4 Diminishing returns: why committee size has a ceiling
 
 For a fixed network, increasing validators increases message fanout and signature verification cost.
@@ -187,6 +200,7 @@ Beyond a point, latency improves more by splitting into regions than by growing 
 CryftNet therefore expects: - Main: moderate committee size optimized for security and global
 settlement cadence. - Regions: smaller committees optimized for p50/p95 latency. - Local chains:
 smallest committees, often for specialized workloads.
+
 ### 5.5 Optional overlay mesh transport (Nebula reference implementation)
 
 CryftNet’s *architecture* only assumes an authenticated, low-jitter transport between validators and supporting services (Cryftee, beacons, pin auditors). It does **not** require any specific overlay network. However, an overlay mesh can be a pragmatic way to:
@@ -205,7 +219,9 @@ Latency note: Nebula typically adds only small per-packet overhead (encryption +
 
 Security note: the main advantage is **cryptographic identity at the network layer** (mutual auth, key rotation, segmentation) and the ability to keep services non-public while still reachable by authorized peers. It is not a substitute for protocol-layer authentication; it is a defense-in-depth layer.
 
-## 6 Consensus and finality model (CRVS proposal)
+---
+
+## 6. Consensus and finality model (CRVS proposal)
 
 CryftNet's consensus design aims to combine fast propagation, low coordination overhead, and rapid
 finality within regions. We propose a stack nicknamed CRVS: Cryft Rotor-Votor Snow. It combines: -
@@ -214,6 +230,7 @@ relay roles. - Votor-like voting: fast-path vote aggregation for quick finality 
 during partial synchrony. - Avalanche-style metastable sampling: leaderless or low-leader
 coordination where nodes repeatedly sample peers and converge on a preferred candidate with high
 probability.
+
 ### 6.1 Data propagation plane (rotor-inspired)
 
 Propagation is about moving bytes, not deciding truth. CRVS uses rotating relays to reduce
@@ -268,6 +285,7 @@ Fast path:
 Slow path:
 1) repeat vote rounds; if conflict persists, prefer candidate with higher confidence score from
 2) finalize when votes(C) >= quorum_slow for consecutive k rounds (k >= 2)
+
 ### 6.4 Metastable sampling (Avalanche-inspired)
 
 Sampling reduces coordination overhead by replacing all-to-all agreement with repeated small
@@ -302,22 +320,25 @@ while not finalized:
 Regions provide fast soft-finality (practically irreversible under normal operation). Main provides
 hard-finality for cross-region settlement by accepting checkpoints. A checkpoint is a region-signed
 commitment to a region block height and state root (or output root) plus proof of validator quorum.
-Once Main finalizes a checkpoint, cross-region transfers referencing that checkpoint can be treated
-as final under Main's security assumptions.
+Once Main finalizes a checkpoint, cross-region transfers referencing that checkpoint can be treated as final under Main's security assumptions.
 
-## 7 Execution layer: EVM compatibility and deterministic parallelism
+---
+
+## 7. Execution layer: EVM compatibility and deterministic parallelism
 
 ### 7.1 Baseline EVM mode
 
 CryftNet remains compatible with standard EVM transactions. Legacy transactions are executed
 serially and need not include any Cryft-specific fields. Standard wallets and tooling continue to work
 unmodified.
+
 ### 7.2 Parallel execution mode (opt-in)
 
 Parallel mode is opt-in. A transaction may declare that it participates in deterministic parallel
 scheduling by including: - process_id: identifies a workflow lane and namespace - slot_claims: explicit
 read/write claims over state slots - slot_commitment: a commitment hash over slot_claims, enabling
 private propagation via CGS
+
 ### 7.3 Smart Slots and Process IDs (canonical model)
 
 Smart Slots represent the smallest schedulable units of state contention. The goal is not to perfectly
@@ -480,6 +501,7 @@ legacy serial mode. Even in parallel mode, a transaction can intentionally over-
 entire account slot) to ensure safety. This reduces parallelism but preserves determinism. Over time,
 popular contracts can adopt more precise slot claims, or use Object slots for application-level
 resources.
+
 ### 7.5 Developer experience and backward compatibility
 
 Developers can adopt parallelism incrementally: - Phase 0: deploy standard Solidity contracts; use
@@ -487,10 +509,11 @@ legacy transactions. - Phase 1: clients attach slot claims for known call patter
 Phase 2: contracts emit recommended slot hints, or provide view methods to derive slot claims. -
 Phase 3: high-value workflows use CGS private intents with slot commitments and selective
 
-disclosure. MetaMask and standard JSON-RPC continue to work; parallel fields are optional
-extensions.
+disclosure. MetaMask and standard JSON-RPC continue to work; parallel fields are optional extensions.
 
-## 8 Standard subnet model vs custom subnets
+---
+
+## 8. Standard subnet model vs custom subnets
 
 ### 8.1 Cryft Standard Subnet (CSS-1)
 
@@ -500,12 +523,14 @@ Slot model and CGS interfaces.
 CSS-1 guarantees: - EVM JSON-RPC compatibility - Smart Slot envelope support (process_id,
 slot_claims, slot_commitment) - Deterministic scheduling rules (pre-lock) - Standard checkpoint
 format for anchoring to Main - Compatibility with federation registries and pinning reward primitives
+
 ### 8.2 CEP-CSS-1: standardized execution profile
 
 CEP-CSS-1 is a versioned specification published on Main and adopted by CSS chains. It defines: -
 slot derivation domain tags and hashing rules - required receipt fields for parallel txs - scheduler
 determinism constraints - CGS message types required for private intents - upgrade signaling and
 compatibility windows
+
 ### 8.3 Custom subnets
 
 Custom subnets may use any VM and any consensus mechanism. They are first-class citizens.
@@ -514,13 +539,15 @@ subnet can publish a Federation Interface Declaration (FID) on Main.
 FID fields (example): - subnet_id, chain_id, VM type - consensus summary and security assumptions
 - checkpoint proof model (signatures, light client, validity proof) - message format for cross-chain calls
 - asset mapping and replay protection rules - CGS compatibility level (none / partial / full)
+
 ### 8.4 Compatibility certification
 
 The federation may offer optional certification for custom subnets. Certification is not a gate to
-existence; it is a promise to users and tooling providers. Certified subnets may receive default routing,
-shared libraries, and aggregated dashboards.
+existence; it is a promise to users and tooling providers. Certified subnets may receive default routing, shared libraries, and aggregated dashboards.
 
-## 9 Cantons Global Synchronizer (CGS): privacy propagation and federation sync
+---
+
+## 9. Cantons Global Synchronizer (CGS): privacy propagation and federation sync
 
 CGS is a Cryftee-hosted plane for privacy-aware propagation of intents and synchronization across
 regions. It is inspired by canton-style private synchronization in the sense that parties coordinate over
@@ -537,25 +564,27 @@ anti-correlation strategies.
 slot claims.
 - Must support deterministic scheduling: even private intents require commitments that can be
 verified later.
+
 ### 9.2 CGS message types (proposal)
 
-CGS defines a small set of message types carried over a privacy-aware gossip layer. Messages are
-content-addressed where possible, and large payloads may be stored on IPFS with encrypted
-references.
-- IntentEnvelope: encrypted transaction intent plus slot_commitment and minimal routing hints.
-- RevealClaims: reveals slot_claims to validators (or to an auditor committee) at inclusion time.
-- KeyRotate: rotates threshold encryption keys for a privacy pool or region domain.
-- AvailabilityAttestation: posts aggregated availability/pinning attestations without revealing
-private CID details.
-- SyncRequest / SyncConfirm: domain synchronization for multi-party workflows.
-- DisputeBundle: evidence package for fraud/slashing (signed transcripts, challenge failures,
-etc.).
+CGS defines a small set of message types carried over a privacy-aware gossip layer. Messages are content-addressed where possible, and large payloads may be stored on IPFS with encrypted references.
+
+- **IntentEnvelope:** encrypted transaction intent plus slot_commitment and minimal routing hints.
+- **RevealClaims:** reveals slot_claims to validators (or to an auditor committee) at inclusion time.
+- **KeyRotate:** rotates threshold encryption keys for a privacy pool or region domain.
+- **AvailabilityAttestation:** posts aggregated availability/pinning attestations without revealing private CID details.
+- **SyncRequest / SyncConfirm:** domain synchronization for multi-party workflows.
+- **DisputeBundle:** evidence package for fraud/slashing (signed transcripts, challenge failures, etc.).
+
 ### 9.3 Metadata visibility matrix
 
 | Field | Public observers | Region validators | Main validators | Counterparties | Pin auditors |
-|---|---|---|---|---|---|
+|:------|:-----------------|:------------------|:----------------|:---------------|:-------------|
 | Sender address | Legacy: yes; CGS: optional | yes (for inclusion) | only if anchored and required | yes | no |
 | Recipient address | Legacy: yes; CGS: optional | yes (for execution) | only if required | yes | no |
+| Slot claims | Legacy/parallel: yes; CGS intent: commitment only | claims revealed at inclusion or to auditor | commitment only unless dispute | optional | no |
+| Process ID | often yes (may be masked in CGS) | yes | yes (in checkpoints) | yes | no |
+| Resource IDs (object slots) | optional | only if revealed | only if dispute | yes | no |
 | CID of pinned content | public pin job: yes; private pin: commitment only | auditor-only for private pin | aggregate only | optional | auditor yes |
 | Proof responses (pin challenges) | public: yes; private: auditor-posted aggregate | yes | yes (if disputed) | no | yes |
 
@@ -568,6 +597,7 @@ only to selected pin providers and auditors; the chain stores only a commitment 
 
 scores. Selective disclosure is constrained by verifiability: when disputes arise, evidence may need to
 be revealed to Main or to a court-like committee.
+
 ### 9.5 CGS and Smart Slots via slot commitments
 
 Slot commitments bridge privacy and determinism. A private intent includes slot_commitment =
@@ -584,6 +614,7 @@ Inclusion:
 - proposer verifies H(revealed_claims) == slot_commitment
 - scheduler runs pre-lock acquisition on revealed_claims
 - if acquired, execute tx and include receipt linking to commitment
+
 ### 9.6 Anti-censorship and liveness
 
 CGS uses multi-route gossip and region fallbacks. If Region A appears censored, intents can be
@@ -591,6 +622,7 @@ routed to Region B or to Main, then forwarded. Privacy pools should avoid single
 threshold keys are managed by committees with rotation. Residual risk remains: any privacy system
 can be degraded by global adversaries controlling network paths; CryftNet treats this as measurable
 and provides monitoring via Cryftee modules.
+
 ### 9.7 Failure modes and residual risk
 
 - Metadata leakage through timing and traffic analysis (mitigate with batching and cover traffic).
@@ -598,19 +630,26 @@ and provides monitoring via Cryftee modules.
 - Denial of service via junk intents (mitigate with fees, rate limits, and capability gating).
 - Complexity risk: CGS must not be consensus-critical without extensive validation.
 
-## 10 Cross-chain communication and settlement
+---
+
+## 10. Cross-chain communication and settlement
 
 ### 10.1 Checkpoint format
 
-Regions anchor to Main via checkpoints. A checkpoint commits to: - region_id and chain_id - region
-block height h and block hash - region state root (or output root) at height h - validator quorum proof
-(aggregated signature or threshold proof) - optional summary of outgoing messages (message root)
+Regions anchor to Main via checkpoints. A checkpoint commits to:
+
+- region_id and chain_id
+- region block height h and block hash
+- region state root (or output root) at height h
+- validator quorum proof (aggregated signature or threshold proof)
+- optional summary of outgoing messages (message root)
+
+```text
 Checkpoint = {
   region_id: 42,
   chain_id: 1001,
   height: 8_240_112,
   block_hash: 0x...,
-
   state_root: 0x...,
   message_root: 0x...,
   quorum: { type: "BLS_AGG", signers_bitmap: 0x..., sig: 0x... },
@@ -618,26 +657,33 @@ Checkpoint = {
   ping_epoch: 771,          // binds validator eligibility measurements
   metadata: { cep_css: "1.0.0" }
 }
+```
+
 ### 10.2 Message passing guarantees
 
 Messages from Region A to Region B are routed through Main for final settlement. The guarantee is:
-- If a message is included in a checkpoint finalized on Main, it is globally ordered relative to other
-finalized checkpoints. - Regions may implement local fast-path transfers (optimistic) but must
-reconcile with Main anchoring to prevent fraud.
+
+- If a message is included in a checkpoint finalized on Main, it is globally ordered relative to other finalized checkpoints.
+- Regions may implement local fast-path transfers (optimistic) but must reconcile with Main anchoring to prevent fraud.
+
 ### 10.3 Replay protection and ordering
 
 Replay protection uses (origin_chain_id, origin_height, message_index) as a unique identifier.
 Destination chains maintain a consumed set keyed by this tuple. Ordering constraints are defined by
 the origin chain's checkpoint. Destination chains may choose strict ordering (process sequentially) or
 relaxed ordering (parallelizable) depending on the message type.
+
 ### 10.4 Interaction with CGS
 
-CGS can carry private envelopes for cross-chain intents. However, settlement proofs must eventually
-become verifiable on-chain. A private cross-chain transfer therefore separates: - private negotiation
-and intent propagation (CGS), - public commitment and checkpointing (region and Main), - selective
-disclosure only when required for validation or disputes.
+CGS can carry private envelopes for cross-chain intents. However, settlement proofs must eventually become verifiable on-chain. A private cross-chain transfer therefore separates:
 
-## 11 Asset model, rewards, and monetary policy
+- private negotiation and intent propagation (CGS),
+- public commitment and checkpointing (region and Main),
+- selective disclosure only when required for validation or disputes.
+
+---
+
+## 11. Asset model, rewards, and monetary policy
 
 ### 11.1 Native gas asset across the federation
 
@@ -645,12 +691,14 @@ CryftNet uses a native gas asset (denoted CRYFT in this document) for transactio
 on CSS chains by default. Custom subnets may use alternative fee assets, but must publish their fee
 asset policy in their Federation Interface Declaration. A consistent fee asset simplifies routing, pricing,
 and cross-chain UX, but is not mandatory for all subnets.
+
 ### 11.2 Fee markets
 
 There are multiple fee markets: - Execution fees: EVM gas fees on Main and on subnets. - Settlement
 fees: fees for anchoring checkpoints and relaying cross-chain messages. - CGS fees: fees for private
 intent propagation, threshold services, and spam resistance. - Storage/pinning fees: budgets
 attached to pin jobs for IPFS availability.
+
 ### 11.3 Validator rewards: Main and regions
 
 Reward sources are a sum of: - base emission (optional): E_epoch - transaction fees: F_epoch (gas
@@ -662,18 +710,38 @@ R_main = R_epoch * w_main - Region validator sets: R_regions = R_epoch * w_regio
 among participating regions by activity and stake) - CGS service providers: R_cgs = R_epoch *
 w_cgs - Pin providers: R_pin = P_epoch (separately budgeted by pin jobs, plus optional treasury
 top-ups) Where w_main + w_regions + w_cgs <= 1; remaining may be burned or sent to treasury.
+```
+
+#### 11.3.1 Parameter table (example defaults)
+
+| Parameter | Symbol | Example | Notes |
+|:----------|:-------|:--------|:------|
+| Epoch length | EPOCH | 10 minutes (regions), 30 minutes (Main) | Regions shorter; Main longer for stability |
+| Fast quorum | q_fast | 67% | Used in CRVS fast path |
+| Slow quorum | q_slow | 80% | Used in CRVS slow path |
+| Ping RTT max (region) | RTT_MAX | 80 ms | Eligibility gate; region-specific |
+| Ping quorum | q_beacon | >= 3 of 5 beacons | Prevents single beacon bias |
+| Slashing max | SLASH_MAX | up to 5% stake | For provable misbehavior; governed |
+
+```text
 Example weight policy (governance-controlled):
 w_main   = 0.35
 w_regions= 0.45
 w_cgs    = 0.10
 w_treas  = 0.10   // treasury accumulation
 (These are illustrative, not fixed.)
-Within a validator set, rewards are distributed by a combination of stake weight and performance: -
-stake_weight(v) based on bonded stake (and delegated stake where supported) - perf(v) based on
-uptime, vote participation, relay responsiveness, and (for regions) eligibility score from pings
-RewardShare(v) = stake_weight(v)^a * perf(v)^b / Z with exponents a,b set by governance (typical: a
-near 1, b in [0.3, 1.0]).
 ```
+
+Within a validator set, rewards are distributed by a combination of stake weight and performance:
+
+- **stake_weight(v):** based on bonded stake (and delegated stake where supported)
+- **perf(v):** based on uptime, vote participation, relay responsiveness, and (for regions) eligibility score from pings
+
+```text
+RewardShare(v) = stake_weight(v)^a * perf(v)^b / Z
+```
+
+with exponents a,b set by governance (typical: a near 1, b in [0.3, 1.0]).
 
 **Figure 2: Reward flows (illustrative)**
 
@@ -783,7 +851,9 @@ by the current IPNS record, - additionally pin the last N historical portal vers
 resilience, - run private pin jobs for sensitive modules or private portals, using CGS to reveal CIDs
 only to authorized providers. Pinning rewards thus become part of the chain's operational backbone.
 
-## 12 Governance: federated DAO and cross-network democracy
+---
+
+## 12. Governance: federated DAO and cross-network democracy
 
 CryftNet governance is federated. The Main chain hosts the primary DAO that defines
 federation-wide rules, registries, and security parameters. Each subnet/region can host its own DAO
@@ -793,31 +863,45 @@ distinguishes: Federation Proposals vs Local Proposals.
 
 ### 12.1 Federation Proposals (Main chain)
 
-Federation Proposals affect the shared layer: - protocol upgrades for Main (CRVS params, scheduler
-rules, checkpoint format) - registry changes (region list, subnet listings, certification programs) - global
-economic parameters (emission schedule, base fee policy, treasury policy) - Cryftee trust roots:
-publisher allowlists, GitHub verification policy - global CGS standards (message formats, key rotation
-cadence) - disputes and slashing appeals that affect cross-chain trust
+Federation Proposals affect the shared layer:
+
+- protocol upgrades for Main (CRVS params, scheduler rules, checkpoint format)
+- registry changes (region list, subnet listings, certification programs)
+- global economic parameters (emission schedule, base fee policy, treasury policy)
+- Cryftee trust roots: publisher allowlists, GitHub verification policy
+- global CGS standards (message formats, key rotation cadence)
+- disputes and slashing appeals that affect cross-chain trust
 ### 12.2 Local Proposals (Regions and subnets)
 
-Local Proposals affect a single subnet or region: - committee membership policies and staking
-minimums - ping beacon set membership and RTT thresholds - local fee policies and subsidy
-allocation - local pinning reward programs and auditor committees - optional features (e.g., enabling
-CGS pools, enabling parallel tx envelope by default)
+Local Proposals affect a single subnet or region:
+
+- committee membership policies and staking minimums
+- ping beacon set membership and RTT thresholds
+- local fee policies and subsidy allocation
+- local pinning reward programs and auditor committees
+- optional features (e.g., enabling CGS pools, enabling parallel tx envelope by default)
 ### 12.3 The Federated DAO: broader votes across all networks
 
-Federation governance is strengthened by including votes from across the federation, not only Main
-validators. Proposal: a two-chamber model with cross-network aggregation. Chamber A: Validator
-Council (Main) - stake-weighted vote of Main validators - optimized for rapid security decisions and
-technical upgrades Chamber B: Federation Assembly (All networks) - voting power aggregated from
-regions and certified subnets - allows broader representation of users and local validator sets - each
-network may choose its own internal voting method, then export a signed aggregate to Main
+Federation governance is strengthened by including votes from across the federation, not only Main validators. Proposal: a two-chamber model with cross-network aggregation.
+
+**Chamber A: Validator Council (Main)**
+- stake-weighted vote of Main validators
+- optimized for rapid security decisions and technical upgrades
+
+**Chamber B: Federation Assembly (All networks)**
+- voting power aggregated from regions and certified subnets
+- allows broader representation of users and local validator sets
+- each network may choose its own internal voting method, then export a signed aggregate to Main
 #### 12.3.1 Cross-network vote export (Governance Adapters)
 
 A subnet that wants to participate in federation governance registers a Governance Adapter on Main:
-- adapter_type (EVM contract, validity proof system, or external committee) - vote_weight policy
-(stake-based, token-based, mixed, or capped) - export format (signed root of votes, merkle proofs for
-audits) - dispute and audit rules
+
+- adapter_type (EVM contract, validity proof system, or external committee)
+- vote_weight policy (stake-based, token-based, mixed, or capped)
+- export format (signed root of votes, merkle proofs for audits)
+- dispute and audit rules
+
+```text
 VoteExport {
   proposal_id: 0xP...,
   subnet_id: 42,
@@ -827,6 +911,7 @@ VoteExport {
   proof: { type: "SUBNET_QUORUM_SIG", sig: 0x..., signers: bitmap },
   timestamp: 1700000000
 }
+```
 #### 12.3.2 Aggregation and decision rules
 
 Main computes a final decision using both chambers. Example rule (illustrative): - A proposal passes
@@ -834,17 +919,24 @@ if: (ValidatorCouncil_yes >= 2/3 of stake AND Assembly_yes >= 1/2 of exported we
 (ValidatorCouncil_yes >= 3/4) for emergency security patch class
 ### 12.4 Governance safety: timelocks, signaling, and staged activation
 
-Upgrades and parameter changes use: - on-chain signaling period (days to weeks) - timelock before
-activation - activation height for deterministic deployment - rollback plan and kill-switch conditions for
-emergencies Regions may adopt federation upgrades on their own cadence, but CSS-1 compatibility
+Upgrades and parameter changes use:
 
-requires staying within supported version windows.
+- on-chain signaling period (days to weeks)
+- timelock before activation
+- activation height for deterministic deployment
+- rollback plan and kill-switch conditions for emergencies
+
+Regions may adopt federation upgrades on their own cadence, but CSS-1 compatibility requires staying within supported version windows.
 ### 12.5 Validator eligibility governance via pings
 
-Ping-based eligibility is itself governed. Regions can vote on: - which beacons are trusted -
-RTT/loss/jitter thresholds (and how strict they are) - how eligibility affects rewards (e.g., linear scaling
-vs hard gate) - penalties for falsified measurement attempts Main can set federation minimums to
-prevent "fake regions" that degrade user routing or security assumptions.
+Ping-based eligibility is itself governed. Regions can vote on:
+
+- which beacons are trusted
+- RTT/loss/jitter thresholds (and how strict they are)
+- how eligibility affects rewards (e.g., linear scaling vs hard gate)
+- penalties for falsified measurement attempts
+
+Main can set federation minimums to prevent "fake regions" that degrade user routing or security assumptions.
 ### 12.6 Dispute resolution and appeals
 
 Some decisions require adjudication: - slashing disputes (validator misbehavior, pin provider fraud,
@@ -853,7 +945,9 @@ CryftNet may use a "court-like" committee elected by federation governance. The 
 require selective disclosure of evidence (CGS DisputeBundle). Decisions are recorded on Main and
 can trigger slashing or registry changes.
 
-## 13 Cryftee: signed WASM module runtime for chain utilities
+---
+
+## 13. Cryftee: signed WASM module runtime for chain utilities
 
 Cryftee is a Rust-based TEE-style sidecar runtime designed to integrate with cryftgo and
 Web3Signer. It is deliberately stateless: it does not store long-term secrets on disk and instead relies
@@ -877,18 +971,30 @@ can be rejected.
 - Enforces version compatibility (minCryftteeVersion) and publisher trust.
 ### 13.3 Embedding CGS inside Cryftee
 
+| Module | Version | Purpose | Representative capabilities |
+|:-------|:--------|:--------|:----------------------------|
+| bls_tls_signer_v1 | 1.2.0 | BLS + TLS staking module with Web3Signer integration and module signing | bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_module, verify_module |
+| debug_v1 | 1.0.0 | Diagnostics and runtime inspection | debug_echo, debug_info, debug_panic |
+| llm_chat_v1 | 1.0.0 | Operator assistance via LLM interface | llm_chat, llm_stream |
+| ipfs_v1 | 2.0.0 | Embedded IPFS node management (full/light modes) | node_start, ipfs_add, ipfs_pin, ipns_publish, peer_connect |
+| redeemable_codes_v1 | 1.0.0 | On-chain redeemable gift code system | code_generate, code_redeem, code_freeze, validator_code_redeem |
+| private_sync_v1 | 1.0.0 | Canton-style private transaction synchronizer (CGS domain module) | domain_create, party_register, tx_submit, view_decrypt, mediator_confirm |
 
-CGS is embedded in Cryftee in two layers: - A CGS core service in the runtime that manages routing,
-pools, and key rotation schedules. - A set of modules (starting with private_sync_v1) that implement
-domain logic: party registration, tx submit/confirm, view requests, and mediator flows. This mirrors
-canton-style constructs while remaining pluggable. Embedding CGS in Cryftee keeps the
-synchronizer close to the validator, reducing latency and enabling tight integration with mempool
-selection and Smart Slot scheduling (via slot commitments).
+CGS is embedded in Cryftee in two layers:
+
+- A CGS core service in the runtime that manages routing, pools, and key rotation schedules.
+- A set of modules (starting with private_sync_v1) that implement domain logic: party registration, tx submit/confirm, view requests, and mediator flows.
+
+This mirrors canton-style constructs while remaining pluggable. Embedding CGS in Cryftee keeps the synchronizer close to the validator, reducing latency and enabling tight integration with mempool selection and Smart Slot scheduling (via slot commitments).
 ### 13.4 Trust model: signed modules and publisher verification
 
-All modules are verified before load: - hash verification against manifest.json - signature verification
-(Ed25519) against trust.toml or - GitHub-based verification (signed commits, CI builds, attestations)
-under policy Rejected modules do not load and do not affect runtime stability.
+All modules are verified before load:
+
+- hash verification against manifest.json
+- signature verification (Ed25519) against trust.toml or
+- GitHub-based verification (signed commits, CI builds, attestations) under policy
+
+Rejected modules do not load and do not affect runtime stability.
 ```jsonc
 // trust.toml (example)
 [[publishers]]
@@ -907,55 +1013,71 @@ allow_prereleases      = false
 
 ### 13.5 Initial module set (v0.4.x runtime)
 
-The initial module set provides staking, diagnostics, IPFS services, redeemable codes, and private
-synchronization. Modules may include GUIs served through the kiosk interface and sandboxed in
-iframes.
-
-| Module | Version | Purpose | Representative capabilities |
-|---|---|---|---|
-| bls_tls_signer_v1 | 1.2.0 | BLS + TLS staking module with Web3Signer integration and module signing | bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_module |
-| debug_v1 | 1.0.0 | Diagnostics and runtime inspection | debug_echo, debug_info, debug_panic |
-| llm_chat_v1 | 1.0.0 | Operator assistance via LLM interface | llm_chat, llm_stream |
-| ipfs_v1 | 2.0.0 | Embedded IPFS node management (full/light modes) | node_start, ipfs_add, ipfs_pin, ipns_publish, peer_connect |
-| redeemable_codes_v1 | 1.0.0 | On-chain redeemable gift code system | code_generate, code_redeem, code_freeze, validator_code_redeem |
-| private_sync_v1 | 1.0.0 | Canton-style private transaction synchronizer (CGS domain module) | domain_create, party_register, tx_submit, view_decrypt, mediator_confirm |
+The initial module set provides staking, diagnostics, IPFS services, redeemable codes, and private synchronization. Modules may include GUIs served through the kiosk interface and sandboxed in iframes.
 ### 13.6 API surface (summary)
 
-Cryftee provides: - Staking endpoints (BLS/TLS register and sign) - Runtime endpoints (attestation,
-schema, reload modules) - Module GUI endpoints The transport can be UDS (default) or HTTPS.
-Staking:
+Cryftee provides:
+
+- **Staking endpoints:** BLS/TLS register and sign
+- **Runtime endpoints:** attestation, schema, reload modules
+- **Module GUI endpoints**
+
+The transport can be UDS (default) or HTTPS.
+
+**Staking:**
+```text
 POST /v1/staking/bls/register
 POST /v1/staking/bls/sign
-
 POST /v1/staking/tls/register
 POST /v1/staking/tls/sign
 GET  /v1/staking/status
-Runtime/Admin:
+```
+
+**Runtime/Admin:**
+```text
 GET  /v1/runtime/attestation
 GET  /v1/schema/modules
 POST /v1/admin/reload-modules
-Module GUIs:
+```
+
+**Module GUIs:**
+```text
 GET  /api/modules/{module_id}/gui/
+```
 ### 13.7 Operational integration with cryftgo
 
 cryftgo launches Cryftee as a child process and configures it via environment variables. cryftgo can
 verify the Cryftee binary hash before launch and optionally require attestation for sensitive operations.
-Core:
+
+**Core:**
+```text
 CRYFTTEE_MODULE_DIR=./modules
 CRYFTTEE_MODULES=bls_tls_signer_v1,ipfs_v1,private_sync_v1
 CRYFTTEE_API_TRANSPORT=uds
 CRYFTTEE_UDS_PATH=/tmp/cryfttee.sock
-Web3Signer:
+```
+
+**Web3Signer:**
+```text
 CRYFTTEE_WEB3SIGNER_URL=http://localhost:9000
 CRYFTTEE_WEB3SIGNER_TIMEOUT=30
-Key derivation:
+```
+
+**Key derivation:**
+```text
 CRYFTTEE_KEY_SEED=<hex>
 CRYFTTEE_NODE_ID=<node_id>
-Security:
+```
+
+**Security:**
+```text
 CRYFTTEE_VERIFIED_BINARY_HASH=sha256:<hex>
 CRYFTTEE_REQUIRE_ATTESTATION=false
+```
 
-## 14 Security model and threat analysis
+---
+
+## 14. Security model and threat analysis
 
 CryftNet security spans multiple planes: consensus, execution determinism, governance, privacy
 propagation, and availability incentives. This section lists key threat classes and mitigations. It is not
@@ -1007,7 +1129,7 @@ staking and slashing.
 ### 14.6 Threat matrix (summary)
 
 | Threat | Plane | Impact | Mitigation summary |
-|---|---|---|---|
+|:-------|:------|:-------|:-------------------|
 | Under-claimed slots | Execution | Nondeterminism / forks | SDK enforcement, audit, provable slashing, conservative policies |
 | Relay censorship | Network | Delayed inclusion | Fallback gossip, performance-weighted rewards |
 | Beacon capture | Eligibility | Fake regions | Beacon rotation, federation audits, quorum requirements |
@@ -1015,7 +1137,9 @@ staking and slashing.
 | CGS key compromise | Privacy | Disclosure risk | Threshold rotation, multi-party control, monitoring |
 | Governance capture | Governance | Bad upgrades | Two-chamber votes, timelocks, veto and emergency policies |
 
-## 15 Implementation roadmap and engineering checklist
+---
+
+## 15. Implementation roadmap and engineering checklist
 
 This roadmap is a pragmatic decomposition into testable milestones. Each milestone should produce
 artifacts: code, tests, benchmarks, and documented threat reviews. The checklist is intentionally
@@ -1081,19 +1205,20 @@ handling.
 - Roadmap: milestones, test plans, benchmarks, and deployment strategy.
 - Appendices: glossary, parameter ranges, JSON schema definitions, and reference implementations.
 
-## 16 Appendices
+---
 
+## 16. Appendices
 
 ### 16.1 Glossary (selected)
 
-- Main / Federal chain: The canonical settlement and governance anchor of the federation.
-- Region chain: A low-latency chain serving a latency domain and anchoring to Main.
-- CSS-1: Cryft Standard Subnet profile for interoperability.
-- Smart Slot: A deterministic schedulable resource representing a state dependency.
-- Process ID: A lane identifier and namespace for parallel scheduling.
-- CGS: Cantons Global Synchronizer, the privacy-aware propagation and synchronization plane.
-- Cryftee: Signed WASM module runtime sidecar providing chain utilities and CGS hosting.
-- Pin provider: An operator who earns rewards by keeping content available on IPFS.
+- **Main / Federal chain:** The canonical settlement and governance anchor of the federation.
+- **Region chain:** A low-latency chain serving a latency domain and anchoring to Main.
+- **CSS-1:** Cryft Standard Subnet profile for interoperability.
+- **Smart Slot:** A deterministic schedulable resource representing a state dependency.
+- **Process ID:** A lane identifier and namespace for parallel scheduling.
+- **CGS:** Cantons Global Synchronizer, the privacy-aware propagation and synchronization plane.
+- **Cryftee:** Signed WASM module runtime sidecar providing chain utilities and CGS hosting.
+- **Pin provider:** An operator who earns rewards by keeping content available on IPFS.
 ### 16.2 Key open questions (research and engineering)
 
 - What is the best enforcement mechanism against under-claimed slots without making the EVM
@@ -1103,6 +1228,8 @@ across regions?
 - How can CGS provide strong privacy guarantees without becoming consensus-critical
 complexity?
 - What is the most robust and low-cost proof of availability for IPFS DAGs at scale?
-- How should cross-network vote weight be capped to prevent plutocracy while still being
-Sybil-resistant?
-End of document.
+- How should cross-network vote weight be capped to prevent plutocracy while still being Sybil-resistant?
+
+---
+
+<p align="center"><em>End of document.</em></p>
