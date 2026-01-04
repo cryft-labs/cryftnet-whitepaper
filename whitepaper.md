@@ -28,7 +28,7 @@
 - [10. Cross-chain communication and settlement](#10-cross-chain-communication-and-settlement)
 - [11. Asset model, rewards, and monetary policy](#11-asset-model-rewards-and-monetary-policy)
 - [12. Governance: federated DAO and cross-network democracy](#12-governance-federated-dao-and-cross-network-democracy)
-- [13. Cryftee: signed WASM module runtime](#13-cryftee-signed-wasm-module-runtime-for-chain-utilities)
+- [13. Cryftee: signed WASM module runtime for chain utilities](#13-cryftee-signed-wasm-module-runtime-for-chain-utilities)
 - [14. Security model and threat analysis](#14-security-model-and-threat-analysis)
 - [15. Implementation roadmap and engineering checklist](#15-implementation-roadmap-and-engineering-checklist)
 - [16. Appendices](#16-appendices)
@@ -55,6 +55,7 @@ security is complemented by incentive alignment for availability: CryftNet inclu
 pinning rewards. Pin providers register, bond stake, accept pin jobs, and earn rewards based on
 verified availability proofs over time. The result is a federation where compute, consensus, privacy
 propagation, and content availability are governed and incentivized rather than assumed.
+
 ## 2 Design goals and non-goals
 
 ### 2.1 Goals
@@ -68,14 +69,15 @@ voting support.
 - Practical operations: signed module system (Cryftee) to ship chain utilities safely.
 - Availability of content and tooling via IPFS pinning incentives.
 - Region eligibility measurement using pings so validators serve the region they claim.
+
 ### 2.2 Non-goals
 
 - Claiming infinite TPS or zero-latency global finality.
 - Forcing all subnets to conform to a single VM or single consensus mechanism.
 - Mandatory TEEs for security (TEEs may be used but are optional).
-
 - Perfect anonymity guarantees; privacy is treated as measurable and adversarially tested.
 - Assuming IPFS persistence without explicit incentives.
+
 ## 3 Background and problem statement
 
 Global blockchains face two constraints: physics and contention. The speed of light and the Internet's
@@ -93,6 +95,7 @@ they fall back to serial lanes. Modern networks also depend on content distribut
 artifacts, and application assets. IPFS makes this content-addressed and tamper-evident, but
 availability remains an economic problem. CryftNet includes pinning rewards and auditable
 availability proofs so that "the network stays alive" is not a matter of goodwill.
+
 ## 4 System overview
 
 CryftNet is organized as a federation: - Main / Federal Chain: canonical settlement, cross-chain
@@ -133,6 +136,7 @@ signed checkpoint to Main. Cross-region transfers use these checkpoints and stan
 formats. The federation is "edge-like" in the sense that regions provide fast service nearby, but it
 avoids centralized operators: validator sets are governed by DAOs and measured for eligibility using
 network performance signals.
+
 ## 5 Network model and latency strategy
 
 ### 5.1 Regions as latency domains
@@ -300,6 +304,7 @@ hard-finality for cross-region settlement by accepting checkpoints. A checkpoint
 commitment to a region block height and state root (or output root) plus proof of validator quorum.
 Once Main finalizes a checkpoint, cross-region transfers referencing that checkpoint can be treated
 as final under Main's security assumptions.
+
 ## 7 Execution layer: EVM compatibility and deterministic parallelism
 
 ### 7.1 Baseline EVM mode
@@ -484,6 +489,7 @@ Phase 3: high-value workflows use CGS private intents with slot commitments and 
 
 disclosure. MetaMask and standard JSON-RPC continue to work; parallel fields are optional
 extensions.
+
 ## 8 Standard subnet model vs custom subnets
 
 ### 8.1 Cryft Standard Subnet (CSS-1)
@@ -513,6 +519,7 @@ FID fields (example): - subnet_id, chain_id, VM type - consensus summary and sec
 The federation may offer optional certification for custom subnets. Certification is not a gate to
 existence; it is a promise to users and tooling providers. Certified subnets may receive default routing,
 shared libraries, and aggregated dashboards.
+
 ## 9 Cantons Global Synchronizer (CGS): privacy propagation and federation sync
 
 CGS is a Cryftee-hosted plane for privacy-aware propagation of intents and synchronization across
@@ -590,6 +597,7 @@ and provides monitoring via Cryftee modules.
 - Threshold key compromise (mitigate with rotations, HSM/TEE options, and slashing).
 - Denial of service via junk intents (mitigate with fees, rate limits, and capability gating).
 - Complexity risk: CGS must not be consensus-critical without extensive validation.
+
 ## 10 Cross-chain communication and settlement
 
 ### 10.1 Checkpoint format
@@ -628,6 +636,7 @@ CGS can carry private envelopes for cross-chain intents. However, settlement pro
 become verifiable on-chain. A private cross-chain transfer therefore separates: - private negotiation
 and intent propagation (CGS), - public commitment and checkpointing (region and Main), - selective
 disclosure only when required for validation or disputes.
+
 ## 11 Asset model, rewards, and monetary policy
 
 ### 11.1 Native gas asset across the federation
@@ -678,6 +687,7 @@ flowchart LR
   Treasury --> Pins[Pin providers]
 ```
 
+### 11.4 IPFS pinning rewards: availability as a protocol primitive
 
 CryftNet treats IPFS availability as a rewarded service rather than a background assumption. Pinning
 rewards are designed to keep critical content (portals, module binaries, and app assets) available
@@ -772,6 +782,7 @@ IPNS keys. To keep "latest portal" reliable, the network can: - pin the portal i
 by the current IPNS record, - additionally pin the last N historical portal versions for rollback
 resilience, - run private pin jobs for sensitive modules or private portals, using CGS to reveal CIDs
 only to authorized providers. Pinning rewards thus become part of the chain's operational backbone.
+
 ## 12 Governance: federated DAO and cross-network democracy
 
 CryftNet governance is federated. The Main chain hosts the primary DAO that defines
@@ -841,6 +852,7 @@ CGS key compromise) - governance export disputes (subnet reported totals vs audi
 CryftNet may use a "court-like" committee elected by federation governance. The committee can
 require selective disclosure of evidence (CGS DisputeBundle). Decisions are recorded on Main and
 can trigger slashing or registry changes.
+
 ## 13 Cryftee: signed WASM module runtime for chain utilities
 
 Cryftee is a Rust-based TEE-style sidecar runtime designed to integrate with cryftgo and
@@ -898,34 +910,15 @@ allow_prereleases      = false
 The initial module set provides staking, diagnostics, IPFS services, redeemable codes, and private
 synchronization. Modules may include GUIs served through the kiosk interface and sandboxed in
 iframes.
-Module
-Version
-Purpose
-Representative capabilities
-bls_tls_signer_v1
-1.2.0
-BLS + TLS staking module with Web3Signer integration and module signing
-bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_m
-debug_v1
-1.0.0
-Diagnostics and runtime inspection
-debug_echo, debug_info, debug_panic
-llm_chat_v1
-1.0.0
-Operator assistance via LLM interface
-llm_chat, llm_stream
-ipfs_v1
-2.0.0
-Embedded IPFS node management (full/light modes)
-node_start, ipfs_add, ipfs_pin, ipns_publish, peer_connect
-redeemable_codes_v1
-1.0.0
-On-chain redeemable gift code system
-code_generate, code_redeem, code_freeze, validator_code_redeem
-private_sync_v1
-1.0.0
-Canton-style private transaction synchronizer (CGS domain module)
-domain_create, party_register, tx_submit, view_decrypt, mediator_conf
+
+| Module | Version | Purpose | Representative capabilities |
+|---|---|---|---|
+| bls_tls_signer_v1 | 1.2.0 | BLS + TLS staking module with Web3Signer integration and module signing | bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_module |
+| debug_v1 | 1.0.0 | Diagnostics and runtime inspection | debug_echo, debug_info, debug_panic |
+| llm_chat_v1 | 1.0.0 | Operator assistance via LLM interface | llm_chat, llm_stream |
+| ipfs_v1 | 2.0.0 | Embedded IPFS node management (full/light modes) | node_start, ipfs_add, ipfs_pin, ipns_publish, peer_connect |
+| redeemable_codes_v1 | 1.0.0 | On-chain redeemable gift code system | code_generate, code_redeem, code_freeze, validator_code_redeem |
+| private_sync_v1 | 1.0.0 | Canton-style private transaction synchronizer (CGS domain module) | domain_create, party_register, tx_submit, view_decrypt, mediator_confirm |
 ### 13.6 API surface (summary)
 
 Cryftee provides: - Staking endpoints (BLS/TLS register and sign) - Runtime endpoints (attestation,
@@ -961,6 +954,7 @@ CRYFTTEE_NODE_ID=<node_id>
 Security:
 CRYFTTEE_VERIFIED_BINARY_HASH=sha256:<hex>
 CRYFTTEE_REQUIRE_ATTESTATION=false
+
 ## 14 Security model and threat analysis
 
 CryftNet security spans multiple planes: consensus, execution determinism, governance, privacy
@@ -1086,6 +1080,7 @@ handling.
 - Security: threat model, mitigation list, audit plan, and monitoring metrics.
 - Roadmap: milestones, test plans, benchmarks, and deployment strategy.
 - Appendices: glossary, parameter ranges, JSON schema definitions, and reference implementations.
+
 ## 16 Appendices
 
 
