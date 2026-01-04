@@ -110,13 +110,13 @@ modules, and application assets, with incentives for availability.
 
 ```mermaid
 flowchart TB
-  Main[Main / Federal Chain\n(Global settlement + DAO)]
-  RegionA[Region A (CSS)\nLow-latency committee]
-  RegionB[Region B (CSS)\nLow-latency committee]
-  Local[Local chains\n(optional)]
-  Custom[Custom subnets\n(optional)]
-  Cryftee[Cryftee Sidecar\n(WASM modules + CGS)]
-  IPFS[IPFS Plane\n(portals, modules, content)]
+  Main["Main / Federal Chain<br>(Global settlement + DAO)"]
+  RegionA["Region A (CSS)<br>Low-latency committee"]
+  RegionB["Region B (CSS)<br>Low-latency committee"]
+  Local["Local chains<br>(optional)"]
+  Custom["Custom subnets<br>(optional)"]
+  Cryftee["Cryftee Sidecar<br>(WASM modules + CGS)"]
+  IPFS["IPFS Plane<br>(portals, modules, content)"]
   RegionA -->|checkpoint| Main
   RegionB -->|checkpoint| Main
   Local -->|settle up| RegionA
