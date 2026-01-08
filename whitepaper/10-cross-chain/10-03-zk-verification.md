@@ -1,4 +1,4 @@
-﻿
+
 Operation                          | Fee per Region
 -----------------------------------|----------------
 Contract deployment mirroring      | 0.01 CRYFT
@@ -13,9 +13,9 @@ Example: Deploy token to 5 regions with balance portability
 - Total federation fee: 0.065 CRYFT + local gas
 
 Fees flow to:
-- 50% â†' Main treasury (funds federation operations)
-- 30% â†' Target region validators (incentivizes mirroring)
-- 20% â†' Checkpoint relayers (incentivizes fast propagation)
+- 50% ->' Main treasury (funds federation operations)
+- 30% ->' Target region validators (incentivizes mirroring)
+- 20% ->' Checkpoint relayers (incentivizes fast propagation)
 ```
 
 **RegionDeployer architecture:**

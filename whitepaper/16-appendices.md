@@ -1,4 +1,4 @@
-﻿- Should Cities be allowed to "emergency bridge" directly to Main if their parent State censors them?
+- Should Cities be allowed to "emergency bridge" directly to Main if their parent State censors them?
 - How many Cities can a single State chain practically manage before checkpoint aggregation becomes a bottleneck?
 - Should there be a minimum validator overlap requirement between a State and its Cities?
 - What is the optimal federation fee structure to balance developer accessibility with Main sustainability?

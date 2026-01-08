@@ -1,4 +1,4 @@
-﻿An attacker could deploy their own token (Tier 3: unverified) with inflated balances:
+An attacker could deploy their own token (Tier 3: unverified) with inflated balances:
 
 ```text
 Attacker deploys ScamToken on multiple regions with constructor:

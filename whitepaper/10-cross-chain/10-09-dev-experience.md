@@ -1,4 +1,4 @@
-﻿1) PROPOSAL: Circle submits USDC deployment proposal
+1) PROPOSAL: Circle submits USDC deployment proposal
    - code_hash: keccak256(USDC_bytecode)
    - home_region: Main
    - initial_supply: 1_000_000_000

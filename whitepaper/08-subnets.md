@@ -1,4 +1,4 @@
-﻿Transfer back (Region B â†' Region A):
+Transfer back (Region B ->' Region A):
 
 1) BURN on Region B:
    - User calls bridge.burn(asset, amount, dest_region=A, recipient)

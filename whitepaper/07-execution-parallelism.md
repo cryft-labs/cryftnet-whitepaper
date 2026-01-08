@@ -1,4 +1,4 @@
-﻿  "data": "0x<call redeem(code_id, ...)>",
+  "data": "0x<call redeem(code_id, ...)>",
   "gas": 250000,
   "nonce": 18,
   "process_id": "cryft.giftcodes.v1",
@@ -287,14 +287,14 @@ Traditional cross-chain verification relies on quorum signatures: Main trusts th
 |:-----|:-----------------|:------------------|:--------|
 | Quorum signature only | 2/3 validators honest | O(1) signature verify | Fast (seconds) |
 | ZK validity proof only | ZK system soundness | O(1) proof verify | Slower (proof generation) |
-| Hybrid (ZK + quorum) | Either assumption | O(1) each | Proof ready â†' fast; else fallback |
+| Hybrid (ZK + quorum) | Either assumption | O(1) each | Proof ready ->' fast; else fallback |
 
 **Recommended approach:** Hybrid verification. Regions produce ZK proofs asynchronously. If a proof is available when the checkpoint reaches Main, use it. Otherwise, fall back to quorum verification. Over time, as ZK prover performance improves, proofs become available faster and become the primary path.
 
 **Benefits for cross-chain settlement:**
 
 - **Trustless bridges:** Assets locked on Region A can be minted on Region B with cryptographic proof of the lock, not just validator attestations.
-- **Light client support:** Mobile wallets and browsers can verify cross-chain state without trusting RPC providersâ€"they verify the ZK proof directly.
+- **Light client support:** Mobile wallets and browsers can verify cross-chain state without trusting RPC providers--they verify the ZK proof directly.
 - **Fraud-proof elimination:** With validity proofs, there is no fraud window. The proof either verifies or it doesn't. This simplifies the security model compared to optimistic systems.
 - **Custom subnet interoperability:** Non-EVM subnets can bridge to Main by providing validity proofs, enabling heterogeneous federation without requiring Main to execute foreign VMs.
 
@@ -324,7 +324,7 @@ A core UX goal of CryftNet is that users are **never region-locked**. If a user 
 
 CryftNet uses a unified address space across the federation. The same Ethereum-style address (derived from the user's private key) is valid on Main and all regions. This means:
 
-- A user's identity is portableâ€"no need to create new accounts when switching regions.
+- A user's identity is portable--no need to create new accounts when switching regions.
 - Smart contracts can reference the same addresses across regions.
 - Wallets display a unified view of assets regardless of which region holds them.
 
@@ -352,7 +352,7 @@ Wallets and dApps use a routing layer that:
 
 ```text
 Routing decision flow:
-1) Wallet probes regional endpoints â†' determines nearest healthy region (R_user)
+1) Wallet probes regional endpoints ->' determines nearest healthy region (R_user)
 2) User initiates transaction to contract C on region R_asset
 3) If R_user == R_asset:
      Submit directly to R_asset (fastest path)
@@ -387,7 +387,7 @@ For users who frequently travel, CryftNet can support optional **account mirrori
 Account mirroring flow:
 1) User registers for mirroring: regions [A, B, C], asset types [CRYFT, USDC]
 2) Mirroring contract on Main tracks authoritative balances
-3) User spends on Region B â†' deducted locally, async sync to Main
+3) User spends on Region B ->' deducted locally, async sync to Main
 4) Main reconciles and propagates updated balance to A, C
 5) Conflict resolution: if double-spend attempted, Main state is authoritative;
    offending region transaction is reverted, user may face penalty
@@ -413,7 +413,7 @@ A fundamental invariant of CryftNet's cross-region model is that **assets exist 
 Cross-region asset transfers use a canonical lock-mint-burn pattern:
 
 ```text
-Transfer from Region A â†' Region B:
+Transfer from Region A ->' Region B:
 
 1) LOCK on Region A:
    - User calls bridge.lock(asset, amount, dest_region=B, recipient)
@@ -422,7 +422,7 @@ Transfer from Region A â†' Region B:
 
 2) CHECKPOINT to Main:
    - Region A's next checkpoint includes the lock event in message_root
-   - Main finalizes checkpoint â†' lock is now globally ordered
+   - Main finalizes checkpoint ->' lock is now globally ordered
 
 3) MINT on Region B:
    - User (or relayer) submits claim to Region B with:

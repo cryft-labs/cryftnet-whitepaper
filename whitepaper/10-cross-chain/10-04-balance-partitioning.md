@@ -1,4 +1,4 @@
-﻿      ? options.target_regions.length - 1  // Exclude home region
+      ? options.target_regions.length - 1  // Exclude home region
       : 0;
     fee += mirrorRegions * mirrorFeePerRegion;
     
@@ -67,14 +67,14 @@ Original deployment on Region A:
   deployer_contract = 0xRegionDeployer (same on all regions)
   final_salt = keccak256(original_deployer || user_salt)
   address = CREATE2(0xRegionDeployer, final_salt, init_code)
-  â†' 0xToken
+  ->' 0xToken
 
 Mirror deployment on Region B:
   deployer_contract = 0xRegionDeployer (SAME)
   final_salt = keccak256(original_deployer || user_salt) (SAME)
   init_code = (SAME, verified by code_hash)
   address = CREATE2(0xRegionDeployer, final_salt, init_code)
-  â†' 0xToken (SAME!)
+  ->' 0xToken (SAME!)
 
 The original_deployer is baked into the salt, so even though
 the actual deployer (RegionDeployer) is the same, each developer
@@ -103,7 +103,7 @@ Contract enables balance_portability = true
 - Balances are tracked per-region: balances[region][account]
 - Users can call transferToRegion(amount, dest_region, recipient)
 - Standard debit-checkpoint-credit flow
-- M-Chain GBL tracks conservation: Î£(regional balances) = total_supply
+- M-Chain GBL tracks conservation: sum(regional balances) = total_supply
 
 Use case: Tokens, stablecoins, any asset users want to move
 ```

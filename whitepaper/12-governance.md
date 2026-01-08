@@ -1,4 +1,4 @@
-﻿contracts describing what to pin, how long, replication targets, and budgets. 3) Proof of Availability:
+contracts describing what to pin, how long, replication targets, and budgets. 3) Proof of Availability:
 periodic challenges and attestations to verify that providers can actually serve the pinned content. 4)
 Reward distribution and slashing: providers earn per-epoch rewards based on verified availability;
 repeated failure or fraud is penalized.

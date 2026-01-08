@@ -1,4 +1,4 @@
-﻿to ensure their validator sets are actually region-serving. Validators may participate in Main and in
+to ensure their validator sets are actually region-serving. Validators may participate in Main and in
 multiple regions, but each region can enforce its own RTT thresholds and scoring. Mitigations against
 gaming include: multi-beacon diversity, random challenge timing, cross-check pings from validators to
 each other, and penalties for detected proxy/VPN abuse.

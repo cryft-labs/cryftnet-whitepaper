@@ -1,4 +1,4 @@
-﻿contract PortableToken {
+contract PortableToken {
     // Balances are region-specific
     mapping(address => uint256) public balances;  // local to this region
     

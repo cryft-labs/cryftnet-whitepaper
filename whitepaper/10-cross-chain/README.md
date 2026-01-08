@@ -1,4 +1,4 @@
-﻿## 10. Cross-chain communication and settlement
+## 10. Cross-chain communication and settlement
 
 This section is split into multiple files for easier navigation:
 

@@ -1,4 +1,4 @@
-﻿   - Developer can later expand to D, E by paying additional fee
+   - Developer can later expand to D, E by paying additional fee
 ```
 
 **Expanding to additional regions (post-deployment):**

@@ -1,4 +1,4 @@
-﻿   - No supply duplication âœ"
+   - No supply duplication âœ"
 ```
 
 **Federation Registry tracks initialization:**
@@ -65,8 +65,8 @@ Federation Contract Registry entry:
 ```text
 Deployment propagation flow:
 
-1) Main: FederationDeployer deploys contract â†' emits ContractDeployed(address, code_hash)
-2) Main: Registry updated â†' included in next M-Chain checkpoint
+1) Main: FederationDeployer deploys contract ->' emits ContractDeployed(address, code_hash)
+2) Main: Registry updated ->' included in next M-Chain checkpoint
 3) Regions receive checkpoint with deployment record
 4) Region: Authorized deployer calls FederationDeployer.deploy(init_code, salt)
 5) Region: Verifies deployed address matches checkpoint record
@@ -110,7 +110,7 @@ ContractRegistry on Main:
 
 Region verification:
 - Before interacting with 0xUSDC on Region A, contracts can query:
-  Main.ContractRegistry.isVerified(0xUSDC) â†' true
+  Main.ContractRegistry.isVerified(0xUSDC) ->' true
 - Wallets display verification status to users
 - Unverified contracts are flagged as potentially unsafe
 ```
@@ -118,7 +118,7 @@ Region verification:
 **Cross-region transfer in partitioned model:**
 
 ```text
-Alice transfers 100 USDC from Region A â†' Region B:
+Alice transfers 100 USDC from Region A ->' Region B:
 
 1) DEBIT on Region A:
    - Alice calls USDC.transferToRegion(amount=100, dest=B, recipient=Alice)
@@ -127,7 +127,7 @@ Alice transfers 100 USDC from Region A â†' Region B:
      - Emits CrossRegionTransfer(id=X, from=Alice, to=Alice, amount=100, dest=B)
      - Records pending_outbound[X] = {amount, dest, recipient, status: pending}
 
-2) CHECKPOINT Region A â†' Main:
+2) CHECKPOINT Region A ->' Main:
    - CrossRegionTransfer event included in checkpoint message_root
    - Main finalizes checkpoint
 
@@ -147,7 +147,7 @@ Alice transfers 100 USDC from Region A â†' Region B:
 
 **Critical: Preventing balance duplication on deployment**
 
-A subtle but critical attack vector: if a token contract's constructor initializes balances (e.g., `balances[issuer] = 1_000_000_000`), and that contract is deployed on multiple regions with identical init_code, the issuer would have that balance on EVERY regionâ€"effectively multiplying their supply.
+A subtle but critical attack vector: if a token contract's constructor initializes balances (e.g., `balances[issuer] = 1_000_000_000`), and that contract is deployed on multiple regions with identical init_code, the issuer would have that balance on EVERY region--effectively multiplying their supply.
 
 **The problem:**
 
@@ -198,7 +198,7 @@ Federation-aware token architecture:
    - Only Main shows issuer's balance
 
 4) If issuer wants balance on Region A:
-   - Must use transferToRegion(Main â†' A)
+   - Must use transferToRegion(Main ->' A)
    - Normal cross-region transfer rules apply
 ```
 

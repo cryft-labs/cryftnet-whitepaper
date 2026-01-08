@@ -1,4 +1,4 @@
-﻿        registry = IFederationRegistry(_registry);
+        registry = IFederationRegistry(_registry);
         // NO initial balances set here
     }
     
@@ -48,8 +48,8 @@ Token Registry entry:
 Rules:
 - mint() only succeeds on home_region
 - Existing supply moves between regions via transferToRegion()
-- GBL tracks: Î£(balances across all regions) = total_supply
-- Any discrepancy = bug or attack â†' bridge pause
+- GBL tracks: sum(balances across all regions) = total_supply
+- Any discrepancy = bug or attack ->' bridge pause
 ```
 
 **What about attacker deploying their own token?**

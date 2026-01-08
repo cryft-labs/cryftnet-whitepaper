@@ -1,4 +1,4 @@
-﻿
+
 - adapter_type (EVM contract, validity proof system, or external committee)
 - vote_weight policy (stake-based, token-based, mixed, or capped)
 - export format (signed root of votes, merkle proofs for audits)

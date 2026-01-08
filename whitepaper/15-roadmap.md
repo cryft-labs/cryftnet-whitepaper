@@ -1,4 +1,4 @@
-﻿- Implement partitioned balance contracts with transferToRegion() and claimFromRegion().
+- Implement partitioned balance contracts with transferToRegion() and claimFromRegion().
 - Implement balance portability modes (region-locked, portable, replicated).
 - Implement transfer_id generation, tracking, and replay protection.
 - Add receipt extensions for parallel txs and commitment verification for CGS reveal.
@@ -55,10 +55,10 @@ handling.
 - **Primary Network:** The canonical foundation of CryftNet, consisting of three specialized chains: P-Chain (Platform), X-Chain (Exchange), and M-Chain (EVM Execution). Cryft Labs maintains first-class implementations and long-term governance over all three chains.
 - **P-Chain (Platform):** The validator management and staking chain within the Primary Network. Handles validator set coordination, subnet registration, staking/delegation, checkpoint acceptance, and governance. Uses a native VM (not EVM).
 - **X-Chain (Exchange):** The high-throughput native asset transfer chain within the Primary Network. Optimized for CRYFT transfers and native asset issuance using a UTXO model. Default chain for base asset movements.
-- **M-Chain (EVM Execution):** The account-based smart contract execution chain within the Primary Network. Compatible with Solidity/Vyper toolingâ€"the dApp chain. When we say "EVM chain," we mean the M-Chain specifically, not the entire Cryft network. Interactions with M-Chain do not require region ID specification.
+- **M-Chain (EVM Execution):** The account-based smart contract execution chain within the Primary Network. Compatible with Solidity/Vyper tooling--the dApp chain. When we say "EVM chain," we mean the M-Chain specifically, not the entire Cryft network. Interactions with M-Chain do not require region ID specification.
 - **Region ID:** Unique identifier for a State/Region chain within the federation. Required for State/Region chain transactions and cross-region operations. NOT required for Primary Network M-Chain interactions.
-- **Global Balance Ledger (GBL):** The authoritative data structure (part of M-Chain or P-Chain) tracking partitioned M-Chain token balances across all regionsâ€"which account owns how much of each M-Chain asset on which region. Native CRYFT balances live on X-Chain.
-- **Contract Mirror Registry (CMR):** The authoritative data structure (part of M-Chain or P-Chain) tracking federation contract deploymentsâ€"target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
+- **Global Balance Ledger (GBL):** The authoritative data structure (part of M-Chain or P-Chain) tracking partitioned M-Chain token balances across all regions--which account owns how much of each M-Chain asset on which region. Native CRYFT balances live on X-Chain.
+- **Contract Mirror Registry (CMR):** The authoritative data structure (part of M-Chain or P-Chain) tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
 - **State Balance Ledger (SBL):** A State-level ledger tracking City balances within that State; not visible to the Primary Network.
 - **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via P-Chain checkpoints). Requires region ID for transaction submission.
 - **City chain / Local chain:** A sub-chain that registers via its parent State, not directly with the Primary Network; balances tracked in parent State's SBL.
@@ -75,7 +75,7 @@ handling.
 - **Cross-City transfer:** Movement of assets between Cities under the same State, recorded in State's SBL (does not touch Main).
 - **Transfer_id:** Unique identifier for a cross-region transfer, used to prevent replay attacks.
 - **Credit line (mirroring):** Spending authorization granted to regions for a user's mirrored balance, backed by assets held on Main.
-- **Conservation invariant:** The rule that Î£(regional balances) must equal total supply for any token; enforced natively by M-Chain GBL.
+- **Conservation invariant:** The rule that sum(regional balances) must equal total supply for any token; enforced natively by M-Chain GBL.
 - **Home region:** The designated region where a token's initial supply is minted; mint() calls only succeed on this region.
 - **Zero-balance constructor:** Required pattern for federation-verified tokens where constructor initializes no balances; prevents supply duplication on multi-region deployment.
 - **FederationDeployer:** A contract deployed on Main and all regions that enforces governance-approved deployments via CREATE2; requires Main checkpoint authorization before deploying.

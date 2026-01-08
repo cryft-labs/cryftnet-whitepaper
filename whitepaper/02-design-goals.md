@@ -1,4 +1,4 @@
-﻿## 2. Design goals and non-goals
+## 2. Design goals and non-goals
 
 ### 2.1 Goals
 

@@ -10,25 +10,56 @@ import re
 
 # Encoding fixes: problematic Unicode -> ASCII equivalents
 ENCODING_FIXES = {
-    '\u2014': '--',      # em dash
-    '\u2192': '->',      # rightwards arrow
-    '\u2190': '<-',      # leftwards arrow
-    '\u2194': '<->',     # left right arrow
+    '\u2014': '--',      # em dash (—)
+    '\u2192': '->',      # rightwards arrow (→)
+    '\u2190': '<-',      # leftwards arrow (←)
+    '\u2194': '<->',     # left right arrow (↔)
     '\u2200': 'for all', # for all (∀)
     '\u2211': 'sum',     # n-ary summation (Σ)
-    '\u2265': '>=',      # greater-than or equal to
-    '\u2264': '<=',      # less-than or equal to
-    '\u2018': "'",       # left single quote
-    '\u2019': "'",       # right single quote
-    '\u201C': '"',       # left double quote
-    '\u201D': '"',       # right double quote
-    '\u2026': '...',     # horizontal ellipsis
+    '\u2265': '>=',      # greater-than or equal to (≥)
+    '\u2264': '<=',      # less-than or equal to (≤)
+    '\u2018': "'",       # left single quote (')
+    '\u2019': "'",       # right single quote (')
+    '\u201C': '"',       # left double quote (")
+    '\u201D': '"',       # right double quote (")
+    '\u2026': '...',     # horizontal ellipsis (…)
+    '\ufeff': '',        # BOM character
+    # Box drawing characters (tree structure)
+    '\u251C': '|',       # box drawings light vertical and right (├)
+    '\u2514': '`',       # box drawings light up and right (└)
+    '\u2502': '|',       # box drawings light vertical (│)
+    '\u2500': '-',       # box drawings light horizontal (─)
+}
+
+# Malformed UTF-8 patterns (double-encoded as Latin-1)
+# These occur when UTF-8 bytes are incorrectly interpreted as Latin-1
+MALFORMED_FIXES = {
+    '\xe2\x86\x92': '->',      # â†' (malformed →)
+    '\xe2\x86\x90': '<-',      # â†� (malformed ←)
+    '\xe2\x86\x94': '<->',     # â†" (malformed ↔)
+    '\xce\xa3': 'sum',         # Î£ (malformed Σ)
+    '\xe2\x9c\x93': '[x]',     # âœ" (malformed ✓)
+    '\xe2\x94\x9c': '|',       # â"œ (malformed ├)
+    '\xe2\x94\x94': '`',       # â"" (malformed └)
+    '\xe2\x94\x82': '|',       # â"‚ (malformed │)
+    '\xe2\x94\x80': '-',       # â"€ (malformed ─)
+    '\xe2\x9a\xa0': '[!]',     # âš  (malformed ⚠)
+    # Additional corrupted sequences (when bytes get replaced with Unicode)
+    '\xe2\u2020': '->',        # â† (corrupted →, dagger U+2020 instead of bytes 0x86)
+    '\u00ce\u00a3': 'sum',     # ÎŁ (double Latin-1 encoded Σ)
+    '\xe2\u20ac"': '--',       # â€" (corrupted EM DASH — U+2014)
 }
 
 def fix_encoding(text):
     """Replace problematic UTF-8 characters with ASCII equivalents."""
+    # First pass: Unicode replacements
     for old, new in ENCODING_FIXES.items():
         text = text.replace(old, new)
+    
+    # Second pass: Malformed UTF-8 (double-encoded)
+    for old, new in MALFORMED_FIXES.items():
+        text = text.replace(old, new)
+    
     return text
 
 def fix_source_files(base_dir):
@@ -38,11 +69,23 @@ def fix_source_files(base_dir):
     
     for md_file in whitepaper_dir.rglob('*.md'):
         try:
-            content = md_file.read_text(encoding='utf-8')
+            # Read file as bytes to check for malformed UTF-8
+            with open(md_file, 'rb') as f:
+                raw_bytes = f.read()
+            
+            # Decode as UTF-8
+            try:
+                content = raw_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                content = raw_bytes.decode('utf-8', errors='replace')
+            
+            original = content
             fixed_content = fix_encoding(content)
             
             if content != fixed_content:
-                md_file.write_text(fixed_content, encoding='utf-8')
+                # Write back as clean UTF-8
+                with open(md_file, 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(fixed_content)
                 fixed_count += 1
         except Exception as e:
             print(f"  ⚠ Error processing {md_file.name}: {e}")

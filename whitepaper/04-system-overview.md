@@ -1,4 +1,4 @@
-﻿## 4. System overview
+## 4. System overview
 
 CryftNet is organized as a federation:
 
@@ -181,13 +181,13 @@ The CMR is M-Chain's native data structure for tracking federation contract depl
 ```text
 ContractMirrorRegistry {
   // Per-contract deployment record
-  contracts: Map<contract_address â†' ContractMirrorRecord>
+  contracts: Map<contract_address ->' ContractMirrorRecord>
   
   // Region deployment queue (contracts pending mirroring)
-  pending_mirrors: Map<(contract_address, region_id) â†' PendingMirror>
+  pending_mirrors: Map<(contract_address, region_id) ->' PendingMirror>
   
   // Fee tracking per contract
-  fees_paid: Map<contract_address â†' FeeRecord>
+  fees_paid: Map<contract_address ->' FeeRecord>
 }
 
 ContractMirrorRecord {
@@ -198,7 +198,7 @@ ContractMirrorRecord {
   home_region: uint64,                    // Where initial deployment occurred
   target_regions: uint64[],               // Regions developer opted into
   deployed_regions: uint64[],             // Regions where contract is live
-  mirror_status: Map<region_id â†' MirrorStatus>,  // Per-region status
+  mirror_status: Map<region_id ->' MirrorStatus>,  // Per-region status
   balance_portability: bool,
   verification_level: VerificationLevel,  // Unverified, Publisher, Federation
   created_at: uint64,
@@ -214,10 +214,10 @@ MirrorStatus {
 }
 
 // Status transitions via region checkpoints:
-// 1. Main receives deployment event â†' creates record, status[home] = Deployed
-// 2. Main queues mirror to target_regions â†' status[target] = Pending
-// 3. Region confirms deployment â†' status[target] = Deployed
-// 4. Region reports failure â†' status[target] = Failed (auto-retry)
+// 1. Main receives deployment event ->' creates record, status[home] = Deployed
+// 2. Main queues mirror to target_regions ->' status[target] = Pending
+// 3. Region confirms deployment ->' status[target] = Deployed
+// 4. Region reports failure ->' status[target] = Failed (auto-retry)
 ```
 
 **CMR update flow (region-first deployment):**
@@ -227,7 +227,7 @@ MirrorStatus {
    - RegionDeployer.deploy(init_code, salt, options={target_regions: [A,B,C]})
    - Emits DeploymentEvent with region IDs and fee payment
 
-2) Region A checkpoint â†' Main M-Chain:
+2) Region A checkpoint ->' Main M-Chain:
    - M-Chain processes DeploymentEvent
    - CMR creates: contracts[0xToken] = {
        home_region: A,
@@ -244,10 +244,10 @@ MirrorStatus {
    - RegionDeployer.mirror() called on each region
    - Region confirms in next checkpoint
 
-5) Region B checkpoint â†' Main M-Chain:
+5) Region B checkpoint ->' Main M-Chain:
    - M-Chain updates CMR: deployed_regions: [A, B], mirror_status[B] = Deployed
 
-6) Region C checkpoint â†' Main M-Chain:
+6) Region C checkpoint ->' Main M-Chain:
    - M-Chain updates CMR: deployed_regions: [A, B, C], mirror_status[C] = Deployed
 
 CMR is authoritative - regions derive mirror permissions from M-Chain state.
@@ -272,26 +272,26 @@ CMR is authoritative - regions derive mirror permissions from M-Chain state.
    - CMR updates: deployed_regions: [A, B, C, D], mirror_status[D] = Deployed
 ```
 
-**Cross-chain communication (P â†" X â†" M):**
+**Cross-chain communication (P ->" X ->" M):**
 
 The Primary Network's three chains share the same validator set and use atomic messaging:
 
 ```text
-P-Chain â†" M-Chain:
-- Validator set updates (P â†' M for on-chain verification in M-Chain contracts)
-- Governance execution results (P â†' M to trigger contract upgrades)
-- Stake/unstake requests (M â†' P when users interact via M-Chain interface)
-- Checkpoint finality confirmations (P â†' M for subnet validation)
-- Slashing events (P â†' M to freeze validator-operated contracts)
+P-Chain ->" M-Chain:
+- Validator set updates (P ->' M for on-chain verification in M-Chain contracts)
+- Governance execution results (P ->' M to trigger contract upgrades)
+- Stake/unstake requests (M ->' P when users interact via M-Chain interface)
+- Checkpoint finality confirmations (P ->' M for subnet validation)
+- Slashing events (P ->' M to freeze validator-operated contracts)
 
-X-Chain â†" M-Chain:
-- CRYFT wrapping/unwrapping (X â†" M for native â†" ERC-20 bridge)
-- Cross-chain atomic swaps (X â†" M for asset exchanges)
-- Asset issuance events (X â†' M when native assets need EVM representation)
+X-Chain ->" M-Chain:
+- CRYFT wrapping/unwrapping (X ->" M for native ->" ERC-20 bridge)
+- Cross-chain atomic swaps (X ->" M for asset exchanges)
+- Asset issuance events (X ->' M when native assets need EVM representation)
 
-P-Chain â†" X-Chain:
-- Validator reward payouts (P â†' X for native CRYFT distribution)
-- Emission schedule updates (P â†' X for minting authorization)
+P-Chain ->" X-Chain:
+- Validator reward payouts (P ->' X for native CRYFT distribution)
+- Emission schedule updates (P ->' X for minting authorization)
 ```
 
 All three chains share the same block production schedule and validators, ensuring atomic cross-chain messaging without external bridges or delays.
@@ -305,9 +305,6 @@ flowchart TB
     PChain <-->|atomic messaging| MChain
     PChain <-->|atomic messaging| XChain
     XChain <-->|atomic messaging| MChain
-  end
-  RegionA["Region A (State)"]
-  RegionB["Region B (State)"]
   end
   RegionA["Region A (State)"]
   RegionB["Region B (State)"]
@@ -367,7 +364,7 @@ City validator:           Defined by parent State (typically lower)
 
 ### 4.3 Hierarchical chain registration (Cities via States)
 
-CryftNet supports a three-tier hierarchy: Main â†' State (Region) â†' City (Local). A critical design decision is whether City chains must register directly with Main or can register only via their parent State.
+CryftNet supports a three-tier hierarchy: Main ->' State (Region) ->' City (Local). A critical design decision is whether City chains must register directly with Main or can register only via their parent State.
 
 **Recommended model: State-mediated City registration**
 
@@ -377,7 +374,7 @@ City chains register **only with their parent State chain**, not directly with M
 
 2. **Reduced Main burden:** Main's M-Chain does not need to track potentially thousands of City chains. It only tracks the ~10-100 State chains.
 
-3. **State sovereignty:** States can define their own City policiesâ€"minimum stake, validator requirements, allowed VMs, and compliance rulesâ€"without Main override.
+3. **State sovereignty:** States can define their own City policies--minimum stake, validator requirements, allowed VMs, and compliance rules--without Main override.
 
 4. **Appropriate trust model:** Users of a City chain trust their State chain; they don't need global Main consensus for local operations.
 
@@ -401,7 +398,7 @@ CityRegistration {
 }
 ```
 
-**City â†' State settlement:**
+**City ->' State settlement:**
 
 Cities checkpoint to their parent State (not to Main):
 
@@ -412,7 +409,7 @@ flowchart LR
   State -->|includes City summary| Main
 ```
 
-The State's checkpoint to Main **may include** an aggregated City summary (Merkle root of City checkpoints), but this is optional. Main does not verify City checkpoints directlyâ€"it trusts the State to manage its Cities.
+The State's checkpoint to Main **may include** an aggregated City summary (Merkle root of City checkpoints), but this is optional. Main does not verify City checkpoints directly--it trusts the State to manage its Cities.
 
 **City benefits and limitations:**
 
@@ -430,7 +427,7 @@ The State's checkpoint to Main **may include** an aggregated City summary (Merkl
 Transfers between Cities under the same State settle via the State chain without touching Main:
 
 ```text
-City A1 â†' City A2 (same State A):
+City A1 ->' City A2 (same State A):
 1. City A1 includes transfer in checkpoint to State A
 2. State A verifies and includes in State block
 3. City A2 claims from State A's confirmed checkpoint
@@ -442,7 +439,7 @@ City A1 â†' City A2 (same State A):
 Transfers between Cities under different States route through Main:
 
 ```text
-City A1 (State A) â†' City B1 (State B):
+City A1 (State A) ->' City B1 (State B):
 1. City A1 checkpoints to State A
 2. State A checkpoints to Main (includes City A1's outbound message)
 3. State B receives from Main
@@ -476,16 +473,16 @@ Each CSS-1 State maintains its own **State Balance Ledger** for its Cities, mirr
 ```text
 StateBalanceLedger {
   // Per-asset, per-city, per-account balance
-  city_balances: Map<(asset_id, city_id, account) â†' uint256>
+  city_balances: Map<(asset_id, city_id, account) ->' uint256>
   
   // State-level aggregate (what M-Chain GBL sees for this State)
-  state_total: Map<(asset_id, account) â†' uint256>
+  state_total: Map<(asset_id, account) ->' uint256>
   
   // Invariant: state_total[asset, account] = 
-  //   state_direct[asset, account] + Î£(city_balances[asset, *, account])
+  //   state_direct[asset, account] + sum(city_balances[asset, *, account])
   
-  // Pending Cityâ†'City and Cityâ†'State transfers
-  pending_city_transfers: Map<transfer_id â†' PendingCityTransfer>
+  // Pending City->'City and City->'State transfers
+  pending_city_transfers: Map<transfer_id ->' PendingCityTransfer>
 }
 ```
 
@@ -499,12 +496,12 @@ But within State A, Alice's 1000 USDC might be distributed:
 - City A1: 500 USDC
 - City A2: 300 USDC
 
-Main doesn't know or care about this internal distributionâ€"it's State A's responsibility to manage.
+Main doesn't know or care about this internal distribution--it's State A's responsibility to manage.
 
-**Cityâ†'City transfers (same State):**
+**City->'City transfers (same State):**
 
 ```text
-City A1 â†' City A2 transfer (both under State A):
+City A1 ->' City A2 transfer (both under State A):
 
 1) User on City A1 calls cityBridge.transferToCity(asset, amount, cityA2, recipient)
 2) City A1 debits local balance, emits CityTransferOut
@@ -522,10 +519,10 @@ City A1 â†' City A2 transfer (both under State A):
 Note: Main M-Chain is NOT involved. State A's total balance is unchanged.
 ```
 
-**Cityâ†'State transfer (escalation):**
+**City->'State transfer (escalation):**
 
 ```text
-City A1 â†' State A direct transfer:
+City A1 ->' State A direct transfer:
 
 1) User calls cityBridge.escalateToState(asset, amount, recipient)
 2) City A1 debits, checkpoints to State A
@@ -537,10 +534,10 @@ City A1 â†' State A direct transfer:
 Main still sees: balances[USDC, State_A, Alice] = 1000 (unchanged)
 ```
 
-**Cityâ†'Different State transfer (requires Main):**
+**City->'Different State transfer (requires Main):**
 
 ```text
-City A1 (State A) â†' State B transfer:
+City A1 (State A) ->' State B transfer:
 
 1) City A1: cityBridge.transferToRegion(asset, amount, State_B, recipient)
 2) City A1 checkpoints to State A with cross-State intent
@@ -593,7 +590,7 @@ This hierarchical model provides:
 
 1. **Scalability:** Main GBL tracks ~100 States, not ~10,000 Cities.
 2. **State sovereignty:** States control their City ecosystem without Main approval.
-3. **Latency:** Cityâ†"City transfers within a State are fast (no Main checkpoint wait).
+3. **Latency:** City->"City transfers within a State are fast (no Main checkpoint wait).
 4. **Appropriate trust:** City users trust their State; they don't need global Main consensus.
 5. **Simpler Main governance:** Main governs States; States govern Cities.
 
@@ -605,7 +602,7 @@ If a City chain fails or its State censors it, users can still recover:
 2. Submit proof to State requesting balance escalation to State-direct
 3. If State refuses, appeal to Main governance with evidence
 4. Main can force-escalate City balances to State level (emergency measure)
-5. User then exits Stateâ†'Main via normal cross-region transfer
+5. User then exits State->'Main via normal cross-region transfer
 
 This ensures users are never permanently trapped in a City.
 

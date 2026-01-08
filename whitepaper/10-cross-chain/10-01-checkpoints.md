@@ -1,4 +1,4 @@
-﻿   
+   
    Fee breakdown:
    - Region A deployment gas: 500,000 gas Ã-- Region A gas price
    - Federation fee to Main: 
