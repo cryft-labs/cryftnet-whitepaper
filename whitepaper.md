@@ -1,10 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Version:</strong> v1.18 (GitHub edition)<br>
-<strong>Based on:</strong> v1.5 (January 02, 2026)<br>
+<strong>Revision:</strong> v1.19<br>
+<strong>Date:</strong> January 08, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
+</p>
+
+<p align="center">
+<strong>Latest Changes:</strong> Fixed mermaid diagram syntax errors and corrected UTF-8 encoding issues (malformed arrows, em-dashes, and special characters now render properly on GitHub).
 </p>
 
 <p align="center"><em>
