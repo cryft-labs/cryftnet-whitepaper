@@ -5,9 +5,9 @@
    - authorized_minter: 0xCircle
    
 2) REVIEW: Governance verifies:
-   - Constructor has zero initial balances âœ“
-   - mint() is properly restricted âœ“
-   - Cross-region logic is correct âœ“
+   - Constructor has zero initial balances âœ"
+   - mint() is properly restricted âœ"
+   - Cross-region logic is correct âœ"
    
 3) APPROVAL: Governance approves deployment
 

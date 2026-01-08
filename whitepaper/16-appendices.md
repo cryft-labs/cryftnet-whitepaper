@@ -9,7 +9,3 @@
 - Should two-phase initialization have a timeout after which anyone can initialize (preventing initialization griefing)?
 - How should the federation handle a scenario where RegionDeployer needs to be upgraded across all chains?
 - What dispute resolution mechanism should exist when a State and its City disagree on SBL balances?
-
----
-
-<p align="center"><em>End of document.</em></p>

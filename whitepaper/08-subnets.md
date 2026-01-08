@@ -1,4 +1,4 @@
-﻿Transfer back (Region B â†’ Region A):
+﻿Transfer back (Region B â†' Region A):
 
 1) BURN on Region B:
    - User calls bridge.burn(asset, amount, dest_region=A, recipient)
@@ -39,10 +39,10 @@ Partitioned Balance Model:
 Token: USDC (deployed at 0xUSDC on all regions via CREATE2)
 
 User Alice's balances:
-â”œâ”€â”€ Main:     500 USDC   (Alice can spend on Main)
-â”œâ”€â”€ Region A: 300 USDC   (Alice can spend on Region A)
-â”œâ”€â”€ Region B:   0 USDC   (Alice has no Region B balance)
-â””â”€â”€ Region C: 200 USDC   (Alice can spend on Region C)
+â"œâ"€â"€ Main:     500 USDC   (Alice can spend on Main)
+â"œâ"€â"€ Region A: 300 USDC   (Alice can spend on Region A)
+â"œâ"€â"€ Region B:   0 USDC   (Alice has no Region B balance)
+â""â"€â"€ Region C: 200 USDC   (Alice can spend on Region C)
 
 Total Alice owns: 1000 USDC (sum of all regional balances)
 

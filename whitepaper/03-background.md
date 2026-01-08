@@ -1,4 +1,4 @@
-## 3. Background and problem statement
+﻿## 3. Background and problem statement
 
 Global blockchains face two constraints: physics and contention. The speed of light and the Internet's
 routing behavior impose a lower bound on propagation. At the same time, many workloads contend

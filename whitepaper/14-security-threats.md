@@ -57,7 +57,7 @@ CryftNet security spans multiple planes: consensus, execution determinism, cross
 
 The partitioned balance model introduces specific threat vectors that must be addressed:
 
-- **Cross-region double-spend (race condition):** User initiates transfer from Aâ†’B, then tries to spend on A before checkpoint. Mitigation: balance is debited immediately on A; spending fails because balance is already reduced.
+- **Cross-region double-spend (race condition):** User initiates transfer from Aâ†'B, then tries to spend on A before checkpoint. Mitigation: balance is debited immediately on A; spending fails because balance is already reduced.
 
 - **Replay attack on claims:** Attacker replays a valid claim proof to credit balance multiple times on destination region. Mitigation: each transfer_id is marked as consumed after first claim; claimed[transfer_id] = true prevents replay.
 
@@ -191,7 +191,7 @@ exhaustive: it is easier to delete items later than to discover them during an o
 - Implement dual-chain Main architecture: C-Chain (EVM) and M-Chain (native VM).
 - Implement M-Chain Global Balance Ledger (GBL) with per-region balance tracking.
 - Implement M-Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
-- Implement CMR â†” C-Chain Federation Registry synchronization.
+- Implement CMR â†" C-Chain Federation Registry synchronization.
 - Implement Main chain registry contracts (regions, subnets, publishers, pin providers).
 - Implement Federation Contract Registry with CREATE2 verification and code_hash tracking.
 - Implement RegionDeployer and FederationDeployer contracts on Main.

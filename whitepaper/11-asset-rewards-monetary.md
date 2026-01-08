@@ -22,12 +22,12 @@ Attack attempt: Attacker races to deploy on Region B before Main checkpoint
 
 1) Attacker tries to call FederationDeployer.deploy(USDC_bytecode, salt) on Region B
 2) FederationDeployer checks authorization from Main checkpoint
-3) Authorization not yet received â†’ REVERTS
+3) Authorization not yet received â†' REVERTS
 4) Attacker cannot deploy
 
 Even if attacker deploys their own version:
-- Uses different deployer â†’ different address (not 0xUSDC)
-- Not in Federation Registry â†’ wallets warn users
+- Uses different deployer â†' different address (not 0xUSDC)
+- Not in Federation Registry â†' wallets warn users
 - Cannot mint because they're not authorized_minter on a verified contract
 ```
 
@@ -85,17 +85,17 @@ User Alice enables mirroring for 1000 USDC across regions [A, B, C]:
 
 Step 1: Deposit
 - Alice transfers 1000 USDC from her Region A balance to Main mirroring contract
-- Her Region A balance: 1000 â†’ 0 USDC
+- Her Region A balance: 1000 â†' 0 USDC
 - Main mirroring contract holds: 1000 USDC for Alice
 
 Step 2: Credit allocation
 - Main grants Alice credit_line = 1000 on each mirrored region
-- This is NOT balance duplicationâ€”it's spending authorization
+- This is NOT balance duplicationâ€"it's spending authorization
 
 Step 3: Spending
-- Alice spends 300 on Region A â†’ local_spent[A] = 300
-- Alice spends 200 on Region B â†’ local_spent[B] = 200
-- Total spent: 500, within 1000 limit âœ“
+- Alice spends 300 on Region A â†' local_spent[A] = 300
+- Alice spends 200 on Region B â†' local_spent[B] = 200
+- Total spent: 500, within 1000 limit âœ"
 
 Step 4: Reconciliation (on checkpoint)
 - Main receives: spent_A=300, spent_B=200, spent_C=0
@@ -105,8 +105,8 @@ Step 4: Reconciliation (on checkpoint)
 Step 5: Double-spend attempt (attack)
 - Alice tries to spend 400 on A and 400 on B simultaneously (total 800)
 - Before sync: both succeed locally (each within 500 credit)
-- Checkpoint order: A finalizes first â†’ spent_A=400, remaining=100
-- B's checkpoint arrives â†’ spent_B=400 would exceed remaining
+- Checkpoint order: A finalizes first â†' spent_A=400, remaining=100
+- B's checkpoint arrives â†' spent_B=400 would exceed remaining
 - Main rejects B's spend, marks for revert on Region B
 - Alice penalized; mirroring may be suspended
 ```

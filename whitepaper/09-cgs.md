@@ -9,7 +9,7 @@ CryftNet supports multiple deployment models to balance developer convenience wi
 
 **Critical: Region ID requirements**
 
-**Primary Network M-Chain does NOT require region IDs.** The M-Chain (EVM execution chain within the Primary Network) is the default chain for dApp interactionsâ€”users and developers interact with M-Chain exactly like a standard EVM chain. Region IDs are only required when operating on State/Region chains or requesting cross-region operations.
+**Primary Network M-Chain does NOT require region IDs.** The M-Chain (EVM execution chain within the Primary Network) is the default chain for dApp interactionsâ€"users and developers interact with M-Chain exactly like a standard EVM chain. Region IDs are only required when operating on State/Region chains or requesting cross-region operations.
 
 | Operation | Chain | Region ID Required? |
 |:----------|:------|:--------------------|
@@ -22,7 +22,7 @@ CryftNet supports multiple deployment models to balance developer convenience wi
 | Cross-region transfer | Any chain | YES (explicit dest_region) |
 
 **Why the Primary Network M-Chain doesn't need region IDs:**
-- The Primary Network (P + X + M) is the canonical foundationâ€”it has no "region" because it IS the federation anchor
+- The Primary Network (P + X + M) is the canonical foundationâ€"it has no "region" because it IS the federation anchor
 - Transactions submitted to M-Chain execute on M-Chain; there's no ambiguity
 - This preserves standard EVM UX for M-Chain interactions
 - Region IDs are only needed when the user wants to interact with a specific State/Region chain OR move assets across regions
@@ -48,9 +48,9 @@ Fee calculation:
   total_fee = base_fee + federation_fee
 
 If target_regions is empty or omitted:
-  â†’ Transaction is local only (Main or single region)
-  â†’ No federation fees charged
-  â†’ Contract/balance exists only on execution region
+  â†' Transaction is local only (Main or single region)
+  â†' No federation fees charged
+  â†' Contract/balance exists only on execution region
 ```
 
 ### 10.8 Region-first deployment with federation mirroring
@@ -67,7 +67,7 @@ If target_regions is empty or omitted:
 | **Cross-region transfers** | YES | Must specify dest_region explicitly |
 | **Federation mirroring** | YES | Must declare target_regions[] and pay fees |
 
-**Main as the default chain:** Users interacting with Main Federal C-Chain do not need to specify any region ID. Main is the "home" chain of the federationâ€”transactions submitted to Main execute on Main. Region IDs are only required when:
+**Main as the default chain:** Users interacting with Main Federal C-Chain do not need to specify any region ID. Main is the "home" chain of the federationâ€"transactions submitted to Main execute on Main. Region IDs are only required when:
 1. Deploying or transacting on State/Region chains
 2. Requesting federation mirroring to specific regions
 3. Initiating cross-region asset transfers

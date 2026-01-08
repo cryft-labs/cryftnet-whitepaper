@@ -67,14 +67,14 @@ Original deployment on Region A:
   deployer_contract = 0xRegionDeployer (same on all regions)
   final_salt = keccak256(original_deployer || user_salt)
   address = CREATE2(0xRegionDeployer, final_salt, init_code)
-  â†’ 0xToken
+  â†' 0xToken
 
 Mirror deployment on Region B:
   deployer_contract = 0xRegionDeployer (SAME)
   final_salt = keccak256(original_deployer || user_salt) (SAME)
   init_code = (SAME, verified by code_hash)
   address = CREATE2(0xRegionDeployer, final_salt, init_code)
-  â†’ 0xToken (SAME!)
+  â†' 0xToken (SAME!)
 
 The original_deployer is baked into the salt, so even though
 the actual deployer (RegionDeployer) is the same, each developer

@@ -8,14 +8,14 @@ Region expansion (post-deploy)     | 0.01 CRYFT
 
 Example: Deploy token to 5 regions with balance portability
 - Local deployment gas: ~500k gas
-- Mirroring to 4 additional regions: 4 Ã— 0.01 = 0.04 CRYFT
-- Balance portability on 5 regions: 5 Ã— 0.005 = 0.025 CRYFT
+- Mirroring to 4 additional regions: 4 Ã-- 0.01 = 0.04 CRYFT
+- Balance portability on 5 regions: 5 Ã-- 0.005 = 0.025 CRYFT
 - Total federation fee: 0.065 CRYFT + local gas
 
 Fees flow to:
-- 50% â†’ Main treasury (funds federation operations)
-- 30% â†’ Target region validators (incentivizes mirroring)
-- 20% â†’ Checkpoint relayers (incentivizes fast propagation)
+- 50% â†' Main treasury (funds federation operations)
+- 30% â†' Target region validators (incentivizes mirroring)
+- 20% â†' Checkpoint relayers (incentivizes fast propagation)
 ```
 
 **RegionDeployer architecture:**

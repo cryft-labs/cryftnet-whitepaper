@@ -1,4 +1,4 @@
-## 1. Abstract
+﻿## 1. Abstract
 
 CryftNet (Cryft Network) is a federation of blockchains designed to feel like Web2 in latency while
 retaining cryptographic integrity and democratic governance. The network is anchored by the **Primary Network**, which consists of three specialized chains: **(1) P-Chain** for validator/subnet coordination and staking, **(2) X-Chain** for high-throughput native asset transfers and issuance, and **(3) M-Chain** for EVM-compatible smart contract execution. When we say "EVM chain," we mean the M-Chain specifically, not the entire Cryft network. This three-chain architecture prevents governance traffic, asset transfer traffic, and smart contract execution traffic from competing for the same bottleneck. Regional chains ("States") are optimized for low-latency execution and confirmations within a

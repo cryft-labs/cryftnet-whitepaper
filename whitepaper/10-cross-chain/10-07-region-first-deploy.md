@@ -49,7 +49,7 @@ Rules:
 - mint() only succeeds on home_region
 - Existing supply moves between regions via transferToRegion()
 - GBL tracks: Î£(balances across all regions) = total_supply
-- Any discrepancy = bug or attack â†’ bridge pause
+- Any discrepancy = bug or attack â†' bridge pause
 ```
 
 **What about attacker deploying their own token?**

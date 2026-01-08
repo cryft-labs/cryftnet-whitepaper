@@ -161,16 +161,22 @@ Section 10 is split into multiple files for easier navigation:
 
 The main `whitepaper.md` file is compiled from all the individual section files. After editing any section file, recompile the whitepaper:
 
-```powershell
-# From the repository root
+```bash
+# Python (recommended - includes automatic encoding fixes)
+python compile-whitepaper.py
+
+# OR PowerShell
 .\compile-whitepaper.ps1
 ```
 
-This will regenerate `whitepaper.md` from the source section files in `whitepaper/`.
+**The compilation script automatically:**
+- Fixes UTF-8 encoding issues (arrows, em-dashes, math symbols → ASCII)
+- Combines all section files in the correct order
+- Generates the final `whitepaper.md` for single-file reading
 
 **Workflow:**
 1. Edit individual section files in `whitepaper/` directory
-2. Run `.\compile-whitepaper.ps1` to regenerate `whitepaper.md`
+2. Run `python compile-whitepaper.py` to regenerate `whitepaper.md`
 3. Commit both the section files and the compiled `whitepaper.md`
 
 **Note:** The section files in `whitepaper/` are the source of truth. The `whitepaper.md` file is the compiled output for single-file reading.

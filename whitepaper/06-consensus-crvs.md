@@ -41,7 +41,7 @@ CryftNet can integrate DAS as an optional enhancement layer:
 
 - **Checkpoint data availability:** Before Main accepts a region checkpoint, light clients or sampling nodes can verify that the underlying region block data is available without downloading the full block. This is especially valuable for cross-region settlement where Main validators should not need to store all region data.
 - **Scalability without centralization:** DAS allows larger block sizes (higher throughput) while preserving the ability for resource-constrained nodes to participate in verification. This aligns with CryftNet's goal of Web2-like latency without sacrificing decentralization.
-- **BitTorrent-style distribution:** DAS works like "BitTorrent with consensus"â€”data is erasure-coded and distributed across peers. Nodes sample random chunks and use cryptographic commitments (e.g., KZG polynomial commitments) to verify availability.
+- **BitTorrent-style distribution:** DAS works like "BitTorrent with consensus"â€"data is erasure-coded and distributed across peers. Nodes sample random chunks and use cryptographic commitments (e.g., KZG polynomial commitments) to verify availability.
 
 **Integration points:**
 
@@ -125,7 +125,7 @@ The combination of DAS (Section 6.6) and ZK-EVMs addresses the classic trilemma:
 - **Security:** Cryptographic proofs (KZG for DAS, ZK for execution) provide mathematical guarantees rather than economic/game-theoretic ones.
 - **Scalability:** Larger blocks and parallel execution become viable when verification cost is decoupled from execution cost.
 
-CRVS remains the consensus backboneâ€”DAS and ZK-EVMs are complementary technologies that enhance what CRVS-based committees can achieve.
+CRVS remains the consensus backboneâ€"DAS and ZK-EVMs are complementary technologies that enhance what CRVS-based committees can achieve.
 
 ---
 

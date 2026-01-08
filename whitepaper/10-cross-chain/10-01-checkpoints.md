@@ -1,6 +1,6 @@
 ﻿   
    Fee breakdown:
-   - Region A deployment gas: 500,000 gas Ã— Region A gas price
+   - Region A deployment gas: 500,000 gas Ã-- Region A gas price
    - Federation fee to Main: 
      - Region B mirroring: 0.01 CRYFT
      - Region C mirroring: 0.01 CRYFT

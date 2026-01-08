@@ -1,10 +1,50 @@
 #!/usr/bin/env pwsh
-# Compile whitepaper.md from individual section files
+# Compile whitepaper.md from individual section files with encoding fixes
 # Usage: .\compile-whitepaper.ps1
 
 $wpDir = $PSScriptRoot
 
 Write-Host "Compiling CryftNet Whitepaper..." -ForegroundColor Cyan
+
+# First, fix encoding in all source files
+Write-Host "  Fixing UTF-8 encoding issues in source files..." -ForegroundColor Gray
+$encodingFixes = @{
+    [char]0x2014 = '--'      # em dash
+    [char]0x2192 = '->'      # rightwards arrow
+    [char]0x2190 = '<-'      # leftwards arrow
+    [char]0x2194 = '<->'     # left right arrow
+    [char]0x2200 = 'for all' # for all
+    [char]0x2211 = 'sum'     # n-ary summation
+    [char]0x2265 = '>='      # greater-than or equal to
+    [char]0x2264 = '<='      # less-than or equal to
+    [char]0x2018 = "'"       # left single quote
+    [char]0x2019 = "'"       # right single quote
+    [char]0x201C = '"'       # left double quote
+    [char]0x201D = '"'       # right double quote
+    [char]0x2026 = '...'     # horizontal ellipsis
+}
+
+$fixedCount = 0
+Get-ChildItem -Path "$wpDir\whitepaper" -Filter *.md -Recurse | ForEach-Object {
+    $content = [System.IO.File]::ReadAllText($_.FullName, [System.Text.Encoding]::UTF8)
+    $modified = $false
+    
+    foreach ($char in $encodingFixes.Keys) {
+        if ($content.Contains($char)) {
+            $content = $content.Replace($char, $encodingFixes[$char])
+            $modified = $true
+        }
+    }
+    
+    if ($modified) {
+        [System.IO.File]::WriteAllText($_.FullName, $content, [System.Text.Encoding]::UTF8)
+        $fixedCount++
+    }
+}
+
+if ($fixedCount -gt 0) {
+    Write-Host "    Fixed encoding in $fixedCount files" -ForegroundColor Yellow
+}
 
 # Read the front matter (lines 1-67) from the current whitepaper
 $frontMatter = Get-Content "$wpDir\whitepaper.md" -TotalCount 67 -Encoding UTF8
