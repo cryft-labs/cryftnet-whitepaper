@@ -17,28 +17,6 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
 
 ---
 
-## Revision History
-
-| Version | Date | Notes |
-|:--------|:-----|:------|
-| v1.19 | January 08, 2026 | **CHAIN RENAMING:** P-Chain → Federal Chain, X-Chain → Mirror Chain, M-Chain → EVM Chain. Updated all 16 sections with new nomenclature. Fixed mermaid diagram syntax errors. Corrected UTF-8 encoding issues (malformed arrows, em-dashes, special characters). |
-| v1.18 | January 07, 2026 | **ARCHITECTURE CLARIFICATION:** Primary Network consists of THREE chains: Federal Chain (validator/staking/subnets), Mirror Chain (native asset transfers/issuance), EVM Chain (EVM execution). Replaces previous "dual-chain Main" terminology. Staking anchored to Federal Chain, native assets and GBL to EVM Chain, smart contracts to EVM Chain. When we say "EVM chain," we mean EVM Chain specifically. |
-| v1.17 | January 06, 2026 | Clarifies that region IDs are NOT required for Main Federal C-Chain interactions; Main is the default/home chain where users interact without region specification; region IDs only required for State/City chain operations and cross-region transfers. |
-| v1.16 | January 06, 2026 | Introduces Contract Mirror Registry (CMR) on M-Chain as authoritative source for deployment mirror state; clarifies region ID usage across deployments, checkpoints, and fee determination; CMR updated via region checkpoints; C-Chain Federation Registry syncs with M-Chain CMR. |
-| v1.15 | January 06, 2026 | Comprehensive consistency review; expands threat analysis to 30+ threats covering all v1.9-v1.14 additions; adds GBL/SBL threats, region-first deployment threats, federation fee threats; updates roadmap milestones; adds 8 new open questions. |
-| v1.14 | January 06, 2026 | Requires explicit region ID declaration (target_regions[]) for federation operations; adds federation fee structure for mirroring and cross-region transfers; ensures Main receives appropriate gas for multi-region operations. |
-| v1.13 | January 06, 2026 | Introduces region-first deployment model with opt-in federation mirroring; adds RegionDeployer architecture; defines balance portability modes (region-locked, portable, replicated); two-phase initialization pattern for deterministic addresses. |
-| v1.12 | January 06, 2026 | Addresses balance duplication attack on multi-region deployment; adds zero-balance constructor pattern; defines home region concept for initial minting; adds governance code review checklist. |
-| v1.11 | January 06, 2026 | Expands CREATE2 deployment security model; explains why different init_code prevents front-running; adds federation-controlled deployer architecture and tiered deployment model. |
-| v1.10 | January 06, 2026 | Expands M-Chain to include Global Balance Ledger (GBL) for authoritative cross-region balance tracking; adds City-level account management architecture with State-mediated settlement. |
-| v1.9 | January 06, 2026 | Introduces dual-chain Main architecture (C-Chain + M-Chain); defines validator cross-participation requirements; adds hierarchical City chain registration via State chains only. |
-| v1.8 | January 06, 2026 | Adds partitioned balance model for cross-region assets; user mobility and single-location guarantees; CREATE2 deterministic deployment; Federation Contract Registry; comprehensive threat analysis update for cross-region security. |
-| v1.7 | January 06, 2026 | Adds Data Availability Sampling (DAS/PeerDAS-style) and ZK-EVM integration sections addressing the blockchain trilemma; adds ZK-based cross-chain verification. |
-| v1.6 | January 02, 2026 | GitHub edition: reformatted as Markdown for version control; adds an optional "overlay mesh transport" note (Nebula as a reference implementation) without making it consensus-critical. |
-| v1.5 | January 02, 2026 | Initial consolidated draft including Smart Slots, CRVS consensus proposal, CGS, Cryftee modules, IPFS pinning rewards, and cross-network federated DAO governance. |
-
----
-
 ## Table of Contents
 
 - [1. Abstract](whitepaper/01-abstract.md)
@@ -184,6 +162,28 @@ python compile-whitepaper.py
 3. Commit both the section files and the compiled `whitepaper.md`
 
 **Important:** Always edit the source files in `whitepaper/` directory, never edit `whitepaper.md` directly. The compiled output is regenerated each time you run the compile script. See [INSTRUCTIONS.md](INSTRUCTIONS.md) for detailed maintenance guidelines.
+
+---
+
+## Revision History
+
+| Version | Date | Notes |
+|:--------|:-----|:------|
+| v1.19 | January 08, 2026 | **CHAIN RENAMING:** P-Chain → Federal Chain, X-Chain → Mirror Chain, M-Chain → EVM Chain. Updated all 16 sections with new nomenclature. Fixed mermaid diagram syntax errors. Corrected UTF-8 encoding issues (malformed arrows, em-dashes, special characters). |
+| v1.18 | January 07, 2026 | **ARCHITECTURE CLARIFICATION:** Primary Network consists of THREE chains: Federal Chain (validator/staking/subnets), Mirror Chain (native asset transfers/issuance), EVM Chain (EVM execution). Replaces previous "dual-chain Main" terminology. Staking anchored to Federal Chain, native assets and GBL to EVM Chain, smart contracts to EVM Chain. When we say "EVM chain," we mean EVM Chain specifically. |
+| v1.17 | January 06, 2026 | Clarifies that region IDs are NOT required for Main Federal C-Chain interactions; Main is the default/home chain where users interact without region specification; region IDs only required for State/City chain operations and cross-region transfers. |
+| v1.16 | January 06, 2026 | Introduces Contract Mirror Registry (CMR) on M-Chain as authoritative source for deployment mirror state; clarifies region ID usage across deployments, checkpoints, and fee determination; CMR updated via region checkpoints; C-Chain Federation Registry syncs with M-Chain CMR. |
+| v1.15 | January 06, 2026 | Comprehensive consistency review; expands threat analysis to 30+ threats covering all v1.9-v1.14 additions; adds GBL/SBL threats, region-first deployment threats, federation fee threats; updates roadmap milestones; adds 8 new open questions. |
+| v1.14 | January 06, 2026 | Requires explicit region ID declaration (target_regions[]) for federation operations; adds federation fee structure for mirroring and cross-region transfers; ensures Main receives appropriate gas for multi-region operations. |
+| v1.13 | January 06, 2026 | Introduces region-first deployment model with opt-in federation mirroring; adds RegionDeployer architecture; defines balance portability modes (region-locked, portable, replicated); two-phase initialization pattern for deterministic addresses. |
+| v1.12 | January 06, 2026 | Addresses balance duplication attack on multi-region deployment; adds zero-balance constructor pattern; defines home region concept for initial minting; adds governance code review checklist. |
+| v1.11 | January 06, 2026 | Expands CREATE2 deployment security model; explains why different init_code prevents front-running; adds federation-controlled deployer architecture and tiered deployment model. |
+| v1.10 | January 06, 2026 | Expands M-Chain to include Global Balance Ledger (GBL) for authoritative cross-region balance tracking; adds City-level account management architecture with State-mediated settlement. |
+| v1.9 | January 06, 2026 | Introduces dual-chain Main architecture (C-Chain + M-Chain); defines validator cross-participation requirements; adds hierarchical City chain registration via State chains only. |
+| v1.8 | January 06, 2026 | Adds partitioned balance model for cross-region assets; user mobility and single-location guarantees; CREATE2 deterministic deployment; Federation Contract Registry; comprehensive threat analysis update for cross-region security. |
+| v1.7 | January 06, 2026 | Adds Data Availability Sampling (DAS/PeerDAS-style) and ZK-EVM integration sections addressing the blockchain trilemma; adds ZK-based cross-chain verification. |
+| v1.6 | January 02, 2026 | GitHub edition: reformatted as Markdown for version control; adds an optional "overlay mesh transport" note (Nebula as a reference implementation) without making it consensus-critical. |
+| v1.5 | January 02, 2026 | Initial consolidated draft including Smart Slots, CRVS consensus proposal, CGS, Cryftee modules, IPFS pinning rewards, and cross-network federated DAO governance. |
 
 ---
 
