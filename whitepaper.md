@@ -3374,6 +3374,3 @@ handling.
 ---
 
 <p align="center"><em>End of document.</em></p>
-
-
-<p align="center"><em>End of document.</em></p>
