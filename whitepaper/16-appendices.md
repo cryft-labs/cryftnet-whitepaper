@@ -1,0 +1,15 @@
+﻿- Should Cities be allowed to "emergency bridge" directly to Main if their parent State censors them?
+- How many Cities can a single State chain practically manage before checkpoint aggregation becomes a bottleneck?
+- Should there be a minimum validator overlap requirement between a State and its Cities?
+- What is the optimal federation fee structure to balance developer accessibility with Main sustainability?
+- How should federation fees be adjusted dynamically based on network congestion or demand?
+- Should region-first deployments have a "cooling period" before mirroring to prevent rushed malicious deployments?
+- What is the maximum number of target_regions a single deployment can declare before checkpoint congestion becomes problematic?
+- How should GBL handle edge cases where a region becomes permanently unreachable (orphaned balances)?
+- Should two-phase initialization have a timeout after which anyone can initialize (preventing initialization griefing)?
+- How should the federation handle a scenario where RegionDeployer needs to be upgraded across all chains?
+- What dispute resolution mechanism should exist when a State and its City disagree on SBL balances?
+
+---
+
+<p align="center"><em>End of document.</em></p>
