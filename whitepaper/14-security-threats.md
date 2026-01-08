@@ -77,7 +77,7 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 - **Uncoordinated region deployment:** Region deploys contract before receiving Main checkpoint authorization. Mitigation: FederationDeployer requires authorization from Main checkpoint before allowing deployment; unauthorized calls revert.
 
-- **Constructor balance duplication:** Token constructor initializes balances (e.g., `balances[issuer] = 1B`), and deploying on multiple regions multiplies the supply. **Critical mitigation:** Federation-verified tokens MUST use zero-balance constructors; initial supply is minted via separate transaction on designated home_region only; M-Chain GBL is authoritative source of truth, not local contract storage; governance code review rejects contracts with constructor-initialized balances.
+- **Constructor balance duplication:** Token constructor initializes balances (e.g., `balances[issuer] = 1B`), and deploying on multiple regions multiplies the supply. **Critical mitigation:** Federation-verified tokens MUST use zero-balance constructors; initial supply is minted via separate transaction on designated home_region only; EVM Chain GBL is authoritative source of truth, not local contract storage; governance code review rejects contracts with constructor-initialized balances.
 
 - **Home region bypass:** Attacker tries to call mint() on non-home region. Mitigation: mint() function checks `REGION_ID == registry.homeRegion(address(this))` and reverts otherwise; only authorized_minter on home_region can create new supply.
 
@@ -99,8 +99,8 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 ### 14.8 Multi-chain Main and hierarchical registration threats
 
-- **C-Chain / M-Chain desync:** Atomic messaging between C-Chain and M-Chain fails, causing inconsistent state. Mitigation: shared validator set ensures atomic block production; recovery protocol for rare edge cases.
-- **M-Chain governance capture:** Attacker gains control of M-Chain to manipulate subnet registrations. Mitigation: same governance protections as C-Chain; two-chamber votes; timelocks.
+- **C-Chain / EVM Chain desync:** Atomic messaging between C-Chain and EVM Chain fails, causing inconsistent state. Mitigation: shared validator set ensures atomic block production; recovery protocol for rare edge cases.
+- **EVM Chain governance capture:** Attacker gains control of EVM Chain to manipulate subnet registrations. Mitigation: same governance protections as C-Chain; two-chamber votes; timelocks.
 - **Rogue State chain registering malicious Cities:** State DAO approves a City designed to defraud users. Mitigation: State reputation systems; user warnings for new Cities; exit to State as escape hatch.
 - **City checkpoint withholding:** City validators delay checkpointing to State to enable fraud. Mitigation: checkpoint liveness requirements enforced by State; City slashing; user failover to State.
 - **Cross-participation evasion:** CSS-1 validator stops validating Main while continuing State validation. Mitigation: Main monitors CSS-1 validator participation; automatic suspension from State if Main duties lapse.
@@ -108,10 +108,10 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 ### 14.9 Global Balance Ledger (GBL), Contract Mirror Registry (CMR), and State Balance Ledger (SBL) threats
 
-- **GBL manipulation:** Attacker attempts to modify M-Chain GBL records to inflate regional balances. Mitigation: GBL updates require checkpoint proofs from origin region; Main validator consensus on all GBL state transitions; slashing for malicious proposals.
+- **GBL manipulation:** Attacker attempts to modify EVM Chain GBL records to inflate regional balances. Mitigation: GBL updates require checkpoint proofs from origin region; Main validator consensus on all GBL state transitions; slashing for malicious proposals.
 - **GBL-regional desync:** Region's local balance tracking diverges from GBL. Mitigation: periodic reconciliation audits; discrepancy detection triggers bridge pause; conservation invariant checked on every checkpoint.
-- **CMR manipulation:** Attacker attempts to modify M-Chain CMR to add unauthorized target_regions or mark non-deployed contracts as deployed. Mitigation: CMR updates only via verified checkpoint proofs; fee verification before region addition; Main validator consensus on all CMR state transitions.
-- **CMR-region desync:** Region's local deployment registry diverges from M-Chain CMR. Mitigation: regions derive mirror permissions from CMR state in checkpoints; unauthorized local deployments not recognized by federation; periodic reconciliation audits.
+- **CMR manipulation:** Attacker attempts to modify EVM Chain CMR to add unauthorized target_regions or mark non-deployed contracts as deployed. Mitigation: CMR updates only via verified checkpoint proofs; fee verification before region addition; Main validator consensus on all CMR state transitions.
+- **CMR-region desync:** Region's local deployment registry diverges from EVM Chain CMR. Mitigation: regions derive mirror permissions from CMR state in checkpoints; unauthorized local deployments not recognized by federation; periodic reconciliation audits.
 - **CMR status forgery:** Region checkpoint falsely claims successful deployment. Mitigation: Main can verify deployment by querying region; ZK proof of contract existence; slashing for false checkpoint claims.
 - **SBL-GBL desync:** City's State Balance Ledger diverges from State's view of City balances. Mitigation: State checkpoints include City balance summaries; discrepancies flagged for investigation; City suspension pending resolution.
 - **City balance inflation:** City attempts to credit users with balances not backed by State allocation. Mitigation: SBL credits must not exceed State-allocated balance for City; checkpoints rejected if SBL sum exceeds allocation.
@@ -150,7 +150,7 @@ The partitioned balance model introduces specific threat vectors that must be ad
 | Region exit scam | Asset integrity | Total loss on region | Exit to Main via proof, slashing, reputation systems |
 | Checkpoint withholding | Liveness | Delayed settlement | Liveness requirements, reward incentives, user failover |
 | ZK soundness bug | Asset integrity | Invalid state accepted | Multiple proof systems, formal verification, quorum fallback |
-| C-Chain / M-Chain desync | Consistency | Split-brain state | Shared validators, atomic blocks, recovery protocol |
+| C-Chain / EVM Chain desync | Consistency | Split-brain state | Shared validators, atomic blocks, recovery protocol |
 | Rogue City registration | Asset integrity | User fraud via City | State reputation, user warnings, exit to State |
 | Cross-participation evasion | Security | Weakened Main | Participation monitoring, automatic State suspension |
 | GBL manipulation | Asset integrity | Regional balance inflation | Checkpoint proofs, Main consensus, slashing |
@@ -185,12 +185,12 @@ exhaustive: it is easier to delete items later than to discover them during an o
 - Define checkpoint formats and message roots; build light verifier library.
 - Define ping protocol (packet formats, nonce rules, signing, report encoding).
 - Threat modeling workshops for Smart Slots, CGS, and pinning incentives.
-### 15.2 Milestone 1: Main chain prototype (C-Chain + M-Chain)
+### 15.2 Milestone 1: Main chain prototype (C-Chain + EVM Chain)
 
 - Fork and bootstrap consensus client (cryftgo baseline) and integrate Cryftee sidecar launch.
-- Implement dual-chain Main architecture: C-Chain (EVM) and M-Chain (native VM).
-- Implement M-Chain Global Balance Ledger (GBL) with per-region balance tracking.
-- Implement M-Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
+- Implement dual-chain Main architecture: C-Chain (EVM) and EVM Chain (native VM).
+- Implement EVM Chain Global Balance Ledger (GBL) with per-region balance tracking.
+- Implement EVM Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
 - Implement CMR ->" C-Chain Federation Registry synchronization.
 - Implement Main chain registry contracts (regions, subnets, publishers, pin providers).
 - Implement Federation Contract Registry with CREATE2 verification and code_hash tracking.

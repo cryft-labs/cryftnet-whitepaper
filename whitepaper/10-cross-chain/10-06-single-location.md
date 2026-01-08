@@ -66,7 +66,7 @@ Federation Contract Registry entry:
 Deployment propagation flow:
 
 1) Main: FederationDeployer deploys contract ->' emits ContractDeployed(address, code_hash)
-2) Main: Registry updated ->' included in next M-Chain checkpoint
+2) Main: Registry updated -> included in next EVM Chain checkpoint
 3) Regions receive checkpoint with deployment record
 4) Region: Authorized deployer calls FederationDeployer.deploy(init_code, salt)
 5) Region: Verifies deployed address matches checkpoint record
@@ -173,9 +173,9 @@ Result: Issuer has 4B tokens total! Supply inflated 4x.
 
 CREATE2 guarantees the same ADDRESS for same parameters, but each region executes the constructor INDEPENDENTLY. The constructor runs once per region, initializing local storage on each.
 
-**Solution: M-Chain GBL is the authoritative source**
+**Solution: EVM Chain GBL is the authoritative source**
 
-The contract's local `balances` mapping is a **cache**, not the source of truth. The M-Chain Global Balance Ledger (GBL) is authoritative:
+The contract's local `balances` mapping is a **cache**, not the source of truth. The EVM Chain Global Balance Ledger (GBL) is authoritative:
 
 ```text
 Federation-aware token architecture:

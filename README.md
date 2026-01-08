@@ -1,10 +1,14 @@
 ﻿<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Version:</strong> v1.18 (GitHub edition)<br>
-<strong>Based on:</strong> v1.5 (January 02, 2026)<br>
+<strong>Revision:</strong> v1.19<br>
+<strong>Date:</strong> January 08, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
+</p>
+
+<p align="center">
+<strong>Latest Changes:</strong> Renamed chains (P-Chain → F-Chain/Federal, X-Chain → Mirror Chain, M-Chain → EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
 </p>
 
 <p align="center"><em>
@@ -17,7 +21,8 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
 
 | Version | Date | Notes |
 |:--------|:-----|:------|
-| v1.18 | January 07, 2026 | **ARCHITECTURE CLARIFICATION:** Primary Network consists of THREE chains: P-Chain (validator/staking/subnets), M-Chain (native asset transfers/issuance), EVM-Chain (EVM execution). Replaces previous "dual-chain Main" terminology. Staking anchored to P-Chain, native assets and GBL to M-Chain, smart contracts to EVM-Chain. When we say "EVM chain," we mean EVM-Chain specifically. |
+| v1.19 | January 08, 2026 | **CHAIN RENAMING:** P-Chain → F-Chain (Federal), X-Chain → Mirror Chain, M-Chain → EVM Chain. Updated all 16 sections with new nomenclature. Fixed mermaid diagram syntax errors. Corrected UTF-8 encoding issues (malformed arrows, em-dashes, special characters). |
+| v1.18 | January 07, 2026 | **ARCHITECTURE CLARIFICATION:** Primary Network consists of THREE chains: F-Chain (validator/staking/subnets), Mirror Chain (native asset transfers/issuance), EVM Chain (EVM execution). Replaces previous "dual-chain Main" terminology. Staking anchored to F-Chain, native assets and GBL to EVM Chain, smart contracts to EVM Chain. When we say "EVM chain," we mean EVM Chain specifically. |
 | v1.17 | January 06, 2026 | Clarifies that region IDs are NOT required for Main Federal C-Chain interactions; Main is the default/home chain where users interact without region specification; region IDs only required for State/City chain operations and cross-region transfers. |
 | v1.16 | January 06, 2026 | Introduces Contract Mirror Registry (CMR) on M-Chain as authoritative source for deployment mirror state; clarifies region ID usage across deployments, checkpoints, and fee determination; CMR updated via region checkpoints; C-Chain Federation Registry syncs with M-Chain CMR. |
 | v1.15 | January 06, 2026 | Comprehensive consistency review; expands threat analysis to 30+ threats covering all v1.9-v1.14 additions; adds GBL/SBL threats, region-first deployment threats, federation fee threats; updates roadmap milestones; adds 8 new open questions. |
@@ -42,7 +47,7 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
   - [2.2 Non-goals](whitepaper/02-design-goals.md#22-non-goals)
 - [3. Background and problem statement](whitepaper/03-background.md)
 - [4. System overview](whitepaper/04-system-overview.md)
-  - [4.1 Primary Network architecture (P-Chain + X-Chain + M-Chain)](whitepaper/04-system-overview.md#41-primary-network-architecture-p-chain--x-chain--m-chain)
+  - [4.1 Primary Network architecture (F-Chain + Mirror Chain + EVM Chain)](whitepaper/04-system-overview.md#41-primary-network-architecture-f-chain--mirror-chain--evm-chain)
   - [4.2 Validator cross-participation requirements](whitepaper/04-system-overview.md#42-validator-cross-participation-requirements)
   - [4.3 Hierarchical chain registration (Cities via States)](whitepaper/04-system-overview.md#43-hierarchical-chain-registration-cities-via-states)
   - [4.4 City-level account management (State-mediated balances)](whitepaper/04-system-overview.md#44-city-level-account-management-state-mediated-balances)
@@ -162,16 +167,15 @@ Section 10 is split into multiple files for easier navigation:
 The main `whitepaper.md` file is compiled from all the individual section files. After editing any section file, recompile the whitepaper:
 
 ```bash
-# Python (recommended - includes automatic encoding fixes)
+# Python (includes automatic encoding fixes)
 python compile-whitepaper.py
-
-# OR PowerShell
-.\compile-whitepaper.ps1
 ```
 
 **The compilation script automatically:**
 - Fixes UTF-8 encoding issues (arrows, em-dashes, math symbols → ASCII)
+- Fixes malformed UTF-8 sequences from double-encoding
 - Combines all section files in the correct order
+- Adds the header with revision info and latest changes
 - Generates the final `whitepaper.md` for single-file reading
 
 **Workflow:**
@@ -179,7 +183,7 @@ python compile-whitepaper.py
 2. Run `python compile-whitepaper.py` to regenerate `whitepaper.md`
 3. Commit both the section files and the compiled `whitepaper.md`
 
-**Note:** The section files in `whitepaper/` are the source of truth. The `whitepaper.md` file is the compiled output for single-file reading.
+**Important:** Always edit the source files in `whitepaper/` directory, never edit `whitepaper.md` directly. The compiled output is regenerated each time you run the compile script. See [INSTRUCTIONS.md](INSTRUCTIONS.md) for detailed maintenance guidelines.
 
 ---
 

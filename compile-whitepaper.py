@@ -108,10 +108,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Version:</strong> v1.18 (GitHub edition)<br>
-<strong>Based on:</strong> v1.5 (January 02, 2026)<br>
+<strong>Revision:</strong> v1.19<br>
+<strong>Date:</strong> January 08, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
+</p>
+
+<p align="center">
+<strong>Latest Changes:</strong> Renamed chains (P-Chain → F-Chain/Federal, X-Chain → Mirror Chain, M-Chain → EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
 </p>
 
 <p align="center"><em>

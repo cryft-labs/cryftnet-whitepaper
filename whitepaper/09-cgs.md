@@ -9,22 +9,22 @@ CryftNet supports multiple deployment models to balance developer convenience wi
 
 **Critical: Region ID requirements**
 
-**Primary Network M-Chain does NOT require region IDs.** The M-Chain (EVM execution chain within the Primary Network) is the default chain for dApp interactions--users and developers interact with M-Chain exactly like a standard EVM chain. Region IDs are only required when operating on State/Region chains or requesting cross-region operations.
+**Primary Network EVM Chain does NOT require region IDs.** The EVM Chain (EVM execution chain within the Primary Network) is the default chain for dApp interactions--users and developers interact with EVM Chain exactly like a standard EVM chain. Region IDs are only required when operating on State/Region chains or requesting cross-region operations.
 
 | Operation | Chain | Region ID Required? |
 |:----------|:------|:--------------------|
-| Deploy contract | Primary Network M-Chain | **NO** |
-| Call contract | Primary Network M-Chain | **NO** |
-| Transfer tokens | Primary Network M-Chain | **NO** |
+| Deploy contract | Primary Network EVM Chain | **NO** |
+| Call contract | Primary Network EVM Chain | **NO** |
+| Transfer tokens | Primary Network EVM Chain | **NO** |
 | Deploy contract | State/Region chain | YES (implicit from submission endpoint) |
 | Call contract | State/Region chain | YES (implicit from submission endpoint) |
-| Request mirroring to regions | Primary Network M-Chain | YES (explicit target_regions[]) |
+| Request mirroring to regions | Primary Network EVM Chain | YES (explicit target_regions[]) |
 | Cross-region transfer | Any chain | YES (explicit dest_region) |
 
-**Why the Primary Network M-Chain doesn't need region IDs:**
-- The Primary Network (P + X + M) is the canonical foundation--it has no "region" because it IS the federation anchor
-- Transactions submitted to M-Chain execute on M-Chain; there's no ambiguity
-- This preserves standard EVM UX for M-Chain interactions
+**Why the Primary Network EVM Chain doesn't need region IDs:**
+- The Primary Network (F + Mirror + EVM) is the canonical foundation--it has no "region" because it IS the federation anchor
+- Transactions submitted to EVM Chain execute on EVM Chain; there's no ambiguity
+- This preserves standard EVM UX for EVM Chain interactions
 - Region IDs are only needed when the user wants to interact with a specific State/Region chain OR move assets across regions
 
 **Explicit region ID declaration (for federation operations):**

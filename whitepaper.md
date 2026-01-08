@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Fixed mermaid diagram syntax errors and corrected UTF-8 encoding issues (malformed arrows, em-dashes, and special characters now render properly on GitHub).
+<strong>Latest Changes:</strong> Renamed chains (P-Chain -> F-Chain/Federal, X-Chain -> Mirror Chain, M-Chain -> EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
 </p>
 
 <p align="center"><em>
@@ -20,7 +20,7 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
 ## 1. Abstract
 
 CryftNet (Cryft Network) is a federation of blockchains designed to feel like Web2 in latency while
-retaining cryptographic integrity and democratic governance. The network is anchored by the **Primary Network**, which consists of three specialized chains: **(1) P-Chain** for validator/subnet coordination and staking, **(2) X-Chain** for high-throughput native asset transfers and issuance, and **(3) M-Chain** for EVM-compatible smart contract execution. When we say "EVM chain," we mean the M-Chain specifically, not the entire Cryft network. This three-chain architecture prevents governance traffic, asset transfer traffic, and smart contract execution traffic from competing for the same bottleneck. Regional chains ("States") are optimized for low-latency execution and confirmations within a
+retaining cryptographic integrity and democratic governance. The network is anchored by the **Primary Network**, which consists of three specialized chains: **(1) F-Chain** for validator/subnet coordination and staking, **(2) Mirror Chain** for high-throughput native asset transfers and issuance, and **(3) EVM Chain** for EVM-compatible smart contract execution. When we say "EVM chain," we mean the EVM Chain specifically, not the entire Cryft network. This three-chain architecture prevents governance traffic, asset transfer traffic, and smart contract execution traffic from competing for the same bottleneck. Regional chains ("States") are optimized for low-latency execution and confirmations within a
 geographic or network-latency domain. Optional local chains ("Cities") can further reduce latency for
 dense communities and settle upward. CryftNet is EVM compatible by default. It introduces an opt-in
 deterministic parallel execution mechanism called Smart Slots with Process IDs. Transactions may
@@ -86,7 +86,7 @@ availability remains an economic problem. CryftNet includes pinning rewards and 
 
 CryftNet is organized as a federation:
 
-- **Primary Network (P + X + M):** The canonical foundation consisting of three chains: P-Chain (validator/subnet management), X-Chain (native asset transfers), and M-Chain (EVM smart contracts). Together they provide settlement, cross-chain registries, global governance, and the primary validator DAO.
+- **Primary Network (F + Mirror + EVM):** The canonical foundation consisting of three chains: F-Chain (validator/subnet management), Mirror Chain (native asset transfers), and EVM Chain (EVM smart contracts). Together they provide settlement, cross-chain registries, global governance, and the primary validator DAO.
 - **Regional chains (States):** Low-latency committees tuned for users within a latency domain. Most user activity is expected to be region-local and finalizes quickly.
 - **Local chains (Cities):** Optional, for dense communities or enterprise enclaves. These settle to a region.
 - **Cryftee plane:** A sidecar runtime deployed alongside validators and infrastructure nodes, hosting signed modules and CGS.
@@ -134,54 +134,54 @@ formats. The federation is "edge-like" in the sense that regions provide fast se
 avoids centralized operators: validator sets are governed by DAOs and measured for eligibility using
 network performance signals.
 
-### 4.1 Primary Network architecture (P-Chain + X-Chain + M-Chain)
+### 4.1 Primary Network architecture (F-Chain + Mirror Chain + EVM Chain)
 
 Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is composed of **three specialized chains**, each optimized for a distinct role. Cryft Labs maintains first-class implementations and long-term governance over all three chains, while subnets may add additional chains as needed:
 
 | Chain | Purpose | VM | Consensus | Typical Operations |
 |:------|:--------|:---|:----------|:-------------------|
-| **P-Chain** (Platform) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | CRVS (high security) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
-| **X-Chain** (Exchange) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | CRVS (high throughput) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
-| **M-Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | CRVS (fast finality) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
+| **F-Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | CRVS (high security) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
+| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | CRVS (high throughput) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
+| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | CRVS (fast finality) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
 
 **Why three separate chains?**
 
-1. **Performance isolation:** Validator/staking traffic (P-Chain), asset transfer traffic (X-Chain), and smart contract execution traffic (M-Chain) do not compete for the same bottleneck. This prevents governance operations from being priced out during DeFi congestion, and prevents EVM gas spikes from affecting base asset transfers.
+1. **Performance isolation:** Validator/staking traffic (F-Chain), asset transfer traffic (Mirror Chain), and smart contract execution traffic (EVM Chain) do not compete for the same bottleneck. This prevents governance operations from being priced out during DeFi congestion, and prevents EVM gas spikes from affecting base asset transfers.
 
-2. **Security differentiation:** P-Chain can use more conservative parameters (larger committees, longer finality windows) for critical validator/subnet operations. X-Chain optimizes for throughput. M-Chain balances speed with EVM determinism requirements.
+2. **Security differentiation:** F-Chain can use more conservative parameters (larger committees, longer finality windows) for critical validator/subnet operations. Mirror Chain optimizes for throughput. EVM Chain balances speed with EVM determinism requirements.
 
-3. **Specialized state models:** P-Chain uses validator set / stake accounting. X-Chain uses UTXO for parallel asset transfers. M-Chain uses account-based EVM state. Each model is optimal for its domain.
+3. **Specialized state models:** F-Chain uses validator set / stake accounting. Mirror Chain uses UTXO for parallel asset transfers. EVM Chain uses account-based EVM state. Each model is optimal for its domain.
 
-4. **Upgrade isolation:** EVM upgrades (new opcodes, gas changes) affect only M-Chain. P-Chain and X-Chain native VMs can evolve independently based on federation needs.
+4. **Upgrade isolation:** EVM upgrades (new opcodes, gas changes) affect only EVM Chain. F-Chain and Mirror Chain native VMs can evolve independently based on federation needs.
 
-5. **Economic clarity:** Staking rewards flow through P-Chain. Asset issuance/burns happen on X-Chain. DeFi fees stay on M-Chain. Clean separation prevents cross-subsidy confusion.
+5. **Economic clarity:** Staking rewards flow through F-Chain. Asset issuance/burns happen on Mirror Chain. DeFi fees stay on EVM Chain. Clean separation prevents cross-subsidy confusion.
 
-**P-Chain responsibilities:**
+**F-Chain responsibilities:**
 
-- **Validator Registry:** Global validator identities, stake bonds, delegation relationships, and slashing records. All staking operations occur on P-Chain.
+- **Validator Registry:** Global validator identities, stake bonds, delegation relationships, and slashing records. All staking operations occur on F-Chain.
 - **Subnet Registry:** All State/Region chains register here with their chain_id, validator set commitments, consensus parameters, and CEP compatibility declarations.
 - **Checkpoint Acceptance:** Receives and validates checkpoint submissions from all registered subnets; maintains the canonical checkpoint history.
-- **Governance Coordination:** Proposal lifecycle, voting tallies, timelocks, and execution triggers. Governance decisions are recorded on P-Chain.
+- **Governance Coordination:** Proposal lifecycle, voting tallies, timelocks, and execution triggers. Governance decisions are recorded on F-Chain.
 - **Validator Rewards Distribution:** Emission schedule, reward allocation, and validator/delegator payouts.
 
-**X-Chain responsibilities:**
+**Mirror Chain responsibilities:**
 
 - **Native Asset Issuance:** Creation of new asset types (tokens, NFTs) with UTXO-based ownership.
 - **High-Throughput Transfers:** Optimized for CRYFT and other native asset movements (not EVM tokens).
-- **Cross-Chain Atomic Swaps:** UTXO-style atomic swaps between X-Chain assets and M-Chain ERC-20 tokens.
-- **Base Layer Transfers:** Users moving large amounts of CRYFT between wallets typically use X-Chain (lower fees than M-Chain EVM gas).
+- **Cross-Chain Atomic Swaps:** UTXO-style atomic swaps between Mirror Chain assets and EVM Chain ERC-20 tokens.
+- **Base Layer Transfers:** Users moving large amounts of CRYFT between wallets typically use Mirror Chain (lower fees than EVM Chain EVM gas).
 
-**M-Chain responsibilities:**
+**EVM Chain responsibilities:**
 
 - **EVM Smart Contracts:** All Solidity/Vyper contracts, DeFi protocols, NFT marketplaces, and dApps.
-- **Global Balance Ledger (GBL):** The authoritative record of partitioned EVM token balances across all regions--tracking which account owns how much of each M-Chain asset on which region. (Note: Native CRYFT balances live on X-Chain; ERC-20 wrapped CRYFT lives on M-Chain.)
+- **Global Balance Ledger (GBL):** The authoritative record of partitioned EVM token balances across all regions--tracking which account owns how much of each EVM Chain asset on which region. (Note: Native CRYFT balances live on Mirror Chain; ERC-20 wrapped CRYFT lives on EVM Chain.)
 - **Contract Mirror Registry (CMR):** Authoritative record of federation contract deployments--tracking target_regions[], deployed_regions[], mirror_status per region, and deployment fees paid. Updated via region checkpoints.
 - **Federation Contract Registry:** Tracks CREATE2 deployments, code hashes, and cross-region contract verification.
-- **User-Facing dApp Interface:** When users "interact with CryftNet," they typically transact on M-Chain (or regional M-Chain instances).
+- **User-Facing dApp Interface:** When users "interact with CryftNet," they typically transact on EVM Chain (or regional EVM Chain instances).
 
 **Global Balance Ledger (GBL) architecture:**
 
-The GBL tracks **M-Chain EVM token balances** (ERC-20, ERC-721, etc.) across regions. It does NOT track native CRYFT (that lives on X-Chain). The GBL is conceptually part of M-Chain's state but may be implemented as a native data structure for efficiency:
+The GBL tracks **EVM Chain EVM token balances** (ERC-20, ERC-721, etc.) across regions. It does NOT track native CRYFT (that lives on Mirror Chain). The GBL is conceptually part of EVM Chain's state but may be implemented as a native data structure for efficiency:
 
 ```text
 GlobalBalanceLedger {
@@ -210,13 +210,13 @@ PendingTransfer {
 }
 ```
 
-**Why GBL lives on M-Chain (not C-Chain):**
+**Why GBL lives on EVM Chain (not C-Chain):**
 
 1. **Native efficiency:** Balance tracking is a simple ledger operation--no EVM overhead needed.
-2. **Atomic with checkpoints:** When M-Chain accepts a State checkpoint, it atomically updates GBL balances.
-3. **Single source of truth:** Eliminates sync issues between C-Chain contracts and M-Chain state.
-4. **Simpler conservation checks:** M-Chain can enforce sum(regional balances) = total_supply natively.
-5. **Cross-region transfers as first-class operations:** Not contract calls, but native M-Chain transactions.
+2. **Atomic with checkpoints:** When EVM Chain accepts a State checkpoint, it atomically updates GBL balances.
+3. **Single source of truth:** Eliminates sync issues between C-Chain contracts and EVM Chain state.
+4. **Simpler conservation checks:** EVM Chain can enforce sum(regional balances) = total_supply natively.
+5. **Cross-region transfers as first-class operations:** Not contract calls, but native EVM Chain transactions.
 
 **GBL update flow:**
 
@@ -224,7 +224,7 @@ PendingTransfer {
 sequenceDiagram
   participant User
   participant StateA as State A
-  participant MChain as M-Chain (GBL)
+  participant MChain as EVM Chain (GBL)
   participant StateB as State B
   
   User->>StateA: transferToRegion(asset, amount, B, recipient)
@@ -239,12 +239,12 @@ sequenceDiagram
   MChain->>MChain: GBL: pending_transfers[id].status = Claimed
 ```
 
-**M-Chain EVM contracts and GBL:**
+**EVM Chain EVM contracts and GBL:**
 
-M-Chain EVM contracts can **query** GBL state (which tracks M-Chain token balances across regions):
+EVM Chain EVM contracts can **query** GBL state (which tracks EVM Chain token balances across regions):
 
 ```text
-// M-Chain EVM contract can query GBL
+// EVM Chain EVM contract can query GBL
 function getRegionalBalance(address asset, uint64 regionId, address account) 
   returns (uint256) {
   return GBL.balances[asset][regionId][account];
@@ -256,11 +256,11 @@ function getRegionalBalance(address asset, uint64 regionId, address account)
 // - Treasury contracts distributing rewards proportionally
 ```
 
-Note: Native CRYFT balances live on X-Chain (UTXO model). M-Chain sees wrapped CRYFT (ERC-20) only.
+Note: Native CRYFT balances live on Mirror Chain (UTXO model). EVM Chain sees wrapped CRYFT (ERC-20) only.
 
 **Contract Mirror Registry (CMR) architecture:**
 
-The CMR is M-Chain's native data structure for tracking federation contract deployments and mirror state:
+The CMR is EVM Chain's native data structure for tracking federation contract deployments and mirror state:
 
 ```text
 ContractMirrorRegistry {
@@ -311,8 +311,8 @@ MirrorStatus {
    - RegionDeployer.deploy(init_code, salt, options={target_regions: [A,B,C]})
    - Emits DeploymentEvent with region IDs and fee payment
 
-2) Region A checkpoint ->' Main M-Chain:
-   - M-Chain processes DeploymentEvent
+2) Region A checkpoint -> Main EVM Chain:
+   - EVM Chain processes DeploymentEvent
    - CMR creates: contracts[0xToken] = {
        home_region: A,
        target_regions: [A, B, C],
@@ -328,13 +328,13 @@ MirrorStatus {
    - RegionDeployer.mirror() called on each region
    - Region confirms in next checkpoint
 
-5) Region B checkpoint ->' Main M-Chain:
-   - M-Chain updates CMR: deployed_regions: [A, B], mirror_status[B] = Deployed
+5) Region B checkpoint -> Main EVM Chain:
+   - EVM Chain updates CMR: deployed_regions: [A, B], mirror_status[B] = Deployed
 
-6) Region C checkpoint ->' Main M-Chain:
-   - M-Chain updates CMR: deployed_regions: [A, B, C], mirror_status[C] = Deployed
+6) Region C checkpoint -> Main EVM Chain:
+   - EVM Chain updates CMR: deployed_regions: [A, B, C], mirror_status[C] = Deployed
 
-CMR is authoritative - regions derive mirror permissions from M-Chain state.
+CMR is authoritative - regions derive mirror permissions from EVM Chain state.
 ```
 
 **CMR region expansion (post-deployment):**
@@ -345,8 +345,8 @@ CMR is authoritative - regions derive mirror permissions from M-Chain state.
    - Pays expansion fee (0.01 CRYFT per region)
 
 2) Checkpoint carries expansion request to Main:
-   - M-Chain verifies caller == deployer
-   - M-Chain verifies fee paid
+   - EVM Chain verifies caller == deployer
+   - EVM Chain verifies fee paid
    - CMR updates: target_regions: [A, B, C, D]
    - CMR updates: mirror_status[D] = Pending
 
@@ -356,26 +356,26 @@ CMR is authoritative - regions derive mirror permissions from M-Chain state.
    - CMR updates: deployed_regions: [A, B, C, D], mirror_status[D] = Deployed
 ```
 
-**Cross-chain communication (P ->" X ->" M):**
+**Cross-chain communication (F -> Mirror -> EVM):**
 
 The Primary Network's three chains share the same validator set and use atomic messaging:
 
 ```text
-P-Chain ->" M-Chain:
-- Validator set updates (P ->' M for on-chain verification in M-Chain contracts)
-- Governance execution results (P ->' M to trigger contract upgrades)
-- Stake/unstake requests (M ->' P when users interact via M-Chain interface)
-- Checkpoint finality confirmations (P ->' M for subnet validation)
-- Slashing events (P ->' M to freeze validator-operated contracts)
+F-Chain -> EVM Chain:
+- Validator set updates (F -> EVM for on-chain verification in EVM Chain contracts)
+- Governance execution results (F -> EVM to trigger contract upgrades)
+- Stake/unstake requests (EVM -> F when users interact via EVM Chain interface)
+- Checkpoint finality confirmations (F -> EVM for subnet validation)
+- Slashing events (F -> EVM to freeze validator-operated contracts)
 
-X-Chain ->" M-Chain:
-- CRYFT wrapping/unwrapping (X ->" M for native ->" ERC-20 bridge)
-- Cross-chain atomic swaps (X ->" M for asset exchanges)
-- Asset issuance events (X ->' M when native assets need EVM representation)
+Mirror Chain -> EVM Chain:
+- CRYFT wrapping/unwrapping (Mirror -> EVM for native -> ERC-20 bridge)
+- Cross-chain atomic swaps (Mirror -> EVM for asset exchanges)
+- Asset issuance events (Mirror -> EVM when native assets need EVM representation)
 
-P-Chain ->" X-Chain:
-- Validator reward payouts (P ->' X for native CRYFT distribution)
-- Emission schedule updates (P ->' X for minting authorization)
+F-Chain -> Mirror Chain:
+- Validator reward payouts (F -> Mirror for native CRYFT distribution)
+- Emission schedule updates (F -> Mirror for minting authorization)
 ```
 
 All three chains share the same block production schedule and validators, ensuring atomic cross-chain messaging without external bridges or delays.
@@ -383,9 +383,9 @@ All three chains share the same block production schedule and validators, ensuri
 ```mermaid
 flowchart TB
   subgraph Primary["Primary Network"]
-    PChain["P-Chain<br>(Validators, staking, subnets)"]
-    XChain["X-Chain<br>(Native assets, transfers)"]
-    MChain["M-Chain<br>(EVM contracts, dApps)"]
+    PChain["F-Chain<br>(Validators, staking, subnets)"]
+    XChain["Mirror Chain<br>(Native assets, transfers)"]
+    MChain["EVM Chain<br>(EVM contracts, dApps)"]
     PChain <-->|atomic messaging| MChain
     PChain <-->|atomic messaging| XChain
     XChain <-->|atomic messaging| MChain
@@ -408,12 +408,12 @@ A key architectural question is whether subnet (State/Region) validators must al
 
 **Tier 1: CSS-1 State chains (required Primary Network participation)**
 
-Validators for Cryft Standard Subnet (CSS-1) State chains **must** also be validators on the Primary Network (validating P-Chain, X-Chain, and M-Chain). This requirement ensures:
+Validators for Cryft Standard Subnet (CSS-1) State chains **must** also be validators on the Primary Network (validating F-Chain, Mirror Chain, and EVM Chain). This requirement ensures:
 
-- **Security alignment:** State validators have direct stake in the Primary Network's security (via P-Chain staking), preventing "vampire" attacks where a State chain extracts value without contributing to federation security.
-- **Checkpoint integrity:** Validators who sign State checkpoints also validate those checkpoints on P-Chain, creating accountability.
-- **Governance participation:** State validators participate in Primary Network governance (via P-Chain), ensuring federation decisions reflect the interests of active State operators.
-- **Simplified slashing:** Misbehavior on a State chain can be slashed on P-Chain without complex cross-chain evidence.
+- **Security alignment:** State validators have direct stake in the Primary Network's security (via F-Chain staking), preventing "vampire" attacks where a State chain extracts value without contributing to federation security.
+- **Checkpoint integrity:** Validators who sign State checkpoints also validate those checkpoints on F-Chain, creating accountability.
+- **Governance participation:** State validators participate in Primary Network governance (via F-Chain), ensuring federation decisions reflect the interests of active State operators.
+- **Simplified slashing:** Misbehavior on a State chain can be slashed on F-Chain without complex cross-chain evidence.
 
 **Tier 2: Custom subnets (optional Primary Network participation)**
 
@@ -452,11 +452,11 @@ CryftNet supports a three-tier hierarchy: Main ->' State (Region) ->' City (Loca
 
 **Recommended model: State-mediated City registration**
 
-City chains register **only with their parent State chain**, not directly with Main's M-Chain. This enables:
+City chains register **only with their parent State chain**, not directly with Main's EVM Chain. This enables:
 
 1. **Faster experimentation:** Launching a City requires only State DAO approval, not Main governance. This allows rapid iteration for local communities, enterprise enclaves, and specialized use cases.
 
-2. **Reduced Main burden:** Main's M-Chain does not need to track potentially thousands of City chains. It only tracks the ~10-100 State chains.
+2. **Reduced Main burden:** Main's EVM Chain does not need to track potentially thousands of City chains. It only tracks the ~10-100 State chains.
 
 3. **State sovereignty:** States can define their own City policies--minimum stake, validator requirements, allowed VMs, and compliance rules--without Main override.
 
@@ -489,7 +489,7 @@ Cities checkpoint to their parent State (not to Main):
 ```mermaid
 flowchart LR
   City["City Chain"] -->|checkpoint every N blocks| State["State Chain"]
-  State -->|aggregated checkpoint| Main["Main M-Chain"]
+  State -->|aggregated checkpoint| Main["Main EVM Chain"]
   State -->|includes City summary| Main
 ```
 
@@ -536,30 +536,30 @@ A successful City may choose to "graduate" to State status:
 
 1. City demonstrates sustained activity and validator quality.
 2. City applies to Main governance for State registration.
-3. Upon approval, City registers directly with M-Chain.
+3. Upon approval, City registers directly with EVM Chain.
 4. City's existing users and contracts migrate or bridge.
 5. City can now spawn its own sub-Cities.
 
 ### 4.4 City-level account management (State-mediated balances)
 
-Since Cities register only via their parent State (not directly with Main), their account balances are managed **through the State**, not the federal M-Chain's Global Balance Ledger. This creates a clean separation:
+Since Cities register only via their parent State (not directly with Main), their account balances are managed **through the State**, not the federal EVM Chain's Global Balance Ledger. This creates a clean separation:
 
 | Level | Balance Authority | Settlement Target | Account Visibility |
 |:------|:------------------|:------------------|:-------------------|
-| Main (C-Chain/M-Chain) | M-Chain GBL | Final (self) | Global |
-| State | M-Chain GBL (via checkpoints) | Main | Global |
+| Main (C-Chain/EVM Chain) | EVM Chain GBL | Final (self) | Global |
+| State | EVM Chain GBL (via checkpoints) | Main | Global |
 | City | State Balance Ledger (SBL) | Parent State | State-local only |
 
 **State Balance Ledger (SBL):**
 
-Each CSS-1 State maintains its own **State Balance Ledger** for its Cities, mirroring M-Chain's GBL structure but at the State level:
+Each CSS-1 State maintains its own **State Balance Ledger** for its Cities, mirroring EVM Chain's GBL structure but at the State level:
 
 ```text
 StateBalanceLedger {
   // Per-asset, per-city, per-account balance
   city_balances: Map<(asset_id, city_id, account) ->' uint256>
   
-  // State-level aggregate (what M-Chain GBL sees for this State)
+  // State-level aggregate (what EVM Chain GBL sees for this State)
   state_total: Map<(asset_id, account) ->' uint256>
   
   // Invariant: state_total[asset, account] = 
@@ -600,7 +600,7 @@ City A1 ->' City A2 transfer (both under State A):
    - city_balances[USDC, A2, Bob] += 500
    - pending_city_transfers[id].status = Claimed
 
-Note: Main M-Chain is NOT involved. State A's total balance is unchanged.
+Note: Main EVM Chain is NOT involved. State A's total balance is unchanged.
 ```
 
 **City->'State transfer (escalation):**
@@ -628,13 +628,13 @@ City A1 (State A) ->' State B transfer:
 3) State A's SBL:
    - city_balances[USDC, A1, Alice] -= 500
    - Cross-State transfer queued for next Main checkpoint
-4) State A checkpoints to Main M-Chain with:
+4) State A checkpoints to Main EVM Chain with:
    - TransferOut(USDC, 500, from=State_A, to=State_B, ...)
-5) M-Chain GBL:
+5) EVM Chain GBL:
    - balances[USDC, State_A, Alice] -= 500
    - pending_transfers[id] = {Pending, to=State_B, ...}
 6) State B receives, recipient claims
-7) M-Chain GBL: balances[USDC, State_B, Bob] += 500
+7) EVM Chain GBL: balances[USDC, State_B, Bob] += 500
 
 Note: Main only sees State-level balances. It doesn't know the transfer originated from a City.
 ```
@@ -643,15 +643,15 @@ Note: Main only sees State-level balances. It doesn't know the transfer originat
 
 | Query | Where to Ask | Response |
 |:------|:-------------|:---------|
-| "What's my total balance?" | Main M-Chain GBL | Sum across all States |
-| "What's my State A balance?" | Main M-Chain GBL | Single State total |
+| "What's my total balance?" | Main EVM Chain GBL | Sum across all States |
+| "What's my State A balance?" | Main EVM Chain GBL | Single State total |
 | "What's my City A1 balance?" | State A SBL | City-specific balance |
 | "Where exactly are my assets?" | State A SBL + each City | Full breakdown |
 
 **Wallets and City balances:**
 
 Wallets display City-level balances by:
-1. Querying M-Chain GBL for State-level totals
+1. Querying EVM Chain GBL for State-level totals
 2. For each State with balance > 0, querying the State's SBL for City breakdown
 3. Displaying hierarchical view:
 
@@ -1565,22 +1565,22 @@ CryftNet supports multiple deployment models to balance developer convenience wi
 
 **Critical: Region ID requirements**
 
-**Primary Network M-Chain does NOT require region IDs.** The M-Chain (EVM execution chain within the Primary Network) is the default chain for dApp interactions--users and developers interact with M-Chain exactly like a standard EVM chain. Region IDs are only required when operating on State/Region chains or requesting cross-region operations.
+**Primary Network EVM Chain does NOT require region IDs.** The EVM Chain (EVM execution chain within the Primary Network) is the default chain for dApp interactions--users and developers interact with EVM Chain exactly like a standard EVM chain. Region IDs are only required when operating on State/Region chains or requesting cross-region operations.
 
 | Operation | Chain | Region ID Required? |
 |:----------|:------|:--------------------|
-| Deploy contract | Primary Network M-Chain | **NO** |
-| Call contract | Primary Network M-Chain | **NO** |
-| Transfer tokens | Primary Network M-Chain | **NO** |
+| Deploy contract | Primary Network EVM Chain | **NO** |
+| Call contract | Primary Network EVM Chain | **NO** |
+| Transfer tokens | Primary Network EVM Chain | **NO** |
 | Deploy contract | State/Region chain | YES (implicit from submission endpoint) |
 | Call contract | State/Region chain | YES (implicit from submission endpoint) |
-| Request mirroring to regions | Primary Network M-Chain | YES (explicit target_regions[]) |
+| Request mirroring to regions | Primary Network EVM Chain | YES (explicit target_regions[]) |
 | Cross-region transfer | Any chain | YES (explicit dest_region) |
 
-**Why the Primary Network M-Chain doesn't need region IDs:**
-- The Primary Network (P + X + M) is the canonical foundation--it has no "region" because it IS the federation anchor
-- Transactions submitted to M-Chain execute on M-Chain; there's no ambiguity
-- This preserves standard EVM UX for M-Chain interactions
+**Why the Primary Network EVM Chain doesn't need region IDs:**
+- The Primary Network (F + Mirror + EVM) is the canonical foundation--it has no "region" because it IS the federation anchor
+- Transactions submitted to EVM Chain execute on EVM Chain; there's no ambiguity
+- This preserves standard EVM UX for EVM Chain interactions
 - Region IDs are only needed when the user wants to interact with a specific State/Region chain OR move assets across regions
 
 **Explicit region ID declaration (for federation operations):**
@@ -1945,7 +1945,7 @@ Contract enables balance_portability = true
 - Balances are tracked per-region: balances[region][account]
 - Users can call transferToRegion(amount, dest_region, recipient)
 - Standard debit-checkpoint-credit flow
-- M-Chain GBL tracks conservation: sum(regional balances) = total_supply
+- EVM Chain GBL tracks conservation: sum(regional balances) = total_supply
 
 Use case: Tokens, stablecoins, any asset users want to move
 ```
@@ -2201,7 +2201,7 @@ Federation Contract Registry entry:
 Deployment propagation flow:
 
 1) Main: FederationDeployer deploys contract ->' emits ContractDeployed(address, code_hash)
-2) Main: Registry updated ->' included in next M-Chain checkpoint
+2) Main: Registry updated -> included in next EVM Chain checkpoint
 3) Regions receive checkpoint with deployment record
 4) Region: Authorized deployer calls FederationDeployer.deploy(init_code, salt)
 5) Region: Verifies deployed address matches checkpoint record
@@ -2308,9 +2308,9 @@ Result: Issuer has 4B tokens total! Supply inflated 4x.
 
 CREATE2 guarantees the same ADDRESS for same parameters, but each region executes the constructor INDEPENDENTLY. The constructor runs once per region, initializing local storage on each.
 
-**Solution: M-Chain GBL is the authoritative source**
+**Solution: EVM Chain GBL is the authoritative source**
 
-The contract's local `balances` mapping is a **cache**, not the source of truth. The M-Chain Global Balance Ledger (GBL) is authoritative:
+The contract's local `balances` mapping is a **cache**, not the source of truth. The EVM Chain Global Balance Ledger (GBL) is authoritative:
 
 ```text
 Federation-aware token architecture:
@@ -3083,7 +3083,7 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 - **Uncoordinated region deployment:** Region deploys contract before receiving Main checkpoint authorization. Mitigation: FederationDeployer requires authorization from Main checkpoint before allowing deployment; unauthorized calls revert.
 
-- **Constructor balance duplication:** Token constructor initializes balances (e.g., `balances[issuer] = 1B`), and deploying on multiple regions multiplies the supply. **Critical mitigation:** Federation-verified tokens MUST use zero-balance constructors; initial supply is minted via separate transaction on designated home_region only; M-Chain GBL is authoritative source of truth, not local contract storage; governance code review rejects contracts with constructor-initialized balances.
+- **Constructor balance duplication:** Token constructor initializes balances (e.g., `balances[issuer] = 1B`), and deploying on multiple regions multiplies the supply. **Critical mitigation:** Federation-verified tokens MUST use zero-balance constructors; initial supply is minted via separate transaction on designated home_region only; EVM Chain GBL is authoritative source of truth, not local contract storage; governance code review rejects contracts with constructor-initialized balances.
 
 - **Home region bypass:** Attacker tries to call mint() on non-home region. Mitigation: mint() function checks `REGION_ID == registry.homeRegion(address(this))` and reverts otherwise; only authorized_minter on home_region can create new supply.
 
@@ -3105,8 +3105,8 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 ### 14.8 Multi-chain Main and hierarchical registration threats
 
-- **C-Chain / M-Chain desync:** Atomic messaging between C-Chain and M-Chain fails, causing inconsistent state. Mitigation: shared validator set ensures atomic block production; recovery protocol for rare edge cases.
-- **M-Chain governance capture:** Attacker gains control of M-Chain to manipulate subnet registrations. Mitigation: same governance protections as C-Chain; two-chamber votes; timelocks.
+- **C-Chain / EVM Chain desync:** Atomic messaging between C-Chain and EVM Chain fails, causing inconsistent state. Mitigation: shared validator set ensures atomic block production; recovery protocol for rare edge cases.
+- **EVM Chain governance capture:** Attacker gains control of EVM Chain to manipulate subnet registrations. Mitigation: same governance protections as C-Chain; two-chamber votes; timelocks.
 - **Rogue State chain registering malicious Cities:** State DAO approves a City designed to defraud users. Mitigation: State reputation systems; user warnings for new Cities; exit to State as escape hatch.
 - **City checkpoint withholding:** City validators delay checkpointing to State to enable fraud. Mitigation: checkpoint liveness requirements enforced by State; City slashing; user failover to State.
 - **Cross-participation evasion:** CSS-1 validator stops validating Main while continuing State validation. Mitigation: Main monitors CSS-1 validator participation; automatic suspension from State if Main duties lapse.
@@ -3114,10 +3114,10 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 ### 14.9 Global Balance Ledger (GBL), Contract Mirror Registry (CMR), and State Balance Ledger (SBL) threats
 
-- **GBL manipulation:** Attacker attempts to modify M-Chain GBL records to inflate regional balances. Mitigation: GBL updates require checkpoint proofs from origin region; Main validator consensus on all GBL state transitions; slashing for malicious proposals.
+- **GBL manipulation:** Attacker attempts to modify EVM Chain GBL records to inflate regional balances. Mitigation: GBL updates require checkpoint proofs from origin region; Main validator consensus on all GBL state transitions; slashing for malicious proposals.
 - **GBL-regional desync:** Region's local balance tracking diverges from GBL. Mitigation: periodic reconciliation audits; discrepancy detection triggers bridge pause; conservation invariant checked on every checkpoint.
-- **CMR manipulation:** Attacker attempts to modify M-Chain CMR to add unauthorized target_regions or mark non-deployed contracts as deployed. Mitigation: CMR updates only via verified checkpoint proofs; fee verification before region addition; Main validator consensus on all CMR state transitions.
-- **CMR-region desync:** Region's local deployment registry diverges from M-Chain CMR. Mitigation: regions derive mirror permissions from CMR state in checkpoints; unauthorized local deployments not recognized by federation; periodic reconciliation audits.
+- **CMR manipulation:** Attacker attempts to modify EVM Chain CMR to add unauthorized target_regions or mark non-deployed contracts as deployed. Mitigation: CMR updates only via verified checkpoint proofs; fee verification before region addition; Main validator consensus on all CMR state transitions.
+- **CMR-region desync:** Region's local deployment registry diverges from EVM Chain CMR. Mitigation: regions derive mirror permissions from CMR state in checkpoints; unauthorized local deployments not recognized by federation; periodic reconciliation audits.
 - **CMR status forgery:** Region checkpoint falsely claims successful deployment. Mitigation: Main can verify deployment by querying region; ZK proof of contract existence; slashing for false checkpoint claims.
 - **SBL-GBL desync:** City's State Balance Ledger diverges from State's view of City balances. Mitigation: State checkpoints include City balance summaries; discrepancies flagged for investigation; City suspension pending resolution.
 - **City balance inflation:** City attempts to credit users with balances not backed by State allocation. Mitigation: SBL credits must not exceed State-allocated balance for City; checkpoints rejected if SBL sum exceeds allocation.
@@ -3156,7 +3156,7 @@ The partitioned balance model introduces specific threat vectors that must be ad
 | Region exit scam | Asset integrity | Total loss on region | Exit to Main via proof, slashing, reputation systems |
 | Checkpoint withholding | Liveness | Delayed settlement | Liveness requirements, reward incentives, user failover |
 | ZK soundness bug | Asset integrity | Invalid state accepted | Multiple proof systems, formal verification, quorum fallback |
-| C-Chain / M-Chain desync | Consistency | Split-brain state | Shared validators, atomic blocks, recovery protocol |
+| C-Chain / EVM Chain desync | Consistency | Split-brain state | Shared validators, atomic blocks, recovery protocol |
 | Rogue City registration | Asset integrity | User fraud via City | State reputation, user warnings, exit to State |
 | Cross-participation evasion | Security | Weakened Main | Participation monitoring, automatic State suspension |
 | GBL manipulation | Asset integrity | Regional balance inflation | Checkpoint proofs, Main consensus, slashing |
@@ -3191,12 +3191,12 @@ exhaustive: it is easier to delete items later than to discover them during an o
 - Define checkpoint formats and message roots; build light verifier library.
 - Define ping protocol (packet formats, nonce rules, signing, report encoding).
 - Threat modeling workshops for Smart Slots, CGS, and pinning incentives.
-### 15.2 Milestone 1: Main chain prototype (C-Chain + M-Chain)
+### 15.2 Milestone 1: Main chain prototype (C-Chain + EVM Chain)
 
 - Fork and bootstrap consensus client (cryftgo baseline) and integrate Cryftee sidecar launch.
-- Implement dual-chain Main architecture: C-Chain (EVM) and M-Chain (native VM).
-- Implement M-Chain Global Balance Ledger (GBL) with per-region balance tracking.
-- Implement M-Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
+- Implement dual-chain Main architecture: C-Chain (EVM) and EVM Chain (native VM).
+- Implement EVM Chain Global Balance Ledger (GBL) with per-region balance tracking.
+- Implement EVM Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
 - Implement CMR ->" C-Chain Federation Registry synchronization.
 - Implement Main chain registry contracts (regions, subnets, publishers, pin providers).
 - Implement Federation Contract Registry with CREATE2 verification and code_hash tracking.
@@ -3273,15 +3273,15 @@ handling.
 
 ### 16.1 Glossary (selected)
 
-- **Primary Network:** The canonical foundation of CryftNet, consisting of three specialized chains: P-Chain (Platform), X-Chain (Exchange), and M-Chain (EVM Execution). Cryft Labs maintains first-class implementations and long-term governance over all three chains.
-- **P-Chain (Platform):** The validator management and staking chain within the Primary Network. Handles validator set coordination, subnet registration, staking/delegation, checkpoint acceptance, and governance. Uses a native VM (not EVM).
-- **X-Chain (Exchange):** The high-throughput native asset transfer chain within the Primary Network. Optimized for CRYFT transfers and native asset issuance using a UTXO model. Default chain for base asset movements.
-- **M-Chain (EVM Execution):** The account-based smart contract execution chain within the Primary Network. Compatible with Solidity/Vyper tooling--the dApp chain. When we say "EVM chain," we mean the M-Chain specifically, not the entire Cryft network. Interactions with M-Chain do not require region ID specification.
-- **Region ID:** Unique identifier for a State/Region chain within the federation. Required for State/Region chain transactions and cross-region operations. NOT required for Primary Network M-Chain interactions.
-- **Global Balance Ledger (GBL):** The authoritative data structure (part of M-Chain or P-Chain) tracking partitioned M-Chain token balances across all regions--which account owns how much of each M-Chain asset on which region. Native CRYFT balances live on X-Chain.
-- **Contract Mirror Registry (CMR):** The authoritative data structure (part of M-Chain or P-Chain) tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
+- **Primary Network:** The canonical foundation of CryftNet, consisting of three specialized chains: F-Chain (Federal), Mirror Chain (Mirror), and EVM Chain (EVM Execution). Cryft Labs maintains first-class implementations and long-term governance over all three chains.
+- **F-Chain (Federal):** The validator management and staking chain within the Primary Network. Handles validator set coordination, subnet registration, staking/delegation, checkpoint acceptance, and governance. Uses a native VM (not EVM).
+- **Mirror Chain (Mirror):** The high-throughput native asset transfer chain within the Primary Network. Optimized for CRYFT transfers and native asset issuance using a UTXO model. Default chain for base asset movements.
+- **EVM Chain (EVM Execution):** The account-based smart contract execution chain within the Primary Network. Compatible with Solidity/Vyper tooling--the dApp chain. When we say "EVM chain," we mean the EVM Chain specifically, not the entire Cryft network. Interactions with EVM Chain do not require region ID specification.
+- **Region ID:** Unique identifier for a State/Region chain within the federation. Required for State/Region chain transactions and cross-region operations. NOT required for Primary Network EVM Chain interactions.
+- **Global Balance Ledger (GBL):** The authoritative data structure (part of EVM Chain or F-Chain) tracking partitioned EVM Chain token balances across all regions--which account owns how much of each EVM Chain asset on which region. Native CRYFT balances live on Mirror Chain.
+- **Contract Mirror Registry (CMR):** The authoritative data structure (part of EVM Chain or F-Chain) tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
 - **State Balance Ledger (SBL):** A State-level ledger tracking City balances within that State; not visible to the Primary Network.
-- **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via P-Chain checkpoints). Requires region ID for transaction submission.
+- **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via F-Chain checkpoints). Requires region ID for transaction submission.
 - **City chain / Local chain:** A sub-chain that registers via its parent State, not directly with the Primary Network; balances tracked in parent State's SBL.
 - **CSS-1:** Cryft Standard Subnet profile for interoperability.
 - **Smart Slot:** A deterministic schedulable resource representing a state dependency.
@@ -3292,11 +3292,11 @@ handling.
 - **Partitioned balance:** An asset accounting model where balances are tracked per-region; the same contract address exists on all regions but balances are region-specific.
 - **Federation Contract Registry:** Main-hosted registry of canonical contract deployments, recording address, code_hash, deployer, and verified regions.
 - **CREATE2 deployment:** Deterministic contract deployment using CREATE2 opcode, ensuring same address across all regions given identical deployer, salt, and init_code.
-- **Cross-region transfer:** Movement of assets from one region to another via debit-checkpoint-credit flow, recorded in M-Chain GBL.
+- **Cross-region transfer:** Movement of assets from one region to another via debit-checkpoint-credit flow, recorded in EVM Chain GBL.
 - **Cross-City transfer:** Movement of assets between Cities under the same State, recorded in State's SBL (does not touch Main).
 - **Transfer_id:** Unique identifier for a cross-region transfer, used to prevent replay attacks.
 - **Credit line (mirroring):** Spending authorization granted to regions for a user's mirrored balance, backed by assets held on Main.
-- **Conservation invariant:** The rule that sum(regional balances) must equal total supply for any token; enforced natively by M-Chain GBL.
+- **Conservation invariant:** The rule that sum(regional balances) must equal total supply for any token; enforced natively by EVM Chain GBL.
 - **Home region:** The designated region where a token's initial supply is minted; mint() calls only succeed on this region.
 - **Zero-balance constructor:** Required pattern for federation-verified tokens where constructor initializes no balances; prevents supply duplication on multi-region deployment.
 - **FederationDeployer:** A contract deployed on Main and all regions that enforces governance-approved deployments via CREATE2; requires Main checkpoint authorization before deploying.
@@ -3322,7 +3322,7 @@ handling.
 - What timeout period for unclaimed transfers balances user convenience with stuck-funds risk?
 - How can cross-region transfer fees be priced to discourage spam while remaining affordable?
 - Should ZK validity proofs be required for cross-region claims above a certain value threshold?
-- What is the optimal division of responsibilities between C-Chain and M-Chain? Should some operations (e.g., staking) live on C-Chain for EVM composability?
+- What is the optimal division of responsibilities between C-Chain and EVM Chain? Should some operations (e.g., staking) live on C-Chain for EVM composability?
 - How should validator rewards be split between Main validation and State validation duties?
 - What is the appropriate bootstrap period for new CSS-1 States before requiring Main validation?
 
