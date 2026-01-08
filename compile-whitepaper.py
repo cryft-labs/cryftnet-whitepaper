@@ -115,7 +115,7 @@ def compile_whitepaper(base_dir):
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Renamed chains (P-Chain → F-Chain/Federal, X-Chain → Mirror Chain, M-Chain → EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
+<strong>Latest Changes:</strong> Renamed chains (P-Chain → Federal Chain, X-Chain → Mirror Chain, M-Chain → EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
 </p>
 
 <p align="center"><em>

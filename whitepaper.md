@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Renamed chains (P-Chain -> F-Chain/Federal, X-Chain -> Mirror Chain, M-Chain -> EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
+<strong>Latest Changes:</strong> Renamed chains (P-Chain -> Federal Chain, X-Chain -> Mirror Chain, M-Chain -> EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
 </p>
 
 <p align="center"><em>
@@ -20,7 +20,7 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
 ## 1. Abstract
 
 CryftNet (Cryft Network) is a federation of blockchains designed to feel like Web2 in latency while
-retaining cryptographic integrity and democratic governance. The network is anchored by the **Primary Network**, which consists of three specialized chains: **(1) F-Chain** for validator/subnet coordination and staking, **(2) Mirror Chain** for high-throughput native asset transfers and issuance, and **(3) EVM Chain** for EVM-compatible smart contract execution. When we say "EVM chain," we mean the EVM Chain specifically, not the entire Cryft network. This three-chain architecture prevents governance traffic, asset transfer traffic, and smart contract execution traffic from competing for the same bottleneck. Regional chains ("States") are optimized for low-latency execution and confirmations within a
+retaining cryptographic integrity and democratic governance. The network is anchored by the **Primary Network**, which consists of three specialized chains: **(1) Federal Chain** for validator/subnet coordination and staking, **(2) Mirror Chain** for high-throughput native asset transfers and issuance, and **(3) EVM Chain** for EVM-compatible smart contract execution. When we say "EVM chain," we mean the EVM Chain specifically, not the entire Cryft network. This three-chain architecture prevents governance traffic, asset transfer traffic, and smart contract execution traffic from competing for the same bottleneck. Regional chains ("States") are optimized for low-latency execution and confirmations within a
 geographic or network-latency domain. Optional local chains ("Cities") can further reduce latency for
 dense communities and settle upward. CryftNet is EVM compatible by default. It introduces an opt-in
 deterministic parallel execution mechanism called Smart Slots with Process IDs. Transactions may
@@ -86,7 +86,7 @@ availability remains an economic problem. CryftNet includes pinning rewards and 
 
 CryftNet is organized as a federation:
 
-- **Primary Network (F + Mirror + EVM):** The canonical foundation consisting of three chains: F-Chain (validator/subnet management), Mirror Chain (native asset transfers), and EVM Chain (EVM smart contracts). Together they provide settlement, cross-chain registries, global governance, and the primary validator DAO.
+- **Primary Network (Federal + Mirror + EVM):** The canonical foundation consisting of three chains: Federal Chain (validator/subnet management), Mirror Chain (native asset transfers), and EVM Chain (EVM smart contracts). Together they provide settlement, cross-chain registries, global governance, and the primary validator DAO.
 - **Regional chains (States):** Low-latency committees tuned for users within a latency domain. Most user activity is expected to be region-local and finalizes quickly.
 - **Local chains (Cities):** Optional, for dense communities or enterprise enclaves. These settle to a region.
 - **Cryftee plane:** A sidecar runtime deployed alongside validators and infrastructure nodes, hosting signed modules and CGS.
@@ -134,34 +134,34 @@ formats. The federation is "edge-like" in the sense that regions provide fast se
 avoids centralized operators: validator sets are governed by DAOs and measured for eligibility using
 network performance signals.
 
-### 4.1 Primary Network architecture (F-Chain + Mirror Chain + EVM Chain)
+### 4.1 Primary Network architecture (Federal Chain + Mirror Chain + EVM Chain)
 
 Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is composed of **three specialized chains**, each optimized for a distinct role. Cryft Labs maintains first-class implementations and long-term governance over all three chains, while subnets may add additional chains as needed:
 
 | Chain | Purpose | VM | Consensus | Typical Operations |
 |:------|:--------|:---|:----------|:-------------------|
-| **F-Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | CRVS (high security) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
+| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | CRVS (high security) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
 | **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | CRVS (high throughput) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
 | **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | CRVS (fast finality) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
 
 **Why three separate chains?**
 
-1. **Performance isolation:** Validator/staking traffic (F-Chain), asset transfer traffic (Mirror Chain), and smart contract execution traffic (EVM Chain) do not compete for the same bottleneck. This prevents governance operations from being priced out during DeFi congestion, and prevents EVM gas spikes from affecting base asset transfers.
+1. **Performance isolation:** Validator/staking traffic (Federal Chain), asset transfer traffic (Mirror Chain), and smart contract execution traffic (EVM Chain) do not compete for the same bottleneck. This prevents governance operations from being priced out during DeFi congestion, and prevents EVM gas spikes from affecting base asset transfers.
 
-2. **Security differentiation:** F-Chain can use more conservative parameters (larger committees, longer finality windows) for critical validator/subnet operations. Mirror Chain optimizes for throughput. EVM Chain balances speed with EVM determinism requirements.
+2. **Security differentiation:** Federal Chain can use more conservative parameters (larger committees, longer finality windows) for critical validator/subnet operations. Mirror Chain optimizes for throughput. EVM Chain balances speed with EVM determinism requirements.
 
-3. **Specialized state models:** F-Chain uses validator set / stake accounting. Mirror Chain uses UTXO for parallel asset transfers. EVM Chain uses account-based EVM state. Each model is optimal for its domain.
+3. **Specialized state models:** Federal Chain uses validator set / stake accounting. Mirror Chain uses UTXO for parallel asset transfers. EVM Chain uses account-based EVM state. Each model is optimal for its domain.
 
-4. **Upgrade isolation:** EVM upgrades (new opcodes, gas changes) affect only EVM Chain. F-Chain and Mirror Chain native VMs can evolve independently based on federation needs.
+4. **Upgrade isolation:** EVM upgrades (new opcodes, gas changes) affect only EVM Chain. Federal Chain and Mirror Chain native VMs can evolve independently based on federation needs.
 
-5. **Economic clarity:** Staking rewards flow through F-Chain. Asset issuance/burns happen on Mirror Chain. DeFi fees stay on EVM Chain. Clean separation prevents cross-subsidy confusion.
+5. **Economic clarity:** Staking rewards flow through Federal Chain. Asset issuance/burns happen on Mirror Chain. DeFi fees stay on EVM Chain. Clean separation prevents cross-subsidy confusion.
 
-**F-Chain responsibilities:**
+**Federal Chain responsibilities:**
 
-- **Validator Registry:** Global validator identities, stake bonds, delegation relationships, and slashing records. All staking operations occur on F-Chain.
+- **Validator Registry:** Global validator identities, stake bonds, delegation relationships, and slashing records. All staking operations occur on Federal Chain.
 - **Subnet Registry:** All State/Region chains register here with their chain_id, validator set commitments, consensus parameters, and CEP compatibility declarations.
 - **Checkpoint Acceptance:** Receives and validates checkpoint submissions from all registered subnets; maintains the canonical checkpoint history.
-- **Governance Coordination:** Proposal lifecycle, voting tallies, timelocks, and execution triggers. Governance decisions are recorded on F-Chain.
+- **Governance Coordination:** Proposal lifecycle, voting tallies, timelocks, and execution triggers. Governance decisions are recorded on Federal Chain.
 - **Validator Rewards Distribution:** Emission schedule, reward allocation, and validator/delegator payouts.
 
 **Mirror Chain responsibilities:**
@@ -356,26 +356,26 @@ CMR is authoritative - regions derive mirror permissions from EVM Chain state.
    - CMR updates: deployed_regions: [A, B, C, D], mirror_status[D] = Deployed
 ```
 
-**Cross-chain communication (F -> Mirror -> EVM):**
+**Cross-chain communication (Federal -> Mirror -> EVM):**
 
 The Primary Network's three chains share the same validator set and use atomic messaging:
 
 ```text
-F-Chain -> EVM Chain:
-- Validator set updates (F -> EVM for on-chain verification in EVM Chain contracts)
-- Governance execution results (F -> EVM to trigger contract upgrades)
-- Stake/unstake requests (EVM -> F when users interact via EVM Chain interface)
-- Checkpoint finality confirmations (F -> EVM for subnet validation)
-- Slashing events (F -> EVM to freeze validator-operated contracts)
+Federal Chain -> EVM Chain:
+- Validator set updates (Federal -> EVM for on-chain verification in EVM Chain contracts)
+- Governance execution results (Federal -> EVM to trigger contract upgrades)
+- Stake/unstake requests (EVM -> Federal when users interact via EVM Chain interface)
+- Checkpoint finality confirmations (Federal -> EVM for subnet validation)
+- Slashing events (Federal -> EVM to freeze validator-operated contracts)
 
 Mirror Chain -> EVM Chain:
 - CRYFT wrapping/unwrapping (Mirror -> EVM for native -> ERC-20 bridge)
 - Cross-chain atomic swaps (Mirror -> EVM for asset exchanges)
 - Asset issuance events (Mirror -> EVM when native assets need EVM representation)
 
-F-Chain -> Mirror Chain:
-- Validator reward payouts (F -> Mirror for native CRYFT distribution)
-- Emission schedule updates (F -> Mirror for minting authorization)
+Federal Chain -> Mirror Chain:
+- Validator reward payouts (Federal -> Mirror for native CRYFT distribution)
+- Emission schedule updates (Federal -> Mirror for minting authorization)
 ```
 
 All three chains share the same block production schedule and validators, ensuring atomic cross-chain messaging without external bridges or delays.
@@ -383,7 +383,7 @@ All three chains share the same block production schedule and validators, ensuri
 ```mermaid
 flowchart TB
   subgraph Primary["Primary Network"]
-    PChain["F-Chain<br>(Validators, staking, subnets)"]
+    PChain["Federal Chain<br>(Validators, staking, subnets)"]
     XChain["Mirror Chain<br>(Native assets, transfers)"]
     MChain["EVM Chain<br>(EVM contracts, dApps)"]
     PChain <-->|atomic messaging| MChain
@@ -408,12 +408,12 @@ A key architectural question is whether subnet (State/Region) validators must al
 
 **Tier 1: CSS-1 State chains (required Primary Network participation)**
 
-Validators for Cryft Standard Subnet (CSS-1) State chains **must** also be validators on the Primary Network (validating F-Chain, Mirror Chain, and EVM Chain). This requirement ensures:
+Validators for Cryft Standard Subnet (CSS-1) State chains **must** also be validators on the Primary Network (validating Federal Chain, Mirror Chain, and EVM Chain). This requirement ensures:
 
-- **Security alignment:** State validators have direct stake in the Primary Network's security (via F-Chain staking), preventing "vampire" attacks where a State chain extracts value without contributing to federation security.
-- **Checkpoint integrity:** Validators who sign State checkpoints also validate those checkpoints on F-Chain, creating accountability.
-- **Governance participation:** State validators participate in Primary Network governance (via F-Chain), ensuring federation decisions reflect the interests of active State operators.
-- **Simplified slashing:** Misbehavior on a State chain can be slashed on F-Chain without complex cross-chain evidence.
+- **Security alignment:** State validators have direct stake in the Primary Network's security (via Federal Chain staking), preventing "vampire" attacks where a State chain extracts value without contributing to federation security.
+- **Checkpoint integrity:** Validators who sign State checkpoints also validate those checkpoints on Federal Chain, creating accountability.
+- **Governance participation:** State validators participate in Primary Network governance (via Federal Chain), ensuring federation decisions reflect the interests of active State operators.
+- **Simplified slashing:** Misbehavior on a State chain can be slashed on Federal Chain without complex cross-chain evidence.
 
 **Tier 2: Custom subnets (optional Primary Network participation)**
 
@@ -1578,7 +1578,7 @@ CryftNet supports multiple deployment models to balance developer convenience wi
 | Cross-region transfer | Any chain | YES (explicit dest_region) |
 
 **Why the Primary Network EVM Chain doesn't need region IDs:**
-- The Primary Network (F + Mirror + EVM) is the canonical foundation--it has no "region" because it IS the federation anchor
+- The Primary Network (Federal + Mirror + EVM) is the canonical foundation--it has no "region" because it IS the federation anchor
 - Transactions submitted to EVM Chain execute on EVM Chain; there's no ambiguity
 - This preserves standard EVM UX for EVM Chain interactions
 - Region IDs are only needed when the user wants to interact with a specific State/Region chain OR move assets across regions
@@ -3273,15 +3273,15 @@ handling.
 
 ### 16.1 Glossary (selected)
 
-- **Primary Network:** The canonical foundation of CryftNet, consisting of three specialized chains: F-Chain (Federal), Mirror Chain (Mirror), and EVM Chain (EVM Execution). Cryft Labs maintains first-class implementations and long-term governance over all three chains.
-- **F-Chain (Federal):** The validator management and staking chain within the Primary Network. Handles validator set coordination, subnet registration, staking/delegation, checkpoint acceptance, and governance. Uses a native VM (not EVM).
+- **Primary Network:** The canonical foundation of CryftNet, consisting of three specialized chains: Federal Chain (Federal), Mirror Chain (Mirror), and EVM Chain (EVM Execution). Cryft Labs maintains first-class implementations and long-term governance over all three chains.
+- **Federal Chain (Federal):** The validator management and staking chain within the Primary Network. Handles validator set coordination, subnet registration, staking/delegation, checkpoint acceptance, and governance. Uses a native VM (not EVM).
 - **Mirror Chain (Mirror):** The high-throughput native asset transfer chain within the Primary Network. Optimized for CRYFT transfers and native asset issuance using a UTXO model. Default chain for base asset movements.
 - **EVM Chain (EVM Execution):** The account-based smart contract execution chain within the Primary Network. Compatible with Solidity/Vyper tooling--the dApp chain. When we say "EVM chain," we mean the EVM Chain specifically, not the entire Cryft network. Interactions with EVM Chain do not require region ID specification.
 - **Region ID:** Unique identifier for a State/Region chain within the federation. Required for State/Region chain transactions and cross-region operations. NOT required for Primary Network EVM Chain interactions.
-- **Global Balance Ledger (GBL):** The authoritative data structure (part of EVM Chain or F-Chain) tracking partitioned EVM Chain token balances across all regions--which account owns how much of each EVM Chain asset on which region. Native CRYFT balances live on Mirror Chain.
-- **Contract Mirror Registry (CMR):** The authoritative data structure (part of EVM Chain or F-Chain) tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
+- **Global Balance Ledger (GBL):** The authoritative data structure (part of EVM Chain or Federal Chain) tracking partitioned EVM Chain token balances across all regions--which account owns how much of each EVM Chain asset on which region. Native CRYFT balances live on Mirror Chain.
+- **Contract Mirror Registry (CMR):** The authoritative data structure (part of EVM Chain or Federal Chain) tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
 - **State Balance Ledger (SBL):** A State-level ledger tracking City balances within that State; not visible to the Primary Network.
-- **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via F-Chain checkpoints). Requires region ID for transaction submission.
+- **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via Federal Chain checkpoints). Requires region ID for transaction submission.
 - **City chain / Local chain:** A sub-chain that registers via its parent State, not directly with the Primary Network; balances tracked in parent State's SBL.
 - **CSS-1:** Cryft Standard Subnet profile for interoperability.
 - **Smart Slot:** A deterministic schedulable resource representing a state dependency.

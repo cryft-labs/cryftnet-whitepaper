@@ -52,15 +52,15 @@ handling.
 
 ### 16.1 Glossary (selected)
 
-- **Primary Network:** The canonical foundation of CryftNet, consisting of three specialized chains: F-Chain (Federal), Mirror Chain (Mirror), and EVM Chain (EVM Execution). Cryft Labs maintains first-class implementations and long-term governance over all three chains.
-- **F-Chain (Federal):** The validator management and staking chain within the Primary Network. Handles validator set coordination, subnet registration, staking/delegation, checkpoint acceptance, and governance. Uses a native VM (not EVM).
+- **Primary Network:** The canonical foundation of CryftNet, consisting of three specialized chains: Federal Chain (Federal), Mirror Chain (Mirror), and EVM Chain (EVM Execution). Cryft Labs maintains first-class implementations and long-term governance over all three chains.
+- **Federal Chain (Federal):** The validator management and staking chain within the Primary Network. Handles validator set coordination, subnet registration, staking/delegation, checkpoint acceptance, and governance. Uses a native VM (not EVM).
 - **Mirror Chain (Mirror):** The high-throughput native asset transfer chain within the Primary Network. Optimized for CRYFT transfers and native asset issuance using a UTXO model. Default chain for base asset movements.
 - **EVM Chain (EVM Execution):** The account-based smart contract execution chain within the Primary Network. Compatible with Solidity/Vyper tooling--the dApp chain. When we say "EVM chain," we mean the EVM Chain specifically, not the entire Cryft network. Interactions with EVM Chain do not require region ID specification.
 - **Region ID:** Unique identifier for a State/Region chain within the federation. Required for State/Region chain transactions and cross-region operations. NOT required for Primary Network EVM Chain interactions.
-- **Global Balance Ledger (GBL):** The authoritative data structure (part of EVM Chain or F-Chain) tracking partitioned EVM Chain token balances across all regions--which account owns how much of each EVM Chain asset on which region. Native CRYFT balances live on Mirror Chain.
-- **Contract Mirror Registry (CMR):** The authoritative data structure (part of EVM Chain or F-Chain) tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
+- **Global Balance Ledger (GBL):** The authoritative data structure (part of EVM Chain or Federal Chain) tracking partitioned EVM Chain token balances across all regions--which account owns how much of each EVM Chain asset on which region. Native CRYFT balances live on Mirror Chain.
+- **Contract Mirror Registry (CMR):** The authoritative data structure (part of EVM Chain or Federal Chain) tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
 - **State Balance Ledger (SBL):** A State-level ledger tracking City balances within that State; not visible to the Primary Network.
-- **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via F-Chain checkpoints). Requires region ID for transaction submission.
+- **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via Federal Chain checkpoints). Requires region ID for transaction submission.
 - **City chain / Local chain:** A sub-chain that registers via its parent State, not directly with the Primary Network; balances tracked in parent State's SBL.
 - **CSS-1:** Cryft Standard Subnet profile for interoperability.
 - **Smart Slot:** A deterministic schedulable resource representing a state dependency.

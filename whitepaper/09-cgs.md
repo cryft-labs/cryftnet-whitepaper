@@ -22,7 +22,7 @@ CryftNet supports multiple deployment models to balance developer convenience wi
 | Cross-region transfer | Any chain | YES (explicit dest_region) |
 
 **Why the Primary Network EVM Chain doesn't need region IDs:**
-- The Primary Network (F + Mirror + EVM) is the canonical foundation--it has no "region" because it IS the federation anchor
+- The Primary Network (Federal + Mirror + EVM) is the canonical foundation--it has no "region" because it IS the federation anchor
 - Transactions submitted to EVM Chain execute on EVM Chain; there's no ambiguity
 - This preserves standard EVM UX for EVM Chain interactions
 - Region IDs are only needed when the user wants to interact with a specific State/Region chain OR move assets across regions
