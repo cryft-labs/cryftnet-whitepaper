@@ -127,6 +127,83 @@ The combination of DAS (Section 6.6) and ZK-EVMs addresses the classic trilemma:
 
 CRVS remains the consensus backbone--DAS and ZK-EVMs are complementary technologies that enhance what CRVS-based committees can achieve.
 
+### 6.8 Path to production: making CRVS mainnet-ready
+
+**Current status:** CRVS as described in sections 6.1-6.4 is a **proposal** that combines rotor-inspired propagation, votor-inspired voting, and Avalanche-style metastable sampling. While conceptually sound, it requires significant validation before mainnet deployment.
+
+**The core challenge:** CRVS is currently a "stack of vibes"--combining multiple consensus patterns without:
+- Formal safety and liveness proofs
+- Simulation-derived parameter bounds
+- Explicit fast/slow path transition rules
+- Well-defined failure modes under various adversarial conditions
+
+**Pragmatic de-risking strategy: "Proven core, experimental edges"**
+
+The most practical path to mainnet is to:
+
+1. **Use a proven consensus kernel** (the part that decides the canonical chain)
+   - If building on AvalancheGo: Don't mutate the core Avalanche consensus until measured gains justify the risk
+   - Consider: Avalanche consensus (proven) + optional networking/vote-aggregation optimizations
+
+2. **Treat rotor relays as transport optimization only**
+   - Never make relay functionality a safety requirement
+   - Fallback to direct gossip must be seamless and well-tested
+
+3. **Treat votor aggregation as compression of already-defined votes**
+   - Not a new voting logic, but an optimization of vote collection
+   - BLS aggregation or threshold schemes are well-understood; use them conservatively
+
+4. **Leverage regionalization for "web2 feel" first**
+   - Fast local committees and region-local confirmation provide low latency
+   - Mainnet consensus can be conservative while still achieving user-facing speed
+
+**Required deliverables before mainnet:**
+
+| Artifact | Purpose | Status |
+|:---------|:--------|:-------|
+| **CRVS Specification (normative)** | Message types, state machine, timeouts, fork-choice, fast/slow triggers, finality definition, misbehavior definitions | ❌ TODO |
+| **Failure Model Document** | Behavior under partitions, clock skew, relay censorship, 30% Byzantine | ❌ TODO |
+| **Simulator + Parameter Campaign** | Test jitter, loss, topology, adversary strategies; measure safety incidents, liveness, bandwidth | ❌ TODO |
+| **Testnet Acceptance Gates** | Define quantitative criteria: "No safety violations across X node-hours under Y adversary", "p95 finality < Z" | ❌ TODO |
+| **External Security Review** | At least one independent audit of consensus logic and implementation | ❌ TODO |
+| **Soak Test at Scale** | Multi-month testnet with real validator incentives and adversarial testing | ❌ TODO |
+
+**Mainnet gating rule:**
+
+CRVS is mainnet-eligible **only** when all of the following are complete:
+1. ✅ Specification locked and published
+2. ✅ Simulator results published showing safety/liveness under adversarial conditions
+3. ✅ Soak test at scale (>=3 months, >=100 validators, adversarial scenarios)
+4. ✅ External security review completed with all critical/high findings resolved
+5. ✅ Fast/slow path transition rules validated through testing
+
+**Recommended phases:**
+
+| Phase | Focus | Consensus Approach |
+|:------|:------|:-------------------|
+| **Phase 0 (Current)** | Architecture design, simulation planning | Testnet only; proven baseline (Avalanche) |
+| **Phase 1 (Spec + Sim)** | Complete CRVS spec, run parameter campaigns, identify safety bounds | Devnet with instrumented consensus |
+| **Phase 2 (Testnet)** | Deploy CRVS on incentivized testnet with real economic stakes | Public testnet with fallback to proven consensus |
+| **Phase 3 (Audit + Soak)** | External review, long-running adversarial testing | Pre-mainnet hardening |
+| **Phase 4 (Mainnet)** | Production deployment with monitoring and governance escape hatches | Mainnet with conservative parameters |
+
+**Open research questions (must resolve before Phase 2):**
+
+- What are the exact parameter bounds for k, alpha, beta under various network conditions?
+- How do fast/slow path transitions behave under oscillating network conditions?
+- What is the fork probability under 20-30% Byzantine adversary with network partition?
+- How does relay censorship affect time-to-finality, and what are the fallback performance characteristics?
+- What monitoring and alerting infrastructure is needed to detect consensus degradation in production?
+
+**Risk mitigation:**
+
+- **Governance escape hatch:** Main governance can force-downgrade to slower but proven consensus if CRVS exhibits unexpected behavior
+- **Regional experimentation:** Test CRVS on low-value regions before deploying to Main
+- **Gradual rollout:** Enable CRVS features incrementally (propagation -> voting -> sampling) with ability to disable each layer
+- **Telemetry requirements:** All CRVS nodes must report consensus metrics (vote latency, fork rate, relay performance) to monitoring infrastructure
+
+Until these deliverables are complete, **web2-like latency comes from regionalization and fast local committees, not from unvalidated consensus innovation**.
+
 ---
 
 ## 7. Execution layer: EVM compatibility and deterministic parallelism
@@ -140,9 +217,10 @@ unmodified.
 ### 7.2 Parallel execution mode (opt-in)
 
 Parallel mode is opt-in. A transaction may declare that it participates in deterministic parallel
-scheduling by including: - process_id: identifies a workflow lane and namespace - slot_claims: explicit
-read/write claims over state slots - slot_commitment: a commitment hash over slot_claims, enabling
-private propagation via CGS
+scheduling by including:
+- **process_id:** identifies a workflow lane and namespace
+- **slot_claims:** explicit read/write claims over state slots (consensus-critical, required for execution)
+- **slot_commitment:** optional commitment hash over slot_claims for privacy-aware propagation via CGS (mempool transport only; revealed claims must be in block for execution)
 
 ### 7.3 Smart Slots and Process IDs (canonical model)
 
@@ -206,3 +284,108 @@ Legacy transactions are unchanged. Parallel transactions add an envelope. Exampl
 {
   "type": "cryft_parallel",
   "from": "0xAlice",
+  "to": "0xGiftCodeContract",
+  "value": "0",
+  "data": "0x...",
+  "gas": 100000,
+  "nonce": 18,
+  "process_id": "cryft.giftcodes.v1",
+  "slot_claims": [
+    {"slot_id": "0x1234...", "mode": "READ"},   // account slot for Alice
+    {"slot_id": "0x5678...", "mode": "WRITE"},  // storage slot for gift code
+    {"slot_id": "0xabcd...", "mode": "WRITE"}   // object slot for code_id
+  ]
+}
+```
+
+Smart Slots build on the mental model of [EIP-2930 access lists](https://eips.ethereum.org/EIPS/eip-2930): addresses and storage keys are already familiar to Ethereum developers. Object slots extend this to application-defined resources, reducing "newness tax" and improving tooling compatibility.
+
+#### 7.3.5 Under-claiming enforcement (deterministic access-trace validation)
+
+**The problem:** If a transaction under-claims its access set (e.g., claims to read slot A but actually reads slots A and B), determinism breaks. Different validators may schedule the transaction in different parallel lanes, observe different states, and produce different state roots--**causing chain splits**.
+
+**Solution: Runtime access-trace enforcement**
+
+When a transaction opts into Smart Slots, the VM records the actual accessed set during execution:
+- **Accounts touched:** Any address whose nonce, balance, or codehash was read or written
+- **Storage slots accessed:** All SLOAD/SSTORE keys (contract_address, storage_key)
+- **Object slots accessed:** Application-defined resource IDs (if used)
+
+**Enforcement rule (deterministic):**
+
+```text
+After execution:
+  actual_access = set of all slots the transaction actually touched
+  claimed_access = set of all slots in slot_claims
+
+  IF actual_access ⊄ claimed_access THEN
+    tx is INVALID as parallel
+    CHOOSE enforcement policy:
+      [A1] REVERT + penalty (strictest; best for consensus safety)
+      [A2] FALLBACK to serial lane (best UX; more scheduler complexity)
+```
+
+**Policy A1: Revert + penalty (recommended for consensus safety)**
+- Transaction execution is reverted (no state changes applied)
+- Gas is consumed up to the point of under-claim detection
+- Optional: charge an additional penalty fee for wasting parallel capacity
+- Receipt includes: `status: "REVERTED_UNDERCLAIM"`, `access_hash: H(actual_access)`
+
+**Policy A2: Deterministic fallback to serial lane (best UX)**
+- Transaction is removed from parallel scheduler
+- Re-executed in the serial lane at end of block
+- Fallback order is deterministic: txs are appended to serial tail in `tx_hash` order
+- Extra fee charged for wasting parallel capacity
+- Receipt includes: `underclaimed: true`, `execution_mode: "SERIAL_FALLBACK"`, `access_hash: H(actual_access)`
+
+**Why this is safe:**
+
+1. **No fraud proofs needed:** Detection happens during execution, not post-hoc
+2. **No subjective disputes:** "You claimed X, you touched Y" is a fact, not an opinion
+3. **No external oracles:** The VM itself is the source of truth
+4. **Deterministic:** All validators follow the same rule and reach the same conclusion
+5. **Compatible with legacy txs:** Legacy transactions don't opt into Smart Slots, so they're unaffected
+
+**Relationship to EIP-2930 access lists:**
+
+Smart Slots generalize EIP-2930's concept:
+- **EIP-2930:** Optional access lists to reduce gas costs (warm vs. cold SLOAD)
+- **Smart Slots:** Mandatory claims for parallel execution, with enforcement
+
+This reduces "newness tax"--Ethereum developers already understand the mental model of declaring accessed addresses and storage keys. Object slots are "extra lanes" for app-defined resources.
+
+**Implementation sketch:**
+
+```text
+Execution trace validation (simplified):
+1) VM begins execution of tx with slot_claims = [S1, S2, ...]
+2) During execution, VM maintains access_log = []
+3) On every state access (account read/write, SLOAD/SSTORE):
+     slot_id = derive_slot_id(access_type, address, key)
+     IF slot_id NOT IN slot_claims THEN
+       record_underclaim(slot_id)
+4) After execution:
+     IF underclaim_detected THEN
+       apply_enforcement_policy(tx, access_log)
+     ELSE
+       commit_state_changes()
+```
+
+**Cost analysis:**
+
+- **Overhead:** ~5-10% execution slowdown due to access logging (acceptable for parallel gain)
+- **Storage:** Access logs are ephemeral (discarded after block finalization); receipts store only `access_hash`
+- **Gas:** Under-claimed txs pay for wasted parallel scheduler capacity
+
+**Fallback policy recommendation:**
+
+For **Phase 1 (testnet):** Use Policy A1 (revert + penalty) to surface under-claiming issues early and force tooling to improve.
+
+For **Phase 2 (mainnet):** Consider Policy A2 (fallback to serial) for better UX, but only after scheduler complexity is validated.
+
+**Escape hatch:**
+
+If a contract legitimately cannot predict its access set (e.g., dynamic dispatch based on block.timestamp), it should:
+- Not opt into Smart Slots, OR
+- Use a conservative over-claim (claim all possible slots), OR
+- Execute in serial lane explicitly

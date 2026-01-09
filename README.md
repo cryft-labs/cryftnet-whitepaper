@@ -1,14 +1,14 @@
 ﻿<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.19<br>
+<strong>Revision:</strong> v1.20<br>
 <strong>Date:</strong> January 08, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Renamed chains (P-Chain → Federal Chain, X-Chain → Mirror Chain, M-Chain → EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
+<strong>Latest Changes:</strong> Added production-readiness sections: Smart Slots under-claiming enforcement (7.3.5), CGS consensus boundary clarification (9.5-9.9), decision machine for open questions (16.2), pragmatic Mainnet v1 deployment strategy (15.9).
 </p>
 
 <p align="center"><em>
@@ -169,6 +169,7 @@ python compile-whitepaper.py
 
 | Version | Date | Notes |
 |:--------|:-----|:------|
+| v1.20 | January 08, 2026 | **PRODUCTION READINESS:** Added deterministic under-claiming enforcement for Smart Slots (Section 7.3.5) with runtime access-trace validation. Clarified CGS consensus boundary (Sections 9.5-9.9): CGS is mempool transport only, not consensus-critical; added concrete threshold encryption key management, explicit privacy goals, and mainnet gating criteria. Transformed Section 16.2 open questions into decision machine with 27 actionable items (type, owner, milestone, acceptance tests, priority tiers). Added pragmatic Mainnet v1 deployment strategy (Section 15.9): proven baseline consensus, regions enabled, Smart Slots/CGS/CRVS testnet-only or deferred. |
 | v1.19 | January 08, 2026 | **CHAIN RENAMING:** P-Chain → Federal Chain, X-Chain → Mirror Chain, M-Chain → EVM Chain. Updated all 16 sections with new nomenclature. Fixed mermaid diagram syntax errors. Corrected UTF-8 encoding issues (malformed arrows, em-dashes, special characters). |
 | v1.18 | January 07, 2026 | **ARCHITECTURE CLARIFICATION:** Primary Network consists of THREE chains: Federal Chain (validator/staking/subnets), Mirror Chain (native asset transfers/issuance), EVM Chain (EVM execution). Replaces previous "dual-chain Main" terminology. Staking anchored to Federal Chain, native assets and GBL to EVM Chain, smart contracts to EVM Chain. When we say "EVM chain," we mean EVM Chain specifically. |
 | v1.17 | January 06, 2026 | Clarifies that region IDs are NOT required for Main Federal C-Chain interactions; Main is the default/home chain where users interact without region specification; region IDs only required for State/City chain operations and cross-region transfers. |

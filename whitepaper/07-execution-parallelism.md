@@ -196,35 +196,240 @@ be revealed to Main or to a court-like committee.
 
 ### 9.5 CGS and Smart Slots via slot commitments
 
-Slot commitments bridge privacy and determinism. A private intent includes slot_commitment =
-H(canonical(slot_claims)). Validators can: 1) reserve scheduling capacity using the commitment
-(without seeing claims), 2) require RevealClaims during inclusion, and 3) verify that revealed claims
-match the commitment before executing.
-Intent submission:
-- client computes slot_claims and slot_commitment
-- client encrypts tx data to pool key K_pool (threshold key)
-- sends IntentEnvelope(process_id, slot_commitment, ciphertext, routing_hint)
-Inclusion:
-- proposer selects intent by commitment and policy
-- proposer requests RevealClaims from sender (or authorized party)
-- proposer verifies H(revealed_claims) == slot_commitment
-- scheduler runs pre-lock acquisition on revealed_claims
-- if acquired, execute tx and include receipt linking to commitment
+**CRITICAL CONSENSUS BOUNDARY:**
 
-### 9.6 Anti-censorship and liveness
+CGS is **mempool transport only**. It is NOT consensus-critical. The consensus-critical data (slot_claims) MUST appear in the block in a form every validator can verify without CGS.
+
+**The rule that resolves the contradiction:**
+
+Slot commitments bridge privacy and determinism, but with a clear separation:
+- **slot_commitment** is an anti-equivocation/integrity proof and privacy-preserving placeholder BEFORE inclusion
+- **revealed slot_claims** are the consensus-critical data used for execution
+- **At inclusion time**, validators MUST receive RevealClaims and the block MUST include enough data to verify H(revealed_claims) == slot_commitment
+- **Execution uses revealed claims**, not the commitment
+
+**What this means:**
+- CGS failing should NOT halt the chain
+- CGS degradation means private intents don't propagate well, but consensus continues
+- The block contains either full revealed slot_claims OR a deterministic, verifiable equivalent required for execution
+- Legacy (non-private) transactions bypass CGS entirely and work normally
+
+**Intent submission (privacy-aware path):**
+```text
+1) Client computes slot_claims and slot_commitment = H(canonical(slot_claims))
+2) Client encrypts tx data to pool key K_pool (threshold encryption key)
+3) Client sends IntentEnvelope(process_id, slot_commitment, ciphertext, routing_hint) via CGS
+```
+
+**Inclusion (proposer side):**
+```text
+1) Proposer selects intent by commitment and policy
+2) Proposer requests RevealClaims from sender (or authorized party)
+3) Proposer verifies H(revealed_claims) == slot_commitment
+4) Proposer includes revealed_claims in block (or equivalent verifiable data)
+5) Scheduler runs pre-lock acquisition on revealed_claims
+6) If acquired, execute tx and include receipt linking to commitment
+```
+
+**Block content (consensus-critical):**
+```text
+Block = {
+  ...,
+  transactions: [
+    // Legacy tx (unchanged)
+    { type: "legacy", from, to, value, data, nonce, ... },
+    
+    // Private intent (revealed at inclusion)
+    { 
+      type: "cryft_private",
+      slot_commitment: 0x1234...,
+      revealed_claims: [...],  // MUST be present for execution
+      ciphertext: 0xabcd...,
+      proof_of_reveal: signature  // proves sender authorized reveal
+    }
+  ]
+}
+```
+
+**Verification (every validator, with or without CGS):**
+```text
+1) For each private tx in block:
+   - Verify H(revealed_claims) == slot_commitment
+   - Verify proof_of_reveal signature
+   - Decrypt ciphertext (if validator has key) OR trust revealed_claims
+   - Execute using revealed_claims (deterministic)
+2) All validators reach same state root because revealed_claims are deterministic
+```
+
+**Privacy guarantees:**
+- **Before inclusion:** slot_commitment hides exact access set from public observers
+- **After inclusion:** revealed_claims are in the block (privacy ends at execution)
+- **Who sees what:**
+  - Public observers: see commitment, revealed claims after inclusion
+  - Region validators: see revealed claims at inclusion time (must verify execution)
+  - Sender/recipient: always know full transaction details
+- **Threat model:** CGS provides privacy from casual observers and timing decorrelation, NOT strong anonymity from determined adversaries
+
+### 9.6 Key management for threshold encryption
+
+**CGS key management was previously hand-wavy. Here is the concrete model:**
+
+**Key committee structure:**
+- Each privacy pool has a **key committee** (could be region validators or a designated subset)
+- Committee size: recommended 7-15 members with t-of-n threshold (e.g., 5-of-7, 11-of-15)
+- Committee members run key generation ceremonies using distributed key generation (DKG)
+
+**Key lifecycle:**
+```text
+Phase 1: Setup
+- Committee runs DKG to generate K_pool (threshold encryption key)
+- Each member holds a key share; t shares needed to decrypt
+- Public key K_pool_pub is published on-chain
+
+Phase 2: Active use (epoch duration: N blocks, e.g., N=10,000)
+- Intents encrypted to K_pool_pub
+- Decryption requires t-of-n committee members to cooperate
+- Committee publishes availability attestation every M blocks
+
+Phase 3: Rotation (every N epochs, e.g., every 100,000 blocks)
+- New committee runs DKG for K_pool_new
+- Rotation transaction published on-chain:
+  - old_key_id, new_key_id, new_key_pub, rotation_height
+- After rotation_height, intents use K_pool_new
+- Old key remains available for H blocks for dispute resolution
+
+Phase 4: Compromise response (emergency)
+- If compromise detected: immediate rotation trigger
+- Governance or committee publishes compromise event:
+  - compromised_key_id, compromise_height, severity
+- Optionally invalidate envelopes in pre-compromise window
+- Affected users re-submit with new key
+```
+
+**Key rotation triggers:**
+- **Scheduled:** Every N epochs (e.g., 100,000 blocks = ~2 weeks at 12s blocks)
+- **Committee change:** When validator set changes significantly
+- **Compromise detection:** Immediate rotation if key leakage suspected
+- **Governance:** Emergency rotation via Main governance
+
+**Key compromise response:**
+```text
+Compromise event = {
+  event_type: "KEY_COMPROMISE",
+  pool_id: 42,
+  compromised_key_id: 0x1234...,
+  compromise_height: 8_240_000,  // best-guess compromise time
+  severity: "HIGH" | "MEDIUM" | "LOW",
+  response: {
+    rotate_immediately: true,
+    invalidate_window: [8_230_000, 8_240_112],  // envelopes in this range invalidated
+    resubmit_required: true
+  },
+  governance_approval: signature
+}
+```
+
+**Explicit privacy goals (what CGS actually provides):**
+1. **Hide recipient from public observers until inclusion** (commitment-based routing)
+2. **Decorrelate timing** (batching, cover traffic)
+3. **Reduce metadata surface** (encrypted payloads, selective disclosure)
+4. **Anti-equivocation** (commitment prevents double-spend before reveal)
+
+**Explicit NON-goals (what CGS does NOT provide):**
+1. ❌ Strong anonymity from nation-state adversaries
+2. ❌ Protection against global network observers (timing correlation still possible)
+3. ❌ Protection against key committee collusion (committee sees plaintext)
+4. ❌ Hiding transaction amounts or asset types after inclusion
+
+**Leakage metrics (measurable):**
+- **Timing correlation:** Measure correlation between IntentEnvelope arrival and block inclusion
+- **Metadata surface:** Count of public fields in IntentEnvelope vs. legacy tx
+- **Committee privacy:** Probability that t-of-n committee members collude
+- **Network-level leakage:** Traffic analysis correlation tests
+
+**Failure modes (explicit):**
+- **Key committee offline:** Intents can't be decrypted -> fallback to legacy (non-private) txs
+- **Key committee censorship:** Route intents to different region or Main
+- **Key compromise:** Emergency rotation, invalidate affected window
+- **DKG failure:** Retry with different committee or fallback to simpler setup
+
+### 9.7 Anti-censorship and liveness
 
 CGS uses multi-route gossip and region fallbacks. If Region A appears censored, intents can be
 routed to Region B or to Main, then forwarded. Privacy pools should avoid single points of control:
-threshold keys are managed by committees with rotation. Residual risk remains: any privacy system
+threshold keys are managed by committees with rotation (see Section 9.6). Residual risk remains: any privacy system
 can be degraded by global adversaries controlling network paths; CryftNet treats this as measurable
 and provides monitoring via Cryftee modules.
 
-### 9.7 Failure modes and residual risk
+### 9.8 Failure modes and residual risk
 
 - Metadata leakage through timing and traffic analysis (mitigate with batching and cover traffic).
 - Threshold key compromise (mitigate with rotations, HSM/TEE options, and slashing).
 - Denial of service via junk intents (mitigate with fees, rate limits, and capability gating).
 - Complexity risk: CGS must not be consensus-critical without extensive validation.
+- Committee collusion: t-of-n members collude to decrypt all intents (mitigate with audits, rotation, slashing).
+- Network-level attacks: Global observer correlates IntentEnvelope with inclusion (mitigate with cover traffic, batching, decoy intents).
+
+### 9.9 CGS mainnet gating criteria
+
+**CGS remains "non-consensus-critical experimental" until ALL of the following are complete:**
+
+| Deliverable | Purpose | Status |
+|:------------|:--------|:-------|
+| **Formal threat model** | Document adversary capabilities, attack vectors, privacy guarantees, and explicit non-guarantees | ❌ TODO |
+| **Key ceremony specification** | Normative spec for DKG, rotation, compromise response, committee selection | ❌ TODO |
+| **Privacy leakage metrics** | Quantitative tests: timing correlation, metadata surface, traffic analysis resistance | ❌ TODO |
+| **Red-team style tests** | External adversarial testing: traffic analysis + denial of service attacks | ❌ TODO |
+| **Crypto + protocol audit** | External security review of threshold encryption, commitment scheme, and CGS protocol logic | ❌ TODO |
+| **Testnet soak test (>=3 months)** | Real validator incentives, adversarial testing, key rotation under load | ❌ TODO |
+
+**Mainnet deployment strategy:**
+
+**Phase 0 (Current):** CGS design and specification
+- Status: Proposal only
+- Risk: High (unvalidated)
+- Action: Complete formal threat model and key ceremony spec
+
+**Phase 1 (Devnet):** Basic functionality testing
+- Threshold encryption with toy parameters
+- Key rotation under controlled conditions
+- No real economic value at risk
+
+**Phase 2 (Testnet):** Incentivized testing with adversarial scenarios
+- Real validator incentives (testnet tokens)
+- Red-team attacks: traffic analysis, timing correlation, DoS
+- Key compromise drills (deliberate compromise + recovery)
+- Leakage metric collection and analysis
+
+**Phase 3 (Audit + Hardening):** External review and fixes
+- Independent security audit of crypto + protocol
+- Resolve all critical/high findings
+- Publish audit report and threat model
+
+**Phase 4 (Mainnet - EXPERIMENTAL):** Limited deployment
+- CGS available on Main but marked EXPERIMENTAL
+- Clear warnings: "Privacy is best-effort, not guaranteed"
+- Monitoring and telemetry required for all CGS participants
+- Governance escape hatch: can disable CGS if issues detected
+
+**Phase 5 (Mainnet - PRODUCTION):** Only after all gating criteria met
+- Formal threat model published
+- Audit complete with no unresolved high/critical issues
+- >=3 month testnet soak test with adversarial scenarios
+- Leakage metrics below acceptable thresholds
+- Key rotation proven under load
+
+**Fallback plan:**
+- If CGS validation extends beyond launch window, ship mainnet WITHOUT CGS
+- All transactions use legacy (non-private) path
+- CGS can be added post-launch via governance upgrade once validated
+
+**Monitoring requirements (Phase 4+):**
+- **Key committee health:** Availability, rotation success rate, response time
+- **Privacy metrics:** Timing correlation scores, metadata leakage detection
+- **Censorship detection:** Intent routing success rate per region
+- **Attack detection:** Anomalous traffic patterns, DoS attempts
+- **Performance impact:** CGS overhead vs. legacy tx throughput
 
 ---
 

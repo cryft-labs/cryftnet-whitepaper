@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.19<br>
+<strong>Revision:</strong> v1.20<br>
 <strong>Date:</strong> January 08, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Renamed chains (P-Chain -> Federal Chain, X-Chain -> Mirror Chain, M-Chain -> EVM Chain). Fixed mermaid diagrams and UTF-8 encoding issues.
+<strong>Latest Changes:</strong> Added production-readiness sections: Smart Slots under-claiming enforcement (7.3.5), CGS consensus boundary clarification (9.5-9.9), decision machine for open questions (16.2), pragmatic Mainnet v1 deployment strategy (15.9).
 </p>
 
 <p align="center"><em>
@@ -968,6 +968,83 @@ The combination of DAS (Section 6.6) and ZK-EVMs addresses the classic trilemma:
 
 CRVS remains the consensus backbone--DAS and ZK-EVMs are complementary technologies that enhance what CRVS-based committees can achieve.
 
+### 6.8 Path to production: making CRVS mainnet-ready
+
+**Current status:** CRVS as described in sections 6.1-6.4 is a **proposal** that combines rotor-inspired propagation, votor-inspired voting, and Avalanche-style metastable sampling. While conceptually sound, it requires significant validation before mainnet deployment.
+
+**The core challenge:** CRVS is currently a "stack of vibes"--combining multiple consensus patterns without:
+- Formal safety and liveness proofs
+- Simulation-derived parameter bounds
+- Explicit fast/slow path transition rules
+- Well-defined failure modes under various adversarial conditions
+
+**Pragmatic de-risking strategy: "Proven core, experimental edges"**
+
+The most practical path to mainnet is to:
+
+1. **Use a proven consensus kernel** (the part that decides the canonical chain)
+   - If building on AvalancheGo: Don't mutate the core Avalanche consensus until measured gains justify the risk
+   - Consider: Avalanche consensus (proven) + optional networking/vote-aggregation optimizations
+
+2. **Treat rotor relays as transport optimization only**
+   - Never make relay functionality a safety requirement
+   - Fallback to direct gossip must be seamless and well-tested
+
+3. **Treat votor aggregation as compression of already-defined votes**
+   - Not a new voting logic, but an optimization of vote collection
+   - BLS aggregation or threshold schemes are well-understood; use them conservatively
+
+4. **Leverage regionalization for "web2 feel" first**
+   - Fast local committees and region-local confirmation provide low latency
+   - Mainnet consensus can be conservative while still achieving user-facing speed
+
+**Required deliverables before mainnet:**
+
+| Artifact | Purpose | Status |
+|:---------|:--------|:-------|
+| **CRVS Specification (normative)** | Message types, state machine, timeouts, fork-choice, fast/slow triggers, finality definition, misbehavior definitions | ❌ TODO |
+| **Failure Model Document** | Behavior under partitions, clock skew, relay censorship, 30% Byzantine | ❌ TODO |
+| **Simulator + Parameter Campaign** | Test jitter, loss, topology, adversary strategies; measure safety incidents, liveness, bandwidth | ❌ TODO |
+| **Testnet Acceptance Gates** | Define quantitative criteria: "No safety violations across X node-hours under Y adversary", "p95 finality < Z" | ❌ TODO |
+| **External Security Review** | At least one independent audit of consensus logic and implementation | ❌ TODO |
+| **Soak Test at Scale** | Multi-month testnet with real validator incentives and adversarial testing | ❌ TODO |
+
+**Mainnet gating rule:**
+
+CRVS is mainnet-eligible **only** when all of the following are complete:
+1. ✅ Specification locked and published
+2. ✅ Simulator results published showing safety/liveness under adversarial conditions
+3. ✅ Soak test at scale (>=3 months, >=100 validators, adversarial scenarios)
+4. ✅ External security review completed with all critical/high findings resolved
+5. ✅ Fast/slow path transition rules validated through testing
+
+**Recommended phases:**
+
+| Phase | Focus | Consensus Approach |
+|:------|:------|:-------------------|
+| **Phase 0 (Current)** | Architecture design, simulation planning | Testnet only; proven baseline (Avalanche) |
+| **Phase 1 (Spec + Sim)** | Complete CRVS spec, run parameter campaigns, identify safety bounds | Devnet with instrumented consensus |
+| **Phase 2 (Testnet)** | Deploy CRVS on incentivized testnet with real economic stakes | Public testnet with fallback to proven consensus |
+| **Phase 3 (Audit + Soak)** | External review, long-running adversarial testing | Pre-mainnet hardening |
+| **Phase 4 (Mainnet)** | Production deployment with monitoring and governance escape hatches | Mainnet with conservative parameters |
+
+**Open research questions (must resolve before Phase 2):**
+
+- What are the exact parameter bounds for k, alpha, beta under various network conditions?
+- How do fast/slow path transitions behave under oscillating network conditions?
+- What is the fork probability under 20-30% Byzantine adversary with network partition?
+- How does relay censorship affect time-to-finality, and what are the fallback performance characteristics?
+- What monitoring and alerting infrastructure is needed to detect consensus degradation in production?
+
+**Risk mitigation:**
+
+- **Governance escape hatch:** Main governance can force-downgrade to slower but proven consensus if CRVS exhibits unexpected behavior
+- **Regional experimentation:** Test CRVS on low-value regions before deploying to Main
+- **Gradual rollout:** Enable CRVS features incrementally (propagation -> voting -> sampling) with ability to disable each layer
+- **Telemetry requirements:** All CRVS nodes must report consensus metrics (vote latency, fork rate, relay performance) to monitoring infrastructure
+
+Until these deliverables are complete, **web2-like latency comes from regionalization and fast local committees, not from unvalidated consensus innovation**.
+
 ---
 
 ## 7. Execution layer: EVM compatibility and deterministic parallelism
@@ -981,9 +1058,10 @@ unmodified.
 ### 7.2 Parallel execution mode (opt-in)
 
 Parallel mode is opt-in. A transaction may declare that it participates in deterministic parallel
-scheduling by including: - process_id: identifies a workflow lane and namespace - slot_claims: explicit
-read/write claims over state slots - slot_commitment: a commitment hash over slot_claims, enabling
-private propagation via CGS
+scheduling by including:
+- **process_id:** identifies a workflow lane and namespace
+- **slot_claims:** explicit read/write claims over state slots (consensus-critical, required for execution)
+- **slot_commitment:** optional commitment hash over slot_claims for privacy-aware propagation via CGS (mempool transport only; revealed claims must be in block for execution)
 
 ### 7.3 Smart Slots and Process IDs (canonical model)
 
@@ -1047,6 +1125,111 @@ Legacy transactions are unchanged. Parallel transactions add an envelope. Exampl
 {
   "type": "cryft_parallel",
   "from": "0xAlice",
+  "to": "0xGiftCodeContract",
+  "value": "0",
+  "data": "0x...",
+  "gas": 100000,
+  "nonce": 18,
+  "process_id": "cryft.giftcodes.v1",
+  "slot_claims": [
+    {"slot_id": "0x1234...", "mode": "READ"},   // account slot for Alice
+    {"slot_id": "0x5678...", "mode": "WRITE"},  // storage slot for gift code
+    {"slot_id": "0xabcd...", "mode": "WRITE"}   // object slot for code_id
+  ]
+}
+```
+
+Smart Slots build on the mental model of [EIP-2930 access lists](https://eips.ethereum.org/EIPS/eip-2930): addresses and storage keys are already familiar to Ethereum developers. Object slots extend this to application-defined resources, reducing "newness tax" and improving tooling compatibility.
+
+#### 7.3.5 Under-claiming enforcement (deterministic access-trace validation)
+
+**The problem:** If a transaction under-claims its access set (e.g., claims to read slot A but actually reads slots A and B), determinism breaks. Different validators may schedule the transaction in different parallel lanes, observe different states, and produce different state roots--**causing chain splits**.
+
+**Solution: Runtime access-trace enforcement**
+
+When a transaction opts into Smart Slots, the VM records the actual accessed set during execution:
+- **Accounts touched:** Any address whose nonce, balance, or codehash was read or written
+- **Storage slots accessed:** All SLOAD/SSTORE keys (contract_address, storage_key)
+- **Object slots accessed:** Application-defined resource IDs (if used)
+
+**Enforcement rule (deterministic):**
+
+```text
+After execution:
+  actual_access = set of all slots the transaction actually touched
+  claimed_access = set of all slots in slot_claims
+
+  IF actual_access ⊄ claimed_access THEN
+    tx is INVALID as parallel
+    CHOOSE enforcement policy:
+      [A1] REVERT + penalty (strictest; best for consensus safety)
+      [A2] FALLBACK to serial lane (best UX; more scheduler complexity)
+```
+
+**Policy A1: Revert + penalty (recommended for consensus safety)**
+- Transaction execution is reverted (no state changes applied)
+- Gas is consumed up to the point of under-claim detection
+- Optional: charge an additional penalty fee for wasting parallel capacity
+- Receipt includes: `status: "REVERTED_UNDERCLAIM"`, `access_hash: H(actual_access)`
+
+**Policy A2: Deterministic fallback to serial lane (best UX)**
+- Transaction is removed from parallel scheduler
+- Re-executed in the serial lane at end of block
+- Fallback order is deterministic: txs are appended to serial tail in `tx_hash` order
+- Extra fee charged for wasting parallel capacity
+- Receipt includes: `underclaimed: true`, `execution_mode: "SERIAL_FALLBACK"`, `access_hash: H(actual_access)`
+
+**Why this is safe:**
+
+1. **No fraud proofs needed:** Detection happens during execution, not post-hoc
+2. **No subjective disputes:** "You claimed X, you touched Y" is a fact, not an opinion
+3. **No external oracles:** The VM itself is the source of truth
+4. **Deterministic:** All validators follow the same rule and reach the same conclusion
+5. **Compatible with legacy txs:** Legacy transactions don't opt into Smart Slots, so they're unaffected
+
+**Relationship to EIP-2930 access lists:**
+
+Smart Slots generalize EIP-2930's concept:
+- **EIP-2930:** Optional access lists to reduce gas costs (warm vs. cold SLOAD)
+- **Smart Slots:** Mandatory claims for parallel execution, with enforcement
+
+This reduces "newness tax"--Ethereum developers already understand the mental model of declaring accessed addresses and storage keys. Object slots are "extra lanes" for app-defined resources.
+
+**Implementation sketch:**
+
+```text
+Execution trace validation (simplified):
+1) VM begins execution of tx with slot_claims = [S1, S2, ...]
+2) During execution, VM maintains access_log = []
+3) On every state access (account read/write, SLOAD/SSTORE):
+     slot_id = derive_slot_id(access_type, address, key)
+     IF slot_id NOT IN slot_claims THEN
+       record_underclaim(slot_id)
+4) After execution:
+     IF underclaim_detected THEN
+       apply_enforcement_policy(tx, access_log)
+     ELSE
+       commit_state_changes()
+```
+
+**Cost analysis:**
+
+- **Overhead:** ~5-10% execution slowdown due to access logging (acceptable for parallel gain)
+- **Storage:** Access logs are ephemeral (discarded after block finalization); receipts store only `access_hash`
+- **Gas:** Under-claimed txs pay for wasted parallel scheduler capacity
+
+**Fallback policy recommendation:**
+
+For **Phase 1 (testnet):** Use Policy A1 (revert + penalty) to surface under-claiming issues early and force tooling to improve.
+
+For **Phase 2 (mainnet):** Consider Policy A2 (fallback to serial) for better UX, but only after scheduler complexity is validated.
+
+**Escape hatch:**
+
+If a contract legitimately cannot predict its access set (e.g., dynamic dispatch based on block.timestamp), it should:
+- Not opt into Smart Slots, OR
+- Use a conservative over-claim (claim all possible slots), OR
+- Execute in serial lane explicitly
 
 
 ---
@@ -1249,35 +1432,240 @@ be revealed to Main or to a court-like committee.
 
 ### 9.5 CGS and Smart Slots via slot commitments
 
-Slot commitments bridge privacy and determinism. A private intent includes slot_commitment =
-H(canonical(slot_claims)). Validators can: 1) reserve scheduling capacity using the commitment
-(without seeing claims), 2) require RevealClaims during inclusion, and 3) verify that revealed claims
-match the commitment before executing.
-Intent submission:
-- client computes slot_claims and slot_commitment
-- client encrypts tx data to pool key K_pool (threshold key)
-- sends IntentEnvelope(process_id, slot_commitment, ciphertext, routing_hint)
-Inclusion:
-- proposer selects intent by commitment and policy
-- proposer requests RevealClaims from sender (or authorized party)
-- proposer verifies H(revealed_claims) == slot_commitment
-- scheduler runs pre-lock acquisition on revealed_claims
-- if acquired, execute tx and include receipt linking to commitment
+**CRITICAL CONSENSUS BOUNDARY:**
 
-### 9.6 Anti-censorship and liveness
+CGS is **mempool transport only**. It is NOT consensus-critical. The consensus-critical data (slot_claims) MUST appear in the block in a form every validator can verify without CGS.
+
+**The rule that resolves the contradiction:**
+
+Slot commitments bridge privacy and determinism, but with a clear separation:
+- **slot_commitment** is an anti-equivocation/integrity proof and privacy-preserving placeholder BEFORE inclusion
+- **revealed slot_claims** are the consensus-critical data used for execution
+- **At inclusion time**, validators MUST receive RevealClaims and the block MUST include enough data to verify H(revealed_claims) == slot_commitment
+- **Execution uses revealed claims**, not the commitment
+
+**What this means:**
+- CGS failing should NOT halt the chain
+- CGS degradation means private intents don't propagate well, but consensus continues
+- The block contains either full revealed slot_claims OR a deterministic, verifiable equivalent required for execution
+- Legacy (non-private) transactions bypass CGS entirely and work normally
+
+**Intent submission (privacy-aware path):**
+```text
+1) Client computes slot_claims and slot_commitment = H(canonical(slot_claims))
+2) Client encrypts tx data to pool key K_pool (threshold encryption key)
+3) Client sends IntentEnvelope(process_id, slot_commitment, ciphertext, routing_hint) via CGS
+```
+
+**Inclusion (proposer side):**
+```text
+1) Proposer selects intent by commitment and policy
+2) Proposer requests RevealClaims from sender (or authorized party)
+3) Proposer verifies H(revealed_claims) == slot_commitment
+4) Proposer includes revealed_claims in block (or equivalent verifiable data)
+5) Scheduler runs pre-lock acquisition on revealed_claims
+6) If acquired, execute tx and include receipt linking to commitment
+```
+
+**Block content (consensus-critical):**
+```text
+Block = {
+  ...,
+  transactions: [
+    // Legacy tx (unchanged)
+    { type: "legacy", from, to, value, data, nonce, ... },
+    
+    // Private intent (revealed at inclusion)
+    { 
+      type: "cryft_private",
+      slot_commitment: 0x1234...,
+      revealed_claims: [...],  // MUST be present for execution
+      ciphertext: 0xabcd...,
+      proof_of_reveal: signature  // proves sender authorized reveal
+    }
+  ]
+}
+```
+
+**Verification (every validator, with or without CGS):**
+```text
+1) For each private tx in block:
+   - Verify H(revealed_claims) == slot_commitment
+   - Verify proof_of_reveal signature
+   - Decrypt ciphertext (if validator has key) OR trust revealed_claims
+   - Execute using revealed_claims (deterministic)
+2) All validators reach same state root because revealed_claims are deterministic
+```
+
+**Privacy guarantees:**
+- **Before inclusion:** slot_commitment hides exact access set from public observers
+- **After inclusion:** revealed_claims are in the block (privacy ends at execution)
+- **Who sees what:**
+  - Public observers: see commitment, revealed claims after inclusion
+  - Region validators: see revealed claims at inclusion time (must verify execution)
+  - Sender/recipient: always know full transaction details
+- **Threat model:** CGS provides privacy from casual observers and timing decorrelation, NOT strong anonymity from determined adversaries
+
+### 9.6 Key management for threshold encryption
+
+**CGS key management was previously hand-wavy. Here is the concrete model:**
+
+**Key committee structure:**
+- Each privacy pool has a **key committee** (could be region validators or a designated subset)
+- Committee size: recommended 7-15 members with t-of-n threshold (e.g., 5-of-7, 11-of-15)
+- Committee members run key generation ceremonies using distributed key generation (DKG)
+
+**Key lifecycle:**
+```text
+Phase 1: Setup
+- Committee runs DKG to generate K_pool (threshold encryption key)
+- Each member holds a key share; t shares needed to decrypt
+- Public key K_pool_pub is published on-chain
+
+Phase 2: Active use (epoch duration: N blocks, e.g., N=10,000)
+- Intents encrypted to K_pool_pub
+- Decryption requires t-of-n committee members to cooperate
+- Committee publishes availability attestation every M blocks
+
+Phase 3: Rotation (every N epochs, e.g., every 100,000 blocks)
+- New committee runs DKG for K_pool_new
+- Rotation transaction published on-chain:
+  - old_key_id, new_key_id, new_key_pub, rotation_height
+- After rotation_height, intents use K_pool_new
+- Old key remains available for H blocks for dispute resolution
+
+Phase 4: Compromise response (emergency)
+- If compromise detected: immediate rotation trigger
+- Governance or committee publishes compromise event:
+  - compromised_key_id, compromise_height, severity
+- Optionally invalidate envelopes in pre-compromise window
+- Affected users re-submit with new key
+```
+
+**Key rotation triggers:**
+- **Scheduled:** Every N epochs (e.g., 100,000 blocks = ~2 weeks at 12s blocks)
+- **Committee change:** When validator set changes significantly
+- **Compromise detection:** Immediate rotation if key leakage suspected
+- **Governance:** Emergency rotation via Main governance
+
+**Key compromise response:**
+```text
+Compromise event = {
+  event_type: "KEY_COMPROMISE",
+  pool_id: 42,
+  compromised_key_id: 0x1234...,
+  compromise_height: 8_240_000,  // best-guess compromise time
+  severity: "HIGH" | "MEDIUM" | "LOW",
+  response: {
+    rotate_immediately: true,
+    invalidate_window: [8_230_000, 8_240_112],  // envelopes in this range invalidated
+    resubmit_required: true
+  },
+  governance_approval: signature
+}
+```
+
+**Explicit privacy goals (what CGS actually provides):**
+1. **Hide recipient from public observers until inclusion** (commitment-based routing)
+2. **Decorrelate timing** (batching, cover traffic)
+3. **Reduce metadata surface** (encrypted payloads, selective disclosure)
+4. **Anti-equivocation** (commitment prevents double-spend before reveal)
+
+**Explicit NON-goals (what CGS does NOT provide):**
+1. ❌ Strong anonymity from nation-state adversaries
+2. ❌ Protection against global network observers (timing correlation still possible)
+3. ❌ Protection against key committee collusion (committee sees plaintext)
+4. ❌ Hiding transaction amounts or asset types after inclusion
+
+**Leakage metrics (measurable):**
+- **Timing correlation:** Measure correlation between IntentEnvelope arrival and block inclusion
+- **Metadata surface:** Count of public fields in IntentEnvelope vs. legacy tx
+- **Committee privacy:** Probability that t-of-n committee members collude
+- **Network-level leakage:** Traffic analysis correlation tests
+
+**Failure modes (explicit):**
+- **Key committee offline:** Intents can't be decrypted -> fallback to legacy (non-private) txs
+- **Key committee censorship:** Route intents to different region or Main
+- **Key compromise:** Emergency rotation, invalidate affected window
+- **DKG failure:** Retry with different committee or fallback to simpler setup
+
+### 9.7 Anti-censorship and liveness
 
 CGS uses multi-route gossip and region fallbacks. If Region A appears censored, intents can be
 routed to Region B or to Main, then forwarded. Privacy pools should avoid single points of control:
-threshold keys are managed by committees with rotation. Residual risk remains: any privacy system
+threshold keys are managed by committees with rotation (see Section 9.6). Residual risk remains: any privacy system
 can be degraded by global adversaries controlling network paths; CryftNet treats this as measurable
 and provides monitoring via Cryftee modules.
 
-### 9.7 Failure modes and residual risk
+### 9.8 Failure modes and residual risk
 
 - Metadata leakage through timing and traffic analysis (mitigate with batching and cover traffic).
 - Threshold key compromise (mitigate with rotations, HSM/TEE options, and slashing).
 - Denial of service via junk intents (mitigate with fees, rate limits, and capability gating).
 - Complexity risk: CGS must not be consensus-critical without extensive validation.
+- Committee collusion: t-of-n members collude to decrypt all intents (mitigate with audits, rotation, slashing).
+- Network-level attacks: Global observer correlates IntentEnvelope with inclusion (mitigate with cover traffic, batching, decoy intents).
+
+### 9.9 CGS mainnet gating criteria
+
+**CGS remains "non-consensus-critical experimental" until ALL of the following are complete:**
+
+| Deliverable | Purpose | Status |
+|:------------|:--------|:-------|
+| **Formal threat model** | Document adversary capabilities, attack vectors, privacy guarantees, and explicit non-guarantees | ❌ TODO |
+| **Key ceremony specification** | Normative spec for DKG, rotation, compromise response, committee selection | ❌ TODO |
+| **Privacy leakage metrics** | Quantitative tests: timing correlation, metadata surface, traffic analysis resistance | ❌ TODO |
+| **Red-team style tests** | External adversarial testing: traffic analysis + denial of service attacks | ❌ TODO |
+| **Crypto + protocol audit** | External security review of threshold encryption, commitment scheme, and CGS protocol logic | ❌ TODO |
+| **Testnet soak test (>=3 months)** | Real validator incentives, adversarial testing, key rotation under load | ❌ TODO |
+
+**Mainnet deployment strategy:**
+
+**Phase 0 (Current):** CGS design and specification
+- Status: Proposal only
+- Risk: High (unvalidated)
+- Action: Complete formal threat model and key ceremony spec
+
+**Phase 1 (Devnet):** Basic functionality testing
+- Threshold encryption with toy parameters
+- Key rotation under controlled conditions
+- No real economic value at risk
+
+**Phase 2 (Testnet):** Incentivized testing with adversarial scenarios
+- Real validator incentives (testnet tokens)
+- Red-team attacks: traffic analysis, timing correlation, DoS
+- Key compromise drills (deliberate compromise + recovery)
+- Leakage metric collection and analysis
+
+**Phase 3 (Audit + Hardening):** External review and fixes
+- Independent security audit of crypto + protocol
+- Resolve all critical/high findings
+- Publish audit report and threat model
+
+**Phase 4 (Mainnet - EXPERIMENTAL):** Limited deployment
+- CGS available on Main but marked EXPERIMENTAL
+- Clear warnings: "Privacy is best-effort, not guaranteed"
+- Monitoring and telemetry required for all CGS participants
+- Governance escape hatch: can disable CGS if issues detected
+
+**Phase 5 (Mainnet - PRODUCTION):** Only after all gating criteria met
+- Formal threat model published
+- Audit complete with no unresolved high/critical issues
+- >=3 month testnet soak test with adversarial scenarios
+- Leakage metrics below acceptable thresholds
+- Key rotation proven under load
+
+**Fallback plan:**
+- If CGS validation extends beyond launch window, ship mainnet WITHOUT CGS
+- All transactions use legacy (non-private) path
+- CGS can be added post-launch via governance upgrade once validated
+
+**Monitoring requirements (Phase 4+):**
+- **Key committee health:** Availability, rotation success rate, response time
+- **Privacy metrics:** Timing correlation scores, metadata leakage detection
+- **Censorship detection:** Intent routing success rate per region
+- **Attack detection:** Anomalous traffic patterns, DoS attempts
+- **Performance impact:** CGS overhead vs. legacy tx throughput
 
 ---
 
@@ -3237,21 +3625,73 @@ requests.
 - Implement slot commitment workflow: IntentEnvelope -> RevealClaims -> scheduler -> execution.
 - Implement dispute bundles and evidence retention policies.
 - Add observability: metrics, dashboards, and privacy leak tests (timing correlation).
-### 15.5 Milestone 4: IPFS pinning rewards
+### 15.5 Milestone 4: CRVS consensus validation (CRITICAL PATH)
+
+**This milestone gates mainnet deployment.** CRVS must move from "proposal" to "production-ready" through rigorous validation.
+
+**Deliverables:**
+
+- **CRVS formal specification** (normative document):
+  - Complete state machine with message types and transitions
+  - Explicit timing assumptions (partial synchrony bounds, clock drift tolerance)
+  - Fork-choice rule with deterministic tie-breaking
+  - Fast/slow path transition triggers (quantitative thresholds, not heuristics)
+  - Finality definition (soft vs hard, cross-region implications)
+  - Misbehavior definitions with slashing criteria (equivocation, withholding, invalid votes)
+  - Safety and liveness properties with formal proofs or bounded analysis
+
+- **Failure mode analysis**:
+  - Behavior under network partitions (1-way, 2-way, oscillating)
+  - Clock skew tolerance bounds (max drift before safety violations)
+  - Relay censorship scenarios (centralized, coordinated, random)
+  - Byzantine adversary models (20%, 30%, adaptive)
+  - Edge cases: simultaneous forks, quorum split, stuck finalizer
+
+- **Consensus simulator**:
+  - Network topology models (mesh, hierarchical, lossy links)
+  - Configurable jitter, packet loss, bandwidth constraints
+  - Adversary strategies (withholding, equivocation, timing attacks)
+  - Metrics: fork probability, time-to-finality (p50/p95/p99), bandwidth usage, vote efficiency
+  - Parameter campaign outputs: validated ranges for k, alpha, beta, quorum thresholds
+
+- **Testnet acceptance gates** (quantitative criteria):
+  - No safety violations across >=10,000 simulated validator-hours under 30% Byzantine adversary
+  - p95 finality < 3 seconds under normal conditions (< 5% packet loss, < 100ms jitter)
+  - Graceful degradation: partition recovery without permanent lock within 2 epochs
+  - Relay failure: fallback to direct gossip increases latency by < 50% (not ∞)
+  - Fast/slow path transition: no oscillation under simulated variable network conditions
+
+- **External security review**:
+  - At least one independent audit of CRVS specification and reference implementation
+  - All critical/high findings resolved before testnet Phase 2
+  - Audit report published for community review
+
+- **Instrumented devnet deployment**:
+  - Deploy CRVS with full telemetry (vote latency, fork events, relay performance, transition triggers)
+  - Run for >=3 months with adversarial testing (manual and automated)
+  - Demonstrate acceptance gates are met in real-world conditions
+
+**Mainnet gate:** CRVS may proceed to mainnet **only** if all above deliverables are complete and community consensus approves the audit results.
+
+**Fallback plan:** If CRVS validation timeline extends beyond launch window, deploy mainnet with proven baseline consensus (e.g., Avalanche) and upgrade to CRVS post-launch via governance.
+
+### 15.6 Milestone 5: IPFS pinning rewards
 
 - Implement Pin Provider Registry and bonding/slashing rules.
 - Implement Pin Job contract (public + private job modes).
 - Implement challenge-response protocol and auditor committee tooling.
 - Integrate with Cryftee ipfs_v1 module for node management and pin operations.
 - Launch testnet with real pin providers and measure availability + fraud attempts.
-### 15.6 Milestone 5: Federation hardening and production readiness
+### 15.7 Milestone 6: Federation hardening and production readiness
 
 - Formal verification / property tests for scheduler determinism and slot lock rules.
-- Consensus adversarial simulations (network partitions, equivocation, relay censorship).
 - Security audits for Cryftee runtime, module verification, and key management integrations.
 - Governance audits: vote export integrity, aggregation correctness, and timelock safety.
 - Operational playbooks: upgrades, rollback, emergency pause policies, key rotation procedures.
-### 15.7 Whitepaper completeness checklist (for publication)
+- Multi-region stress testing: simultaneous State launches, cross-region transfer congestion, GBL conservation under load.
+- Disaster recovery testing: Main partition scenarios, checkpoint withholding, orphaned region recovery.
+
+### 15.8 Whitepaper completeness checklist (for publication)
 
 - Clear definitions: Main, region, subnet, local chain, Cryftee, CGS, Smart Slots.
 - Consensus description: safety/liveness assumptions, parameters, and finality guarantees.
@@ -3268,6 +3708,140 @@ handling.
 - Appendices: glossary, parameter ranges, JSON schema definitions, and reference implementations.
 
 ---
+
+### 15.9 Pragmatic Mainnet v1: what to ship first
+
+**Philosophy:** Don't invent a rocket and a new kind of gravity in the same sprint.
+
+This section defines a **sane Mainnet v1** that avoids catastrophic risks while still delivering CryftNet's core value proposition: low-latency regions with EVM compatibility. Experimental features are gated behind feature flags or deferred to post-launch upgrades.
+
+#### 15.9.1 Mainnet v1 scope (conservative launch)
+
+| Component | Mainnet v1 Status | Rationale |
+|:----------|:------------------|:----------|
+| **Consensus** | Proven baseline (Avalanche or similar) | No novel CRVS logic in safety kernel until Milestone 15.5 complete and audited |
+| **EVM Chain** | Standard EVM compatibility | Works with MetaMask, Hardhat, standard tooling; no surprises |
+| **Regions (CSS-1)** | ✅ YES (enabled) | This is where "web2 feel" comes from; already proven in subnet architectures |
+| **Federal Chain** | ✅ YES (validator management, checkpoints) | Core federation coordination; uses native VM (proven, not experimental) |
+| **Mirror Chain** | ✅ YES (native CRYFT transfers) | High-throughput UTXO chain; proven design |
+| **GBL/CMR** | ✅ YES (with enforced invariants) | Partitioned balances + contract registry; ensure chain responsibilities consistent and invariants mechanically enforceable |
+| **Smart Slots** | ⚠️ TESTNET-ONLY or WHITELISTED | Feature flag: disabled by default; enable only for governance-approved contracts with enforced under-claim detection (Section 7.3.5) |
+| **CGS (privacy)** | ❌ TESTNET-ONLY | Not mainnet until Section 9.9 gating criteria met; all txs use legacy (non-private) path initially |
+| **CRVS consensus** | ❌ DEFERRED | Deploy with proven consensus; upgrade to CRVS post-launch via governance after Milestone 15.5 validation complete |
+| **DAS (Data Availability Sampling)** | ❌ OPTIONAL/POST-LAUNCH | Nice-to-have; not required for CSS-1; add incrementally |
+| **ZK-EVM validity proofs** | ❌ OPTIONAL/POST-LAUNCH | Checkpoint verification uses quorum signatures initially; ZK proofs added later |
+
+#### 15.9.2 What Mainnet v1 delivers
+
+**User-facing value:**
+- ✅ Low-latency regions (sub-second finality for region-local transactions)
+- ✅ EVM compatibility (deploy Solidity contracts, use MetaMask, no code changes)
+- ✅ Cross-region asset transfers (via GBL debit-checkpoint-credit flow)
+- ✅ Federation-verified contracts (deterministic addresses across regions)
+- ✅ Proven security (Avalanche-style consensus, no unvalidated experiments in safety kernel)
+
+**Developer-facing value:**
+- ✅ Standard EVM tooling works (Hardhat, Foundry, Remix, ethers.js, viem)
+- ✅ Region-first deployment (deploy to preferred region, opt-in to federation mirroring)
+- ✅ Partitioned balances (scale horizontally across regions without global state bottleneck)
+- ✅ Clear operational model (checkpoints, cross-region messages, governance)
+
+**What Mainnet v1 does NOT deliver (deferred to post-launch):**
+- ❌ Novel consensus optimizations (CRVS) - proven baseline only
+- ❌ Privacy-aware propagation (CGS) - all txs public initially
+- ❌ Deterministic parallelism (Smart Slots) - serial EVM execution only, or whitelisted contracts
+- ❌ ZK validity proofs - quorum signatures for checkpoints initially
+- ❌ Advanced data availability (DAS) - optional for regions, not required
+
+#### 15.9.3 Conservative deployment principles
+
+**Principle 1: Proven core, experimental edges**
+- Use battle-tested consensus (Avalanche) for safety kernel
+- Use standard EVM for execution (no experimental VM features in critical path)
+- Defer optimizations (CRVS, Smart Slots, CGS) until validated via decision machine (Section 16.2)
+
+**Principle 2: Feature flags for experiments**
+- Smart Slots: `--enable-smart-slots=false` by default; governance can enable per-contract
+- CGS: `--enable-cgs=false` by default; testnet-only until Section 9.9 criteria met
+- Parallel execution: `--enable-parallel-scheduler=false` by default; serial execution proven safe
+
+**Principle 3: Mechanical invariant enforcement**
+- GBL conservation: `sum(regional_balances) == total_supply` enforced by EVM Chain state machine
+- CMR consistency: Region deployments verified against Main registry before execution
+- Checkpoint validity: Quorum signatures required; optional ZK proofs post-launch
+
+**Principle 4: Clear upgrade path**
+- Governance can enable CRVS via consensus upgrade once Milestone 15.5 complete
+- Governance can enable CGS via protocol upgrade once Section 9.9 criteria met
+- Governance can enable Smart Slots per-contract basis with enforced under-claim detection
+- No breaking changes required; experimental features opt-in via config or contract flags
+
+#### 15.9.4 Mainnet v1 acceptance gates
+
+Before launching Mainnet v1, ALL of the following must be complete:
+
+| Gate | Acceptance Criteria | Status |
+|:-----|:--------------------|:-------|
+| **Baseline consensus audit** | External audit of Avalanche integration; all critical/high findings resolved | ❌ TODO |
+| **EVM Chain compatibility** | Passes Ethereum test suite; MetaMask/Hardhat work without modifications | ❌ TODO |
+| **GBL invariant validation** | Formal verification or exhaustive property tests: no balance creation/loss; conservation holds under 1M cross-region transfers | ❌ TODO |
+| **Checkpoint security** | Quorum signature verification; replay protection; no checkpoint forgery in adversarial tests | ❌ TODO |
+| **Region interop testing** | 3+ regions with cross-region transfers, contract mirroring, checkpoint flow; p95 settlement <30s | ❌ TODO |
+| **Testnet soak (>=3 months)** | Incentivized testnet with real validator economics; no critical bugs; uptime >99.9% | ❌ TODO |
+| **Operational playbooks** | Documented upgrade, rollback, emergency pause, validator onboarding procedures | ❌ TODO |
+| **Governance launch** | Federal Chain governance live; >=3 governance proposals executed successfully on testnet | ❌ TODO |
+
+#### 15.9.5 Post-launch upgrade roadmap
+
+**Phase 1 (Months 1-3): Stabilization**
+- Monitor Mainnet v1 metrics: finality time, cross-region latency, validator participation
+- Address any operational issues discovered in production
+- Begin CRVS simulator validation (Milestone 15.5)
+
+**Phase 2 (Months 4-6): CRVS validation**
+- Complete Milestone 15.5 deliverables (formal spec, simulator, testnet)
+- External audit of CRVS specification and reference implementation
+- Community governance proposal: upgrade to CRVS consensus
+
+**Phase 3 (Months 7-9): CGS hardening**
+- Complete Section 9.9 deliverables (threat model, key ceremony, red-team tests)
+- Deploy CGS on testnet with incentivized adversarial testing
+- External audit of CGS crypto + protocol logic
+
+**Phase 4 (Months 10-12): Experimental features**
+- Enable Smart Slots for whitelisted contracts (with under-claim enforcement)
+- Enable CGS for opt-in privacy (marked EXPERIMENTAL)
+- Collect metrics and iterate based on real-world usage
+
+**Phase 5 (Year 2+): Production-grade optimizations**
+- CRVS consensus graduates from experimental to default (if validation successful)
+- CGS graduates from experimental to production (if hardening successful)
+- Smart Slots available to all contracts (if determinism validation successful)
+- ZK-EVM validity proofs for checkpoint verification
+- DAS for high-throughput regions
+
+#### 15.9.6 Risk mitigation
+
+**What could go wrong with Mainnet v1 (and how we mitigate):**
+
+| Risk | Mitigation |
+|:-----|:-----------|
+| **Avalanche consensus bug** | Use well-audited codebase (AvalancheGo); extensive testnet soak; emergency pause governance |
+| **GBL balance creation bug** | Formal verification of conservation invariant; property-based tests; real-time monitoring with alerts |
+| **Cross-region checkpoint forgery** | Quorum signature verification; replay protection; slashing for invalid checkpoints |
+| **Region validator cartel** | Minimum validator overlap requirements; Main governance can blacklist malicious regions |
+| **EVM compatibility regression** | Run Ethereum test suite in CI; bounty program for compatibility issues |
+| **Testnet doesn't surface issues** | Incentivized testnet with real economics; adversarial testing budget; external security reviews |
+
+**What we're NOT trying to solve in v1:**
+- Novel consensus optimizations (CRVS) - use proven baseline
+- Privacy guarantees (CGS) - all txs public initially
+- Parallel execution (Smart Slots) - serial EVM proven safe
+- Advanced cryptography (ZK-EVMs) - quorum signatures sufficient
+
+**Philosophy:** Ship a **boring, reliable foundation** that delivers core value (low-latency regions + EVM compatibility). Add experimental features post-launch via governance upgrades once validated through decision machine (Section 16.2).
+
+This is not "giving up." This is **risk management**. You can iterate on CRVS, CGS, and Smart Slots in production once you've proven the foundation works.
 
 ## 16. Appendices
 
@@ -3310,36 +3884,121 @@ handling.
 - **Two-phase initialization:** Pattern where contract deployment (zero state) is separate from initialization (setting initial balances), ensuring same address across regions.
 - **DAS (Data Availability Sampling):** Technique allowing nodes to verify block data availability by sampling fragments rather than downloading entire blocks.
 - **ZK-EVM:** Zero-knowledge Ethereum Virtual Machine enabling cryptographic proof-based validation of transaction batches.
-### 16.2 Key open questions (research and engineering)
 
-- What is the best enforcement mechanism against under-claimed slots without making the EVM slower (static analysis vs runtime tracing vs economic incentives)?
-- What are optimal CRVS parameters under realistic Internet jitter for committees of size 50-500 across regions?
-- How can CGS provide strong privacy guarantees without becoming consensus-critical complexity?
-- What is the most robust and low-cost proof of availability for IPFS DAGs at scale?
-- How should cross-network vote weight be capped to prevent plutocracy while still being Sybil-resistant?
-- What is the optimal checkpoint frequency for cross-region transfers (latency vs. Main throughput trade-off)?
-- How should mirroring credit lines be sized and refreshed to balance UX with double-spend risk?
-- What timeout period for unclaimed transfers balances user convenience with stuck-funds risk?
-- How can cross-region transfer fees be priced to discourage spam while remaining affordable?
-- Should ZK validity proofs be required for cross-region claims above a certain value threshold?
-- What is the optimal division of responsibilities between Federal Chain and EVM Chain? Should some operations (e.g., staking) live on EVM Chain for EVM composability, or remain on Federal Chain (native VM) for security isolation?
-- How should validator rewards be split between Main validation and State validation duties?
-- What is the appropriate bootstrap period for new CSS-1 States before requiring Main validation?
+### 16.2 Open decisions: decision machine
+
+This section transforms open questions into actionable decision items with clear ownership, milestones, and acceptance criteria. Each item is categorized by type and assigned to a functional owner with measurable outcomes.
+
+**Legend:**
+- **Type:** `spec` (specification decision), `research` (theoretical analysis), `simulation` (parameter validation via testing), `governance` (on-chain parameter), `ops` (operational policy)
+- **Owner:** `dev` (core development), `research` (research team), `tokenomics` (economic modeling), `ops` (operations/DevOps), `governance` (community decision)
+- **Milestone:** `testnet-0` (devnet), `testnet-1` (incentivized testnet), `pre-mainnet` (launch blocker), `post-mainnet` (can iterate after launch)
+- **Status:** `BLOCKED` (waiting on other work), `TODO` (ready to start), `IN PROGRESS`, `DONE`
+
+---
+
+#### 16.2.1 Consensus and execution decisions
+
+| # | Decision | Type | Owner | Milestone | Acceptance Test | Status |
+|:--|:---------|:-----|:------|:----------|:----------------|:-------|
+| **D-01** | Under-claim enforcement mechanism | `spec` | dev | pre-mainnet | No observed nondeterminism in >=10M tx fuzz runs; deterministic fallback works with zero safety violations | TODO |
+| **D-02** | CRVS parameter optimization | `simulation` | research | pre-mainnet | Supports 50-500 validator committees with p99 finality <5s under 20% Byzantine + realistic jitter; fork rate <0.001% | BLOCKED (needs simulator) |
+| **D-03** | CRVS fast/slow path transition rules | `spec` | research | pre-mainnet | Formal specification published; no oscillation under adversarial partition scenarios in 100K rounds | TODO |
+| **D-04** | Federal vs. EVM Chain responsibility split | `spec` | dev + governance | testnet-1 | Clear separation documented; no circular dependencies; staking decision finalized with security audit | TODO |
+
+#### 16.2.2 Privacy and CGS decisions
+
+| # | Decision | Type | Owner | Milestone | Acceptance Test | Status |
+|:--|:---------|:-----|:------|:----------|:----------------|:-------|
+| **D-05** | CGS privacy guarantees (threat model) | `research` | research + ops | pre-mainnet | Formal threat model published; timing correlation <X%, red-team test passed | TODO |
+| **D-06** | CGS key committee size and rotation frequency | `governance` + `simulation` | tokenomics + ops | testnet-1 | Key compromise drills pass; rotation completes in <1 epoch; committee liveness >99.9% | TODO |
+| **D-07** | CGS mainnet readiness criteria | `spec` | dev + research | pre-mainnet | All 6 gating criteria from Section 9.9 met; external audit complete | BLOCKED (needs audit) |
+
+#### 16.2.3 Cross-chain and federation decisions
+
+| # | Decision | Type | Owner | Milestone | Acceptance Test | Status |
+|:--|:---------|:-----|:------|:----------|:----------------|:-------|
+| **D-08** | Optimal checkpoint frequency | `simulation` | research + dev | testnet-1 | Supports X msg/s at Y regions with p95 settlement <Z minutes; Main throughput degradation <10% | TODO |
+| **D-09** | Mirroring credit line sizing policy | `spec` + `simulation` | tokenomics + dev | testnet-1 | No double-spend in 1M cross-region tx; UX acceptable (refresh frequency <1/day for 90% of users) | TODO |
+| **D-10** | Unclaimed transfer timeout period | `governance` | tokenomics + governance | testnet-1 | <0.1% of transfers timeout; user complaints <acceptable threshold; reclaim mechanism works | TODO |
+| **D-11** | Cross-region transfer fee pricing | `governance` + `simulation` | tokenomics | testnet-1 | Spam rate <0.01%; affordable for legitimate users (cost <$0.50 for 90% of transfers) | TODO |
+| **D-12** | ZK proof requirement threshold for high-value transfers | `governance` | governance + dev | post-mainnet | Reduces trust assumptions for transfers >$X without breaking UX | TODO |
+| **D-13** | Federation fee structure (base + per-region) | `governance` + `simulation` | tokenomics | testnet-1 | Sustainable Main revenue; developer cost acceptable (<$50 for 5-region deployment) | TODO |
+| **D-14** | Maximum target_regions per deployment | `spec` + `simulation` | dev | testnet-1 | Main checkpoint congestion <10% at peak; deployment succeeds in <20 regions | TODO |
+| **D-15** | Orphaned balance recovery mechanism (unreachable regions) | `spec` | dev + governance | post-mainnet | Governance can reclaim balances after timeout; no griefing vectors | TODO |
+| **D-16** | RegionDeployer upgrade coordination mechanism | `spec` + `ops` | dev + ops | pre-mainnet | Upgrade completes across all regions within 1 epoch; no deployment failures | TODO |
+
+#### 16.2.4 Data availability and storage decisions
+
+| # | Decision | Type | Owner | Milestone | Acceptance Test | Status |
+|:--|:---------|:-----|:------|:----------|:----------------|:-------|
+| **D-17** | IPFS proof of availability mechanism | `spec` + `simulation` | dev + research | testnet-1 | Fraud detection rate >99%; proof verification cost <$0.01/GB; false positive rate <0.001% | TODO |
+| **D-18** | Pin provider scoring and slashing policy | `governance` + `simulation` | tokenomics + ops | testnet-1 | Honest providers earn >95% expected rewards; malicious providers slashed >95% of time | TODO |
+
+#### 16.2.5 Governance and economics decisions
+
+| # | Decision | Type | Owner | Milestone | Acceptance Test | Status |
+|:--|:---------|:-----|:------|:----------|:----------------|:-------|
+| **D-19** | Cross-network vote weight cap mechanism | `governance` + `research` | tokenomics + governance | testnet-1 | Sybil-resistant (attack cost >$X million); not plutocratic (top 10 holders control <30% of vote) | TODO |
+| **D-20** | Validator reward split (Main vs. State duties) | `governance` + `simulation` | tokenomics | testnet-1 | Validators incentivized to validate both; State validation participation >80% of Main validators | TODO |
+| **D-21** | CSS-1 State bootstrap period before Main validation required | `governance` | governance + ops | testnet-1 | New States can experiment safely; migration to Main validation smooth (>90% success rate) | TODO |
+
+#### 16.2.6 Subnet topology and scaling decisions
+
+| # | Decision | Type | Owner | Milestone | Acceptance Test | Status |
+|:--|:---------|:-----|:------|:----------|:----------------|:-------|
+| **D-22** | Cities per State scalability limit | `simulation` | research + dev | testnet-1 | State checkpoint aggregation <5s for <=100 Cities; Main accepts aggregated checkpoint in <10s | TODO |
+| **D-23** | Minimum validator overlap requirement (State-City) | `spec` + `governance` | dev + tokenomics | testnet-1 | Security analysis shows overlap prevents censorship; operational overhead acceptable | TODO |
+| **D-24** | City emergency bridge to Main (censorship escape) | `spec` + `governance` | dev + governance | post-mainnet | Censorship-resistant; anti-griefing mechanisms prevent abuse; governance approval required | TODO |
+| **D-25** | Region-first deployment cooling period | `governance` | governance + ops | testnet-1 | Prevents rushed malicious deployments; false positive rate <1%; delay acceptable to developers | TODO |
+| **D-26** | Two-phase initialization timeout (anti-griefing) | `spec` + `governance` | dev | testnet-1 | Prevents initialization griefing; timeout period balances security and UX | TODO |
+| **D-27** | State-City SBL dispute resolution mechanism | `spec` + `governance` | dev + governance | post-mainnet | Disputes resolvable in <7 days; Main governance can arbitrate; no fund loss | TODO |
+
+---
+
+#### 16.2.7 Decision process workflow
+
+**For each decision:**
+
+1. **Assign owner** (if not already assigned)
+2. **Define success criteria** (refine "Acceptance Test" column)
+3. **Identify dependencies** (what must be done first?)
+4. **Schedule milestone** (which testnet phase or pre-mainnet blocker?)
+5. **Execute work** (spec writing, simulation, governance proposal, etc.)
+6. **Validate** (run acceptance test)
+7. **Document** (publish decision and rationale)
+8. **Mark DONE** (move to implementation)
+
+**Blockers and dependencies:**
+
+- D-02 (CRVS parameters) is BLOCKED until consensus simulator is complete (Milestone 15.5)
+- D-07 (CGS mainnet) is BLOCKED until external audit is funded and scheduled
+- Governance decisions (D-10, D-12, D-19, D-21, D-24, D-25, D-27) require community RFC process before testnet-1
+
+**Priority tiers:**
+
+- **P0 (pre-mainnet blockers):** D-01, D-02, D-03, D-04, D-07, D-16
+- **P1 (testnet-1 required):** D-05, D-06, D-08, D-09, D-11, D-13, D-14, D-17, D-19, D-20, D-22, D-23, D-26
+- **P2 (post-mainnet, can iterate):** D-10, D-12, D-15, D-18, D-21, D-24, D-25, D-27
 
 
 ---
 
-- Should Cities be allowed to "emergency bridge" directly to Main if their parent State censors them?
-- How many Cities can a single State chain practically manage before checkpoint aggregation becomes a bottleneck?
-- Should there be a minimum validator overlap requirement between a State and its Cities?
-- What is the optimal federation fee structure to balance developer accessibility with Main sustainability?
-- How should federation fees be adjusted dynamically based on network congestion or demand?
-- Should region-first deployments have a "cooling period" before mirroring to prevent rushed malicious deployments?
-- What is the maximum number of target_regions a single deployment can declare before checkpoint congestion becomes problematic?
-- How should GBL handle edge cases where a region becomes permanently unreachable (orphaned balances)?
-- Should two-phase initialization have a timeout after which anyone can initialize (preventing initialization griefing)?
-- How should the federation handle a scenario where RegionDeployer needs to be upgraded across all chains?
-- What dispute resolution mechanism should exist when a State and its City disagree on SBL balances?
+
+**Note:** Section 16 (Appendices) open questions have been transformed into a decision machine with 27 actionable decision items (D-01 through D-27). See Section 16.2 in 15-roadmap.md for the complete decision table with ownership, milestones, and acceptance criteria.
+
+**All open questions from the original list have been converted to decision items with:**
+- Type classification (spec/research/simulation/governance/ops)
+- Clear ownership (dev/research/tokenomics/ops/governance)
+- Milestone assignment (testnet-0/testnet-1/pre-mainnet/post-mainnet)
+- Measurable acceptance tests
+- Priority tiers (P0=pre-mainnet blockers, P1=testnet-1 required, P2=post-mainnet)
+
+**Example decision items:**
+- D-08: Optimal checkpoint frequency -> simulation + throughput model -> "supports X msg/s at Y regions with p95 settlement < Z minutes"
+- D-01: Under-claim enforcement -> spec decision -> "no observed nondeterminism in >=10M tx fuzz runs; deterministic fallback works"
+- D-24: City emergency bridge to Main (censorship escape hatch) -> spec + governance -> post-mainnet priority
+
 
 
 
