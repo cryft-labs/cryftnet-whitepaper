@@ -52,11 +52,58 @@ can trigger slashing or registry changes.
 
 ## 13. Cryftee: signed WASM module runtime for chain utilities
 
-Cryftee is a Rust-based TEE-style sidecar runtime designed to integrate with cryftgo and
+Cryftee is a Rust-based TEE-style sidecar runtime designed to integrate with CryftGo and
 Web3Signer. It is deliberately stateless: it does not store long-term secrets on disk and instead relies
 on external key managers (Web3Signer, Vault) or ephemeral key material. Cryftee loads signed
 WASM modules from a manifest and exposes a versioned API over UDS or HTTPS. It also ships with
 a kiosk-style web UI for operators on port 3232.
+
+**Architecture clarity: CryftGo vs. Cryftee**
+
+- **CryftGo** is the consensus client (blockchain interface) - a fork of AvalancheGo that handles on-chain consensus, block validation, and state transitions. CryftGo is the "consensus kernel" that must remain lean and proven.
+- **Cryftee** is the off-chain computation and utility layer - a modular sidecar that runs WASM modules for auxiliary features like CGS, IPFS, staking operations, and specialized validation logic.
+- **All extensions are modules** within Cryftee. IPFS, CGS, pin provider logic, governance helpers, and future features are all WASM modules that load into Cryftee's runtime.
+
+**Why separate CryftGo and Cryftee?**
+
+1. **Consensus safety:** Novel features (CGS, Smart Slots parallel scheduling, IPFS) do not touch the consensus kernel. CryftGo remains a minimal, auditable, proven codebase.
+2. **Modular upgrades:** Modules can be upgraded independently via signed releases without requiring consensus client upgrades or chain-wide coordination.
+3. **Off-chain parallelism:** Cryftee can perform parallel validation, content availability checks, and computation-heavy tasks off-chain, then submit proofs/attestations to CryftGo for on-chain recording.
+4. **Targeted deployments:** Different validators can run different module sets based on their operational needs (e.g., IPFS-only validators, CGS relays, pin providers).
+
+**Cryftee's role in the federation:**
+
+- **Primary Network (Federal Chain, Mirror Chain, EVM Chain):** All three chains use Cryftee modules for operations:
+  - Federal Chain: Validator eligibility checks, governance vote aggregation, checkpoint acceptance logic
+  - Mirror Chain: UTXO validation assistance, high-throughput parallel processing
+  - **EVM Chain: Global Balance Ledger (GBL) operations** - GBL balance updates are computed by Cryftee modules and validated via consensus; this allows subnets to "opt into" GBL tracking without requiring custom bridge contracts
+  - All chains: CGS hosting for privacy-aware transaction propagation
+
+- **Subnets/Regions:** Each subnet validator runs Cryftee for:
+  - CGS domain participation (privacy pools, intent routing)
+  - IPFS pinning and content availability attestations
+  - Local GBL tracking (if opted into federation mirroring)
+  - Checkpoint submission to Primary Network
+
+**Consensus validates Cryftee is operating as expected:**
+
+Cryftee performs off-chain computation (parallel validation, IPFS availability checks, CGS routing), but **consensus verifies the results**:
+
+1. Cryftee modules compute outputs (e.g., "these IPFS CIDs are available," "this cross-region transfer is valid")
+2. Modules produce signed attestations or proofs
+3. CryftGo validators verify attestations on-chain (signature checks, quorum requirements, slashing conditions)
+4. Only verified outputs are committed to the blockchain
+
+This achieves **high parallel throughput** (Cryftee does the heavy lifting off-chain) while maintaining **consensus security** (CryftGo validates all results on-chain).
+
+**GBL and Cryftee: opt-in federation without bridges**
+
+The Global Balance Ledger (GBL) on EVM Chain can be accessed by:
+- **Cryftee modules** running on subnet validators - modules compute regional balance updates and submit checkpoint attestations
+- **Subnets opting into GBL** - instead of deploying custom bridge contracts, subnets run GBL-aware Cryftee modules that synchronize with EVM Chain's authoritative GBL
+- **Cross-region transfers** - Cryftee modules handle the debit-checkpoint-credit flow, with consensus validating each step
+
+This provides a **modular, standardized approach to cross-chain balance tracking** without requiring every subnet to implement custom bridging logic.
 ### 13.1 Why a sidecar runtime?
 
 - Keeps the consensus client lean: consensus and execution code stays minimal; auxiliary features
@@ -72,23 +119,35 @@ can be rejected.
 - Exposes a versioned API over Unix Domain Socket (default) or HTTPS.
 - Includes a kiosk web UI on port 3232 with per-module GUIs rendered as tabs.
 - Enforces version compatibility (minCryftteeVersion) and publisher trust.
-### 13.3 Embedding CGS inside Cryftee
+### 13.3 Embedding CGS and IPFS inside Cryftee as modules
+
+**All auxiliary features are WASM modules loaded by Cryftee runtime:**
 
 | Module | Version | Purpose | Representative capabilities |
 |:-------|:--------|:--------|:----------------------------|
 | bls_tls_signer_v1 | 1.2.0 | BLS + TLS staking module with Web3Signer integration and module signing | bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_module, verify_module |
 | debug_v1 | 1.0.0 | Diagnostics and runtime inspection | debug_echo, debug_info, debug_panic |
 | llm_chat_v1 | 1.0.0 | Operator assistance via LLM interface | llm_chat, llm_stream |
-| ipfs_v1 | 2.0.0 | Embedded IPFS node management (full/light modes) | node_start, ipfs_add, ipfs_pin, ipns_publish, peer_connect |
+| **ipfs_v1** | 2.0.0 | **Embedded IPFS node management (full/light modes)** - IPFS is a Cryftee module, not a separate service | node_start, ipfs_add, ipfs_pin, ipns_publish, peer_connect |
 | redeemable_codes_v1 | 1.0.0 | On-chain redeemable gift code system | code_generate, code_redeem, code_freeze, validator_code_redeem |
-| private_sync_v1 | 1.0.0 | Cryft-style private transaction synchronizer (CGS domain module) | domain_create, party_register, tx_submit, view_decrypt, mediator_confirm |
+| **private_sync_v1** | 1.0.0 | **Cryft-style private transaction synchronizer (CGS domain module)** | domain_create, party_register, tx_submit, view_decrypt, mediator_confirm |
 
-CGS is embedded in Cryftee in two layers:
+**CGS is embedded in Cryftee in two layers:**
 
 - A CGS core service in the runtime that manages routing, pools, and key rotation schedules.
 - A set of modules (starting with private_sync_v1) that implement domain logic: party registration, tx submit/confirm, view requests, and mediator flows.
 
 This mirrors Cryft-style constructs while remaining pluggable. Embedding CGS in Cryftee keeps the synchronizer close to the validator, reducing latency and enabling tight integration with mempool selection and Smart Slot scheduling (via slot commitments).
+
+**IPFS layer is a Cryftee module (ipfs_v1):**
+
+The IPFS node runs inside Cryftee's module sandbox. This provides:
+- **Unified operational model:** IPFS configuration is managed via Cryftee's module manifest
+- **Signature verification:** IPFS module binaries are signed and verified before load
+- **Modular upgrades:** IPFS can be updated via module releases without changing CryftGo
+- **Integration with other modules:** CGS and governance modules can directly access IPFS for content storage and retrieval
+
+Validators configure IPFS mode (full node, light client, gateway-only) via Cryftee module settings.
 ### 13.4 Trust model: signed modules and publisher verification
 
 All modules are verified before load:
@@ -147,10 +206,26 @@ POST /v1/admin/reload-modules
 ```text
 GET  /api/modules/{module_id}/gui/
 ```
-### 13.7 Operational integration with cryftgo
+### 13.7 Operational integration: CryftGo launches Cryftee
 
-cryftgo launches Cryftee as a child process and configures it via environment variables. cryftgo can
+**CryftGo is the blockchain interface; Cryftee is the modular utility layer:**
+
+CryftGo (the consensus client) launches Cryftee as a child process and configures it via environment variables. CryftGo can
 verify the Cryftee binary hash before launch and optionally require attestation for sensitive operations.
+
+**CryftGo responsibilities:**
+- Consensus participation (block proposal, voting, finalization)
+- On-chain state validation and commitment
+- Verification of Cryftee attestations and proofs
+- Network communication with other validators
+
+**Cryftee responsibilities:**
+- Off-chain computation (parallel validation, IPFS operations, CGS routing)
+- Module execution (WASM sandboxing, API exposure)
+- Producing signed attestations for CryftGo to verify
+- Heavy lifting that doesn't need to be in consensus kernel
+
+This separation allows **modular and targeted implementations**: validators can choose which modules to run, and upgrades happen independently. A validator running IPFS pinning doesn't need the same modules as a validator focused on CGS privacy relay.
 
 **Core:**
 ```text

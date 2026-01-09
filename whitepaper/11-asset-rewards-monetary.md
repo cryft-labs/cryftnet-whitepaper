@@ -200,6 +200,8 @@ with exponents a,b set by governance (typical: a near 1, b in [0.3, 1.0]).
 
 **Figure 2: Reward flows (illustrative)**
 
+This diagram shows how fees and emissions flow through the treasury to various network participants. Fees collected from transactions and newly minted tokens (emissions) flow into the Treasury, which distributes rewards to Main validators, Region validators, CGS service providers, and IPFS pin providers according to governance-defined policies.
+
 ```mermaid
 flowchart LR
   Fees[Fees] --> Treasury[Treasury / Policy]

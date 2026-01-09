@@ -10,6 +10,8 @@ CryftNet is organized as a federation:
 
 **Figure 1: CryftNet federation overview (conceptual)**
 
+This diagram shows the high-level federation architecture. Main (Federal Chain) serves as the canonical settlement layer, with Regions providing low-latency service and optional Local chains for dense communities. Cryftee sidecars run alongside all validator nodes, hosting WASM modules and CGS. The IPFS plane provides content distribution across the network.
+
 ```mermaid
 flowchart TB
   Main["Main / Federal Chain<br>(Global settlement + DAO)"]
@@ -82,14 +84,14 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 **EVM Chain responsibilities:**
 
 - **EVM Smart Contracts:** All Solidity/Vyper contracts, DeFi protocols, NFT marketplaces, and dApps.
-- **Global Balance Ledger (GBL):** The authoritative record of partitioned EVM token balances across all regions--tracking which account owns how much of each EVM Chain asset on which region. (Note: Native CRYFT balances live on Mirror Chain; ERC-20 wrapped CRYFT lives on EVM Chain.)
+- **Global Balance Ledger (GBL):** The authoritative record of partitioned EVM token balances across all regions--tracking which account owns how much of each EVM Chain asset on which region. (Note: Native CRYFT balances live on Mirror Chain; ERC-20 wrapped CRYFT lives on EVM Chain.) **GBL operations are computed by Cryftee modules running on validators, allowing subnets to opt into GBL tracking without custom bridge contracts.**
 - **Contract Mirror Registry (CMR):** Authoritative record of federation contract deployments--tracking target_regions[], deployed_regions[], mirror_status per region, and deployment fees paid. Updated via region checkpoints.
 - **Federation Contract Registry:** Tracks CREATE2 deployments, code hashes, and cross-region contract verification.
 - **User-Facing dApp Interface:** When users "interact with CryftNet," they typically transact on EVM Chain (or regional EVM Chain instances).
 
 **Global Balance Ledger (GBL) architecture:**
 
-The GBL tracks **EVM Chain EVM token balances** (ERC-20, ERC-721, etc.) across regions. It does NOT track native CRYFT (that lives on Mirror Chain). The GBL is conceptually part of EVM Chain's state but may be implemented as a native data structure for efficiency:
+The GBL tracks **EVM Chain EVM token balances** (ERC-20, ERC-721, etc.) across regions. It does NOT track native CRYFT (that lives on Mirror Chain). The GBL is conceptually part of EVM Chain's state but is **implemented via Cryftee modules for modular, off-chain computation with on-chain consensus verification**:
 
 ```text
 GlobalBalanceLedger {
@@ -127,6 +129,8 @@ PendingTransfer {
 5. **Cross-region transfers as first-class operations:** Not contract calls, but native EVM Chain transactions.
 
 **GBL update flow:**
+
+This sequence diagram illustrates a cross-region asset transfer from State A to State B. The flow shows the debit-checkpoint-credit pattern: (1) User initiates transfer on State A, (2) State A debits local balance and includes TransferOut in its checkpoint to EVM Chain, (3) EVM Chain's GBL records the debit and creates a pending transfer, (4) State B credits the recipient's local balance on claim, (5) State B's next checkpoint confirms the claim, (6) EVM Chain's GBL records the credit and marks the transfer complete.
 
 ```mermaid
 sequenceDiagram
@@ -288,6 +292,10 @@ Federal Chain -> Mirror Chain:
 
 All three chains share the same block production schedule and validators, ensuring atomic cross-chain messaging without external bridges or delays.
 
+**Figure: Primary Network three-chain architecture with subnet hierarchy**
+
+This diagram shows the three-chain Primary Network (Federal, Mirror, EVM) with atomic messaging between them. States (Regions A and B) checkpoint to Federal Chain for settlement. Cities (A1, A2) checkpoint to their parent State, not directly to Main. Registration flows are shown with dotted lines.
+
 ```mermaid
 flowchart TB
   subgraph Primary["Primary Network"]
@@ -392,7 +400,9 @@ CityRegistration {
 
 **City ->' State settlement:**
 
-Cities checkpoint to their parent State (not to Main):
+**Figure: City checkpoint aggregation flow**
+
+Cities checkpoint to their parent State (not to Main). The State aggregates City checkpoints and includes a summary (e.g., Merkle root) in its own checkpoint to Main EVM Chain. Main does not verify City checkpoints directly.
 
 ```mermaid
 flowchart LR
