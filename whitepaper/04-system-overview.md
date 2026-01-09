@@ -573,14 +573,14 @@ Wallets display City-level balances by:
 
 ```text
 Alice's USDC:
-â"œâ"€â"€ Main:           500 USDC
-â"œâ"€â"€ State A:      1,000 USDC
-â"‚   â"œâ"€â"€ Direct:     200 USDC
-â"‚   â"œâ"€â"€ City A1:    500 USDC
-â"‚   â""â"€â"€ City A2:    300 USDC
-â""â"€â"€ State B:        250 USDC
-    â""â"€â"€ Direct:     250 USDC
-â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+|-- Main:           500 USDC
+|-- State A:      1,000 USDC
+|   |-- Direct:     200 USDC
+|   |-- City A1:    500 USDC
+|   `-- City A2:    300 USDC
+`-- State B:        250 USDC
+    `-- Direct:     250 USDC
+-----------------------------
 Total:            1,750 USDC
 ```
 

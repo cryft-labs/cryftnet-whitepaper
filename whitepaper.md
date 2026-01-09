@@ -657,14 +657,14 @@ Wallets display City-level balances by:
 
 ```text
 Alice's USDC:
-â"œâ"€â"€ Main:           500 USDC
-â"œâ"€â"€ State A:      1,000 USDC
-â"‚   â"œâ"€â"€ Direct:     200 USDC
-â"‚   â"œâ"€â"€ City A1:    500 USDC
-â"‚   â""â"€â"€ City A2:    300 USDC
-â""â"€â"€ State B:        250 USDC
-    â""â"€â"€ Direct:     250 USDC
-â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+|-- Main:           500 USDC
+|-- State A:      1,000 USDC
+|   |-- Direct:     200 USDC
+|   |-- City A1:    500 USDC
+|   `-- City A2:    300 USDC
+`-- State B:        250 USDC
+    `-- Direct:     250 USDC
+-----------------------------
 Total:            1,750 USDC
 ```
 
@@ -750,12 +750,12 @@ smallest committees, often for specialized workloads.
 
 ### 5.5 Optional overlay mesh transport (Nebula reference implementation)
 
-CryftNetâ€™s *architecture* only assumes an authenticated, low-jitter transport between validators and supporting services (Cryftee, beacons, pin auditors). It does **not** require any specific overlay network. However, an overlay mesh can be a pragmatic way to:
+CryftNet's *architecture* only assumes an authenticated, low-jitter transport between validators and supporting services (Cryftee, beacons, pin auditors). It does **not** require any specific overlay network. However, an overlay mesh can be a pragmatic way to:
 
 - reduce reliance on public IP exposure (validators can keep private addressing and still form a stable mesh),
 - enforce mutual authentication and segmentation via cryptographic identities and groups,
 - standardize private service discovery for operator tooling and Cryftee modules (UDS/HTTPS endpoints),
-- provide an operational â€œback channelâ€ for upgrades, telemetry, and incident response.
+- provide an operational "back channel" for upgrades, telemetry, and incident response.
 
 A concrete candidate is **Nebula** (a WireGuard-style encrypted mesh with lighthouses and optional relays). Recommended stance:
 
@@ -1531,10 +1531,10 @@ Partitioned Balance Model:
 Token: USDC (deployed at 0xUSDC on all regions via CREATE2)
 
 User Alice's balances:
-â"œâ"€â"€ Main:     500 USDC   (Alice can spend on Main)
-â"œâ"€â"€ Region A: 300 USDC   (Alice can spend on Region A)
-â"œâ"€â"€ Region B:   0 USDC   (Alice has no Region B balance)
-â""â"€â"€ Region C: 200 USDC   (Alice can spend on Region C)
+|-- Main:     500 USDC   (Alice can spend on Main)
+|-- Region A: 300 USDC   (Alice can spend on Region A)
+|-- Region B:   0 USDC   (Alice has no Region B balance)
+`-- Region C: 200 USDC   (Alice can spend on Region C)
 
 Total Alice owns: 1000 USDC (sum of all regional balances)
 

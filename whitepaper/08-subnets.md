@@ -39,10 +39,10 @@ Partitioned Balance Model:
 Token: USDC (deployed at 0xUSDC on all regions via CREATE2)
 
 User Alice's balances:
-â"œâ"€â"€ Main:     500 USDC   (Alice can spend on Main)
-â"œâ"€â"€ Region A: 300 USDC   (Alice can spend on Region A)
-â"œâ"€â"€ Region B:   0 USDC   (Alice has no Region B balance)
-â""â"€â"€ Region C: 200 USDC   (Alice can spend on Region C)
+|-- Main:     500 USDC   (Alice can spend on Main)
+|-- Region A: 300 USDC   (Alice can spend on Region A)
+|-- Region B:   0 USDC   (Alice has no Region B balance)
+`-- Region C: 200 USDC   (Alice can spend on Region C)
 
 Total Alice owns: 1000 USDC (sum of all regional balances)
 

@@ -21,12 +21,12 @@ smallest committees, often for specialized workloads.
 
 ### 5.5 Optional overlay mesh transport (Nebula reference implementation)
 
-CryftNetâ€™s *architecture* only assumes an authenticated, low-jitter transport between validators and supporting services (Cryftee, beacons, pin auditors). It does **not** require any specific overlay network. However, an overlay mesh can be a pragmatic way to:
+CryftNet's *architecture* only assumes an authenticated, low-jitter transport between validators and supporting services (Cryftee, beacons, pin auditors). It does **not** require any specific overlay network. However, an overlay mesh can be a pragmatic way to:
 
 - reduce reliance on public IP exposure (validators can keep private addressing and still form a stable mesh),
 - enforce mutual authentication and segmentation via cryptographic identities and groups,
 - standardize private service discovery for operator tooling and Cryftee modules (UDS/HTTPS endpoints),
-- provide an operational â€œback channelâ€ for upgrades, telemetry, and incident response.
+- provide an operational "back channel" for upgrades, telemetry, and incident response.
 
 A concrete candidate is **Nebula** (a WireGuard-style encrypted mesh with lighthouses and optional relays). Recommended stance:
 
