@@ -99,8 +99,8 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 ### 14.8 Multi-chain Main and hierarchical registration threats
 
-- **C-Chain / EVM Chain desync:** Atomic messaging between C-Chain and EVM Chain fails, causing inconsistent state. Mitigation: shared validator set ensures atomic block production; recovery protocol for rare edge cases.
-- **EVM Chain governance capture:** Attacker gains control of EVM Chain to manipulate subnet registrations. Mitigation: same governance protections as C-Chain; two-chamber votes; timelocks.
+- **Federal Chain / EVM Chain desync:** Atomic messaging between Federal Chain and EVM Chain fails, causing inconsistent state. Mitigation: shared validator set ensures atomic block production; recovery protocol for rare edge cases.
+- **EVM Chain governance capture:** Attacker gains control of EVM Chain to manipulate subnet registrations. Mitigation: same governance protections as Federal Chain; two-chamber votes; timelocks.
 - **Rogue State chain registering malicious Cities:** State DAO approves a City designed to defraud users. Mitigation: State reputation systems; user warnings for new Cities; exit to State as escape hatch.
 - **City checkpoint withholding:** City validators delay checkpointing to State to enable fraud. Mitigation: checkpoint liveness requirements enforced by State; City slashing; user failover to State.
 - **Cross-participation evasion:** CSS-1 validator stops validating Main while continuing State validation. Mitigation: Main monitors CSS-1 validator participation; automatic suspension from State if Main duties lapse.
@@ -150,7 +150,7 @@ The partitioned balance model introduces specific threat vectors that must be ad
 | Region exit scam | Asset integrity | Total loss on region | Exit to Main via proof, slashing, reputation systems |
 | Checkpoint withholding | Liveness | Delayed settlement | Liveness requirements, reward incentives, user failover |
 | ZK soundness bug | Asset integrity | Invalid state accepted | Multiple proof systems, formal verification, quorum fallback |
-| C-Chain / EVM Chain desync | Consistency | Split-brain state | Shared validators, atomic blocks, recovery protocol |
+| Federal Chain / EVM Chain desync | Consistency | Split-brain state | Shared validators, atomic blocks, recovery protocol |
 | Rogue City registration | Asset integrity | User fraud via City | State reputation, user warnings, exit to State |
 | Cross-participation evasion | Security | Weakened Main | Participation monitoring, automatic State suspension |
 | GBL manipulation | Asset integrity | Regional balance inflation | Checkpoint proofs, Main consensus, slashing |
@@ -185,13 +185,13 @@ exhaustive: it is easier to delete items later than to discover them during an o
 - Define checkpoint formats and message roots; build light verifier library.
 - Define ping protocol (packet formats, nonce rules, signing, report encoding).
 - Threat modeling workshops for Smart Slots, CGS, and pinning incentives.
-### 15.2 Milestone 1: Main chain prototype (C-Chain + EVM Chain)
+### 15.2 Milestone 1: Primary Network prototype (Federal + Mirror + EVM)
 
 - Fork and bootstrap consensus client (cryftgo baseline) and integrate Cryftee sidecar launch.
-- Implement dual-chain Main architecture: C-Chain (EVM) and EVM Chain (native VM).
+- Implement three-chain Primary Network: Federal Chain (native VM for validators/governance), Mirror Chain (native UTXO for assets), and EVM Chain (EVM for smart contracts).
 - Implement EVM Chain Global Balance Ledger (GBL) with per-region balance tracking.
 - Implement EVM Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
-- Implement CMR ->" C-Chain Federation Registry synchronization.
+- Implement CMR synchronization with Federal Chain subnet registry.
 - Implement Main chain registry contracts (regions, subnets, publishers, pin providers).
 - Implement Federation Contract Registry with CREATE2 verification and code_hash tracking.
 - Implement RegionDeployer and FederationDeployer contracts on Main.

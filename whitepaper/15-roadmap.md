@@ -101,6 +101,6 @@ handling.
 - What timeout period for unclaimed transfers balances user convenience with stuck-funds risk?
 - How can cross-region transfer fees be priced to discourage spam while remaining affordable?
 - Should ZK validity proofs be required for cross-region claims above a certain value threshold?
-- What is the optimal division of responsibilities between C-Chain and EVM Chain? Should some operations (e.g., staking) live on C-Chain for EVM composability?
+- What is the optimal division of responsibilities between Federal Chain and EVM Chain? Should some operations (e.g., staking) live on EVM Chain for EVM composability, or remain on Federal Chain (native VM) for security isolation?
 - How should validator rewards be split between Main validation and State validation duties?
 - What is the appropriate bootstrap period for new CSS-1 States before requiring Main validation?

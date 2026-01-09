@@ -61,13 +61,13 @@ If target_regions is empty or omitted:
 
 | Interaction Type | Region ID Required? | Notes |
 |:-----------------|:--------------------|:------|
-| **Main C-Chain transactions** | **NO** | Main is the default home chain; no region declaration needed |
-| **Main C-Chain contract deployment** | **NO** | Deploys directly on Main; mirroring requires target_regions[] |
+| **Main EVM Chain transactions** | **NO** | Main is the default home chain; no region declaration needed |
+| **Main EVM Chain contract deployment** | **NO** | Deploys directly on Main; mirroring requires target_regions[] |
 | **State/Region chain transactions** | YES | Must specify which region to execute on |
 | **Cross-region transfers** | YES | Must specify dest_region explicitly |
 | **Federation mirroring** | YES | Must declare target_regions[] and pay fees |
 
-**Main as the default chain:** Users interacting with Main Federal C-Chain do not need to specify any region ID. Main is the "home" chain of the federation--transactions submitted to Main execute on Main. Region IDs are only required when:
+**Main as the default chain:** Users interacting with Main EVM Chain do not need to specify any region ID. Main is the "home" chain of the federation--transactions submitted to Main execute on Main. Region IDs are only required when:
 1. Deploying or transacting on State/Region chains
 2. Requesting federation mirroring to specific regions
 3. Initiating cross-region asset transfers
@@ -76,7 +76,7 @@ If target_regions is empty or omitted:
 
 | Mode | Scope | Region Declaration | Fee Structure |
 |:-----|:------|:-------------------|:--------------|
-| **Main-direct** | Main C-Chain only | None required | Main gas only |
+| **Main-direct** | Main EVM Chain only | None required | Main gas only |
 | **Region-local** | Single region only | Implicit (current region) | Region gas only |
 | **Federation-mirrored** | Declared regions | Explicit target_regions[] | Origin + per-region fee |
 | **Main-first (governance)** | All CSS-1 regions | Explicit or "all CSS-1" | Main + per-region fee |
@@ -84,14 +84,14 @@ If target_regions is empty or omitted:
 **Main-direct deployment (no region ID needed):**
 
 ```text
-Developer deploys contract directly on Main C-Chain:
+Developer deploys contract directly on Main EVM Chain:
 
 1) Dev deploys via standard CREATE2 or FederationDeployer on Main
    - NO region ID required - Main is the default chain
    - Transaction: deploy(init_code, salt)
    - Fee: Main gas only
    
-2) Contract exists on Main C-Chain
+2) Contract exists on Main EVM Chain
    - Users interact with contract on Main without specifying region
    - Standard EVM experience, no federation complexity
    

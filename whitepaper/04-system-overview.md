@@ -126,11 +126,11 @@ PendingTransfer {
 }
 ```
 
-**Why GBL lives on EVM Chain (not C-Chain):**
+**Why GBL lives on EVM Chain (not Federal Chain):**
 
 1. **Native efficiency:** Balance tracking is a simple ledger operation--no EVM overhead needed.
 2. **Atomic with checkpoints:** When EVM Chain accepts a State checkpoint, it atomically updates GBL balances.
-3. **Single source of truth:** Eliminates sync issues between C-Chain contracts and EVM Chain state.
+3. **Single source of truth:** EVM Chain as the EVM execution layer is the natural home for EVM token balance tracking.
 4. **Simpler conservation checks:** EVM Chain can enforce sum(regional balances) = total_supply natively.
 5. **Cross-region transfers as first-class operations:** Not contract calls, but native EVM Chain transactions.
 
@@ -462,7 +462,7 @@ Since Cities register only via their parent State (not directly with Main), thei
 
 | Level | Balance Authority | Settlement Target | Account Visibility |
 |:------|:------------------|:------------------|:-------------------|
-| Main (C-Chain/EVM Chain) | EVM Chain GBL | Final (self) | Global |
+| Main (EVM Chain) | EVM Chain GBL | Final (self) | Global |
 | State | EVM Chain GBL (via checkpoints) | Main | Global |
 | City | State Balance Ledger (SBL) | Parent State | State-local only |
 

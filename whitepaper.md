@@ -210,11 +210,11 @@ PendingTransfer {
 }
 ```
 
-**Why GBL lives on EVM Chain (not C-Chain):**
+**Why GBL lives on EVM Chain (not Federal Chain):**
 
 1. **Native efficiency:** Balance tracking is a simple ledger operation--no EVM overhead needed.
 2. **Atomic with checkpoints:** When EVM Chain accepts a State checkpoint, it atomically updates GBL balances.
-3. **Single source of truth:** Eliminates sync issues between C-Chain contracts and EVM Chain state.
+3. **Single source of truth:** EVM Chain as the EVM execution layer is the natural home for EVM token balance tracking.
 4. **Simpler conservation checks:** EVM Chain can enforce sum(regional balances) = total_supply natively.
 5. **Cross-region transfers as first-class operations:** Not contract calls, but native EVM Chain transactions.
 
@@ -546,7 +546,7 @@ Since Cities register only via their parent State (not directly with Main), thei
 
 | Level | Balance Authority | Settlement Target | Account Visibility |
 |:------|:------------------|:------------------|:-------------------|
-| Main (C-Chain/EVM Chain) | EVM Chain GBL | Final (self) | Global |
+| Main (EVM Chain) | EVM Chain GBL | Final (self) | Global |
 | State | EVM Chain GBL (via checkpoints) | Main | Global |
 | City | State Balance Ledger (SBL) | Parent State | State-local only |
 
@@ -1617,13 +1617,13 @@ If target_regions is empty or omitted:
 
 | Interaction Type | Region ID Required? | Notes |
 |:-----------------|:--------------------|:------|
-| **Main C-Chain transactions** | **NO** | Main is the default home chain; no region declaration needed |
-| **Main C-Chain contract deployment** | **NO** | Deploys directly on Main; mirroring requires target_regions[] |
+| **Main EVM Chain transactions** | **NO** | Main is the default home chain; no region declaration needed |
+| **Main EVM Chain contract deployment** | **NO** | Deploys directly on Main; mirroring requires target_regions[] |
 | **State/Region chain transactions** | YES | Must specify which region to execute on |
 | **Cross-region transfers** | YES | Must specify dest_region explicitly |
 | **Federation mirroring** | YES | Must declare target_regions[] and pay fees |
 
-**Main as the default chain:** Users interacting with Main Federal C-Chain do not need to specify any region ID. Main is the "home" chain of the federation--transactions submitted to Main execute on Main. Region IDs are only required when:
+**Main as the default chain:** Users interacting with Main EVM Chain do not need to specify any region ID. Main is the "home" chain of the federation--transactions submitted to Main execute on Main. Region IDs are only required when:
 1. Deploying or transacting on State/Region chains
 2. Requesting federation mirroring to specific regions
 3. Initiating cross-region asset transfers
@@ -1632,7 +1632,7 @@ If target_regions is empty or omitted:
 
 | Mode | Scope | Region Declaration | Fee Structure |
 |:-----|:------|:-------------------|:--------------|
-| **Main-direct** | Main C-Chain only | None required | Main gas only |
+| **Main-direct** | Main EVM Chain only | None required | Main gas only |
 | **Region-local** | Single region only | Implicit (current region) | Region gas only |
 | **Federation-mirrored** | Declared regions | Explicit target_regions[] | Origin + per-region fee |
 | **Main-first (governance)** | All CSS-1 regions | Explicit or "all CSS-1" | Main + per-region fee |
@@ -1640,14 +1640,14 @@ If target_regions is empty or omitted:
 **Main-direct deployment (no region ID needed):**
 
 ```text
-Developer deploys contract directly on Main C-Chain:
+Developer deploys contract directly on Main EVM Chain:
 
 1) Dev deploys via standard CREATE2 or FederationDeployer on Main
    - NO region ID required - Main is the default chain
    - Transaction: deploy(init_code, salt)
    - Fee: Main gas only
    
-2) Contract exists on Main C-Chain
+2) Contract exists on Main EVM Chain
    - Users interact with contract on Main without specifying region
    - Standard EVM experience, no federation complexity
    
@@ -3105,8 +3105,8 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 ### 14.8 Multi-chain Main and hierarchical registration threats
 
-- **C-Chain / EVM Chain desync:** Atomic messaging between C-Chain and EVM Chain fails, causing inconsistent state. Mitigation: shared validator set ensures atomic block production; recovery protocol for rare edge cases.
-- **EVM Chain governance capture:** Attacker gains control of EVM Chain to manipulate subnet registrations. Mitigation: same governance protections as C-Chain; two-chamber votes; timelocks.
+- **Federal Chain / EVM Chain desync:** Atomic messaging between Federal Chain and EVM Chain fails, causing inconsistent state. Mitigation: shared validator set ensures atomic block production; recovery protocol for rare edge cases.
+- **EVM Chain governance capture:** Attacker gains control of EVM Chain to manipulate subnet registrations. Mitigation: same governance protections as Federal Chain; two-chamber votes; timelocks.
 - **Rogue State chain registering malicious Cities:** State DAO approves a City designed to defraud users. Mitigation: State reputation systems; user warnings for new Cities; exit to State as escape hatch.
 - **City checkpoint withholding:** City validators delay checkpointing to State to enable fraud. Mitigation: checkpoint liveness requirements enforced by State; City slashing; user failover to State.
 - **Cross-participation evasion:** CSS-1 validator stops validating Main while continuing State validation. Mitigation: Main monitors CSS-1 validator participation; automatic suspension from State if Main duties lapse.
@@ -3156,7 +3156,7 @@ The partitioned balance model introduces specific threat vectors that must be ad
 | Region exit scam | Asset integrity | Total loss on region | Exit to Main via proof, slashing, reputation systems |
 | Checkpoint withholding | Liveness | Delayed settlement | Liveness requirements, reward incentives, user failover |
 | ZK soundness bug | Asset integrity | Invalid state accepted | Multiple proof systems, formal verification, quorum fallback |
-| C-Chain / EVM Chain desync | Consistency | Split-brain state | Shared validators, atomic blocks, recovery protocol |
+| Federal Chain / EVM Chain desync | Consistency | Split-brain state | Shared validators, atomic blocks, recovery protocol |
 | Rogue City registration | Asset integrity | User fraud via City | State reputation, user warnings, exit to State |
 | Cross-participation evasion | Security | Weakened Main | Participation monitoring, automatic State suspension |
 | GBL manipulation | Asset integrity | Regional balance inflation | Checkpoint proofs, Main consensus, slashing |
@@ -3191,13 +3191,13 @@ exhaustive: it is easier to delete items later than to discover them during an o
 - Define checkpoint formats and message roots; build light verifier library.
 - Define ping protocol (packet formats, nonce rules, signing, report encoding).
 - Threat modeling workshops for Smart Slots, CGS, and pinning incentives.
-### 15.2 Milestone 1: Main chain prototype (C-Chain + EVM Chain)
+### 15.2 Milestone 1: Primary Network prototype (Federal + Mirror + EVM)
 
 - Fork and bootstrap consensus client (cryftgo baseline) and integrate Cryftee sidecar launch.
-- Implement dual-chain Main architecture: C-Chain (EVM) and EVM Chain (native VM).
+- Implement three-chain Primary Network: Federal Chain (native VM for validators/governance), Mirror Chain (native UTXO for assets), and EVM Chain (EVM for smart contracts).
 - Implement EVM Chain Global Balance Ledger (GBL) with per-region balance tracking.
 - Implement EVM Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
-- Implement CMR ->" C-Chain Federation Registry synchronization.
+- Implement CMR synchronization with Federal Chain subnet registry.
 - Implement Main chain registry contracts (regions, subnets, publishers, pin providers).
 - Implement Federation Contract Registry with CREATE2 verification and code_hash tracking.
 - Implement RegionDeployer and FederationDeployer contracts on Main.
@@ -3322,7 +3322,7 @@ handling.
 - What timeout period for unclaimed transfers balances user convenience with stuck-funds risk?
 - How can cross-region transfer fees be priced to discourage spam while remaining affordable?
 - Should ZK validity proofs be required for cross-region claims above a certain value threshold?
-- What is the optimal division of responsibilities between C-Chain and EVM Chain? Should some operations (e.g., staking) live on C-Chain for EVM composability?
+- What is the optimal division of responsibilities between Federal Chain and EVM Chain? Should some operations (e.g., staking) live on EVM Chain for EVM composability, or remain on Federal Chain (native VM) for security isolation?
 - How should validator rewards be split between Main validation and State validation duties?
 - What is the appropriate bootstrap period for new CSS-1 States before requiring Main validation?
 
