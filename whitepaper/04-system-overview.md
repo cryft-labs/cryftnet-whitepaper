@@ -10,7 +10,7 @@ CryftNet is organized as a federation:
 
 **Figure 1: CryftNet federation overview (conceptual)**
 
-``mermaid
+```mermaid
 flowchart TB
   Main["Main / Federal Chain<br>(Global settlement + DAO)"]
   RegionA["Region A (CSS)<br>Low-latency committee"]
@@ -19,26 +19,18 @@ flowchart TB
   Custom["Custom subnets<br>(optional)"]
   Cryftee["Cryftee Sidecar<br>(WASM modules + CGS)"]
   IPFS["IPFS Plane<br>(portals, modules, content)"]
+  
   RegionA -->|checkpoint| Main
   RegionB -->|checkpoint| Main
   Local -->|settle up| RegionA
   Local -->|settle up| RegionB
   Custom --> Main
+  
   Cryftee -. deployed beside .- Main
   Cryftee -. deployed beside .- RegionA
   Cryftee -. deployed beside .- RegionB
+  
   IPFS <--> Cryftee
-  IPFS <--> Main
-  IPFS <--> RegionA
-  IPFS <--> RegionB
-``
-
-Main and regions are linked by checkpointing. Regions confirm locally, then periodically anchor a
-signed checkpoint to Main. Cross-region transfers use these checkpoints and standard message
-formats. The federation is "edge-like" in the sense that regions provide fast service nearby, but it
-avoids centralized operators: validator sets are governed by DAOs and measured for eligibility using
-network performance signals.
-
   IPFS <--> Main
   IPFS <--> RegionA
   IPFS <--> RegionB
