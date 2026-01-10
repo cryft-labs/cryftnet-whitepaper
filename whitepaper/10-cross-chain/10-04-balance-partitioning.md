@@ -103,7 +103,7 @@ Contract enables balance_portability = true
 - Balances are tracked per-region: balances[region][account]
 - Users can call transferToRegion(amount, dest_region, recipient)
 - Standard debit-checkpoint-credit flow
-- EVM Chain GBL tracks conservation: sum(regional balances) = total_supply
+- Mirror Chain GBL tracks conservation: sum(regional balances) = total_supply
 
 Use case: Tokens, stablecoins, any asset users want to move
 ```

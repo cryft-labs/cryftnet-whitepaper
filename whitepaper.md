@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.20<br>
-<strong>Date:</strong> January 08, 2026<br>
+<strong>Revision:</strong> v1.21<br>
+<strong>Date:</strong> January 10, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Added production-readiness sections: Smart Slots under-claiming enforcement (7.3.5), CGS consensus boundary clarification (9.5-9.9), decision machine for open questions (16.2), pragmatic Mainnet v1 deployment strategy (15.9).
+<strong>Latest Changes:</strong> Updated GBL to Mirror Chain extended UTXO model (Sections 4.1, 10, 14, etc.). Mirror Chain now serves as the dedicated partitioned ledger and source of truth for EVM-based balances across opted-in subnets.
 </p>
 
 <p align="center"><em>
@@ -168,82 +168,100 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 **EVM Chain responsibilities:**
 
 - **EVM Smart Contracts:** All Solidity/Vyper contracts, DeFi protocols, NFT marketplaces, and dApps.
-- **Global Balance Ledger (GBL):** The authoritative record of partitioned EVM token balances across all regions--tracking which account owns how much of each EVM Chain asset on which region. (Note: Native CRYFT balances live on Mirror Chain; ERC-20 wrapped CRYFT lives on EVM Chain.) **GBL operations are computed by Cryftee modules running on validators, allowing subnets to opt into GBL tracking without custom bridge contracts.**
-- **Contract Mirror Registry (CMR):** Authoritative record of federation contract deployments--tracking target_regions[], deployed_regions[], mirror_status per region, and deployment fees paid. Updated via region checkpoints.
+- **Contract Mirror Registry (CMR):** Authoritative record of federation contract deployments--tracking target_regions[], deployed_regions[], mirror_status per region, and deployment fees paid. Updated via region checkpoints. Lives on EVM Chain (not Mirror).
 - **Federation Contract Registry:** Tracks CREATE2 deployments, code hashes, and cross-region contract verification.
 - **User-Facing dApp Interface:** When users "interact with CryftNet," they typically transact on EVM Chain (or regional EVM Chain instances).
+- **GBL Access:** EVM Chain contracts query Mirror Chain's GBL via atomic cross-chain messaging or precompiles.
+
+**Mirror Chain additional responsibility:**
+
+- **Global Balance Ledger (GBL):** The authoritative partitioned ledger for EVM token balances across all regions, **managed by Mirror Chain using an extended UTXO model**. Each UTXO includes metadata: {asset_id, region_id, account, amount}, tracking which account owns how much of each asset on which region. Mirror Chain serves as the single source of truth for partitioned balances; EVM Chain and subnets access GBL state via atomic cross-chain messaging or precompiles. Native CRYFT balances also use Mirror Chain (standard UTXO). **GBL tracking is opt-in for subnets--no custom bridge contracts required.**
 
 **Global Balance Ledger (GBL) architecture:**
 
-The GBL tracks **EVM Chain EVM token balances** (ERC-20, ERC-721, etc.) across regions. It does NOT track native CRYFT (that lives on Mirror Chain). The GBL is conceptually part of EVM Chain's state but is **implemented via Cryftee modules for modular, off-chain computation with on-chain consensus verification**:
+The GBL tracks **EVM token balances** (ERC-20, ERC-721, etc.) across regions using **Mirror Chain's extended UTXO model**. Native CRYFT also uses standard UTXO on Mirror Chain. The GBL is **managed entirely by Mirror Chain** as a partitioned ledger; EVM Chain and subnets access it via atomic cross-chain messaging:
 
 ```text
-GlobalBalanceLedger {
-  // Per-asset, per-region, per-account balance
-  balances: Map<(asset_id, region_id, account) -> uint256>
+GlobalBalanceLedger (Mirror Chain extended UTXO) {
+  // Each UTXO carries metadata for partitioned balance tracking
+  utxo_set: [
+    {
+      utxo_id: bytes32,           // Unique UTXO identifier
+      asset_id: address,          // EVM token address (or CRYFT for native)
+      region_id: uint64,          // Which region this balance belongs to
+      account: address,           // EVM account owner
+      amount: uint256,            // Balance amount
+      lock_script: bytes,         // Spend authorization (signature requirements)
+    },
+    ...
+  ]
   
-  // Total supply per asset (conservation invariant)
-  total_supply: Map<asset_id -> uint256>
+  // Total supply per asset (derived from UTXO set)
+  // total_supply[asset] = sum(utxo.amount for utxo in utxo_set if utxo.asset_id == asset)
   
-  // Pending cross-region transfers
-  pending_transfers: Map<transfer_id -> PendingTransfer>
+  // Pending cross-region transfers (also as UTXOs with pending status)
+  pending_transfers: [
+    {
+      transfer_id: bytes32,
+      asset_id: address,
+      amount: uint256,
+      from_region: uint64,
+      to_region: uint64,
+      sender: address,
+      recipient: address,
+      initiated_checkpoint: uint64,
+      status: enum { Pending, Claimed, Expired, Refunded },
+    },
+    ...
+  ]
   
-  // Conservation check: for all asset: sum(balances[asset, *, *]) == total_supply[asset]
-}
-
-PendingTransfer {
-  transfer_id: bytes32,
-  asset_id: address,
-  amount: uint256,
-  from_region: uint64,
-  to_region: uint64,
-  sender: address,
-  recipient: address,
-  initiated_checkpoint: uint64,  // checkpoint where debit occurred
-  status: enum { Pending, Claimed, Expired, Refunded }
+  // Conservation invariant: sum(utxo.amount for asset_id) == total_supply[asset_id]
 }
 ```
 
-**Why GBL lives on EVM Chain (not Federal Chain):**
+**Why GBL lives on Mirror Chain (not EVM Chain or Federal Chain):**
 
-1. **Native efficiency:** Balance tracking is a simple ledger operation--no EVM overhead needed.
-2. **Atomic with checkpoints:** When EVM Chain accepts a State checkpoint, it atomically updates GBL balances.
-3. **Single source of truth:** EVM Chain as the EVM execution layer is the natural home for EVM token balance tracking.
-4. **Simpler conservation checks:** EVM Chain can enforce sum(regional balances) = total_supply natively.
-5. **Cross-region transfers as first-class operations:** Not contract calls, but native EVM Chain transactions.
+1. **UTXO efficiency:** Mirror Chain's UTXO model naturally supports parallel validation and partitioned balances without account-based contention.
+2. **Native asset layer:** Native CRYFT already uses Mirror Chain UTXO; extending for EVM token tracking unifies the asset layer.
+3. **Atomic cross-chain messaging:** Primary Network's three-chain architecture enables atomic reads/writes from EVM Chain to Mirror GBL.
+4. **Simple and robust:** Mirror remains lean (no smart contracts)--GBL is a ledger operation, not execution.
+5. **Conservation checks:** UTXO model makes conservation invariant (`sum(utxo.amount) == total_supply`) mechanically enforceable.
+6. **Modularity:** EVM Chain focuses on execution; Mirror Chain focuses on asset custody and partitioned balances.
+7. **Opt-in for subnets:** Subnets query Mirror GBL via precompiles or bridge contracts--no Cryftee module dependency.
 
 **GBL update flow:**
 
-This sequence diagram illustrates a cross-region asset transfer from State A to State B. The flow shows the debit-checkpoint-credit pattern: (1) User initiates transfer on State A, (2) State A debits local balance and includes TransferOut in its checkpoint to EVM Chain, (3) EVM Chain's GBL records the debit and creates a pending transfer, (4) State B credits the recipient's local balance on claim, (5) State B's next checkpoint confirms the claim, (6) EVM Chain's GBL records the credit and marks the transfer complete.
+This sequence diagram illustrates a cross-region asset transfer from State A to State B. The flow shows the debit-checkpoint-credit pattern: (1) User initiates transfer on State A, (2) State A debits local balance and includes TransferOut in its checkpoint to Mirror Chain, (3) Mirror Chain GBL consumes source UTXO and creates pending transfer UTXO, (4) State B credits the recipient's local balance on claim, (5) State B's next checkpoint confirms the claim to Mirror Chain, (6) Mirror Chain GBL consumes pending transfer UTXO and creates destination UTXO, marking transfer complete.
 
 ```mermaid
 sequenceDiagram
   participant User
   participant StateA as State A
-  participant MChain as EVM Chain (GBL)
+  participant Mirror as Mirror Chain (GBL)
   participant StateB as State B
   
   User->>StateA: transferToRegion(asset, amount, B, recipient)
   StateA->>StateA: Debit local balance, emit TransferOut event
-  StateA->>MChain: Checkpoint includes TransferOut
-  MChain->>MChain: GBL: debit(asset, A, sender, amount)
-  MChain->>MChain: GBL: pending_transfers[id] = {Pending...}
-  MChain->>StateB: Checkpoint confirmation includes pending transfer
+  StateA->>Mirror: Checkpoint includes TransferOut
+  Mirror->>Mirror: GBL: consume UTXO(asset, A, sender, amount)
+  Mirror->>Mirror: GBL: create pending_transfer UTXO
+  Mirror->>StateB: Checkpoint confirmation includes pending transfer
   StateB->>StateB: Credit local balance on claim
-  StateB->>MChain: Next checkpoint confirms claim
-  MChain->>MChain: GBL: credit(asset, B, recipient, amount)
-  MChain->>MChain: GBL: pending_transfers[id].status = Claimed
+  StateB->>Mirror: Next checkpoint confirms claim
+  Mirror->>Mirror: GBL: consume pending_transfer UTXO
+  Mirror->>Mirror: GBL: create UTXO(asset, B, recipient, amount)
 ```
 
-**EVM Chain EVM contracts and GBL:**
+**EVM Chain contracts accessing Mirror GBL:**
 
-EVM Chain EVM contracts can **query** GBL state (which tracks EVM Chain token balances across regions):
+EVM Chain contracts **query** Mirror Chain GBL state via atomic cross-chain messaging or precompiles:
 
 ```text
-// EVM Chain EVM contract can query GBL
+// EVM Chain contract queries Mirror GBL via precompile or atomic message
 function getRegionalBalance(address asset, uint64 regionId, address account) 
   returns (uint256) {
-  return GBL.balances[asset][regionId][account];
+  // Precompile at 0x0000...0100 queries Mirror Chain GBL
+  return MIRROR_GBL_PRECOMPILE.queryBalance(asset, regionId, account);
 }
 
 // Useful for:
@@ -252,7 +270,7 @@ function getRegionalBalance(address asset, uint64 regionId, address account)
 // - Treasury contracts distributing rewards proportionally
 ```
 
-Note: Native CRYFT balances live on Mirror Chain (UTXO model). EVM Chain sees wrapped CRYFT (ERC-20) only.
+Note: Native CRYFT balances use standard Mirror Chain UTXO. EVM Chain can wrap CRYFT via bridge contract (wrapped CRYFT is ERC-20 on EVM Chain, backed 1:1 by Mirror UTXO).
 
 **Contract Mirror Registry (CMR) architecture:**
 
@@ -544,35 +562,38 @@ A successful City may choose to "graduate" to State status:
 
 ### 4.4 City-level account management (State-mediated balances)
 
-Since Cities register only via their parent State (not directly with Main), their account balances are managed **through the State**, not the federal EVM Chain's Global Balance Ledger. This creates a clean separation:
+Since Cities register only via their parent State (not directly with Main), their account balances are managed **through the State**, not the federal Mirror Chain's Global Balance Ledger. This creates a clean separation:
 
 | Level | Balance Authority | Settlement Target | Account Visibility |
 |:------|:------------------|:------------------|:-------------------|
-| Main (EVM Chain) | EVM Chain GBL | Final (self) | Global |
-| State | EVM Chain GBL (via checkpoints) | Main | Global |
+| Main (Mirror Chain) | Mirror Chain GBL (extended UTXO) | Final (self) | Global |
+| State | Mirror Chain GBL (via checkpoints) | Main | Global |
 | City | State Balance Ledger (SBL) | Parent State | State-local only |
 
 **State Balance Ledger (SBL):**
 
-Each CSS-1 State maintains its own **State Balance Ledger** for its Cities, mirroring EVM Chain's GBL structure but at the State level:
+Each CSS-1 State maintains its own **State Balance Ledger** for its Cities, mirroring Mirror Chain's GBL structure but at the State level:
 
 ```text
 StateBalanceLedger {
   // Per-asset, per-city, per-account balance
-  city_balances: Map<(asset_id, city_id, account) ->' uint256>
+  city_balances: Map<(asset_id, city_id, account) -> uint256>
   
-  // State-level aggregate (what EVM Chain GBL sees for this State)
-  state_total: Map<(asset_id, account) ->' uint256>
+  // State-level aggregate (what Mirror Chain GBL sees for this State)
+  state_total: Map<(asset_id, account) -> uint256>
   
   // Invariant: state_total[asset, account] = 
   //   state_direct[asset, account] + sum(city_balances[asset, *, account])
   
-  // Pending City->'City and City->'State transfers
-  pending_city_transfers: Map<transfer_id ->' PendingCityTransfer>
+  // Pending City->City and City->State transfers
+  pending_city_transfers: Map<transfer_id -> PendingCityTransfer>
 }
 ```
 
 **Key architectural principle: Main doesn't see City accounts**
+
+From Main's perspective, a State is a single entity. The Mirror Chain GBL tracks:
+- `UTXO(USDC, State_A, Alice, 1000)`
 
 From Main's perspective, a State is a single entity. The GBL tracks:
 - `balances[USDC, State_A, Alice] = 1000`
@@ -620,23 +641,25 @@ City A1 ->' State A direct transfer:
 Main still sees: balances[USDC, State_A, Alice] = 1000 (unchanged)
 ```
 
-**City->'Different State transfer (requires Main):**
+**City->Different State transfer (requires Main):**
 
 ```text
-City A1 (State A) ->' State B transfer:
+City A1 (State A) -> State B transfer:
 
 1) City A1: cityBridge.transferToRegion(asset, amount, State_B, recipient)
 2) City A1 checkpoints to State A with cross-State intent
 3) State A's SBL:
    - city_balances[USDC, A1, Alice] -= 500
    - Cross-State transfer queued for next Main checkpoint
-4) State A checkpoints to Main EVM Chain with:
+4) State A checkpoints to Main Mirror Chain with:
    - TransferOut(USDC, 500, from=State_A, to=State_B, ...)
-5) EVM Chain GBL:
-   - balances[USDC, State_A, Alice] -= 500
-   - pending_transfers[id] = {Pending, to=State_B, ...}
+5) Mirror Chain GBL:
+   - Consume UTXO(USDC, State_A, Alice, old_amount)
+   - Create pending_transfer UTXO
 6) State B receives, recipient claims
-7) EVM Chain GBL: balances[USDC, State_B, Bob] += 500
+7) Mirror Chain GBL:
+   - Consume pending_transfer UTXO
+   - Create UTXO(USDC, State_B, Bob, 500)
 
 Note: Main only sees State-level balances. It doesn't know the transfer originated from a City.
 ```
@@ -645,15 +668,15 @@ Note: Main only sees State-level balances. It doesn't know the transfer originat
 
 | Query | Where to Ask | Response |
 |:------|:-------------|:---------|
-| "What's my total balance?" | Main EVM Chain GBL | Sum across all States |
-| "What's my State A balance?" | Main EVM Chain GBL | Single State total |
+| "What's my total balance?" | Main Mirror Chain GBL | Sum across all States |
+| "What's my State A balance?" | Main Mirror Chain GBL | Single State total |
 | "What's my City A1 balance?" | State A SBL | City-specific balance |
 | "Where exactly are my assets?" | State A SBL + each City | Full breakdown |
 
 **Wallets and City balances:**
 
 Wallets display City-level balances by:
-1. Querying EVM Chain GBL for State-level totals
+1. Querying Mirror Chain GBL for State-level totals
 2. For each State with balance > 0, querying the State's SBL for City breakdown
 3. Displaying hierarchical view:
 
@@ -674,9 +697,9 @@ Total:            1,750 USDC
 
 This hierarchical model provides:
 
-1. **Scalability:** Main GBL tracks ~100 States, not ~10,000 Cities.
+1. **Scalability:** Main Mirror GBL tracks ~100 States, not ~10,000 Cities.
 2. **State sovereignty:** States control their City ecosystem without Main approval.
-3. **Latency:** City->"City transfers within a State are fast (no Main checkpoint wait).
+3. **Latency:** City->City transfers within a State are fast (no Main checkpoint wait).
 4. **Appropriate trust:** City users trust their State; they don't need global Main consensus.
 5. **Simpler Main governance:** Main governs States; States govern Cities.
 
@@ -2335,7 +2358,7 @@ Contract enables balance_portability = true
 - Balances are tracked per-region: balances[region][account]
 - Users can call transferToRegion(amount, dest_region, recipient)
 - Standard debit-checkpoint-credit flow
-- EVM Chain GBL tracks conservation: sum(regional balances) = total_supply
+- Mirror Chain GBL tracks conservation: sum(regional balances) = total_supply
 
 Use case: Tokens, stablecoins, any asset users want to move
 ```
@@ -2540,7 +2563,7 @@ Federation Contract Registry entry:
   balance_portability: true,
   deployed_regions: [A, B, C, D],
   initialized_on: [A],           // Only home region initialized
-  total_supply: 1_000_000_000,   // Tracked by GBL
+  total_supply: 1_000_000_000,   // Tracked by Mirror Chain GBL
   conservation_verified: true
 }
 ```
@@ -2698,9 +2721,9 @@ Result: Issuer has 4B tokens total! Supply inflated 4x.
 
 CREATE2 guarantees the same ADDRESS for same parameters, but each region executes the constructor INDEPENDENTLY. The constructor runs once per region, initializing local storage on each.
 
-**Solution: EVM Chain GBL is the authoritative source**
+**Solution: Mirror Chain GBL is the authoritative source**
 
-The contract's local `balances` mapping is a **cache**, not the source of truth. The EVM Chain Global Balance Ledger (GBL) is authoritative:
+The contract's local `balances` mapping is a **cache**, not the source of truth. The Mirror Chain Global Balance Ledger (GBL) is authoritative:
 
 ```text
 Federation-aware token architecture:
@@ -2713,17 +2736,17 @@ Federation-aware token architecture:
 
 2) Initial mint happens on ONE region only (typically Main):
    - After deployment, issuer calls mint(amount, home_region=Main)
-   - Main's GBL records: balances[USDC, Main, issuer] = 1_000_000_000
-   - Main's GBL records: total_supply[USDC] = 1_000_000_000
+   - Mirror Chain GBL creates: UTXO(USDC, Main, issuer, 1_000_000_000)
+   - Mirror Chain GBL records: total_supply[USDC] = 1_000_000_000
    - No other region has any balance
 
-3) Regional contract reads from GBL (via checkpoint sync):
+3) Regional contract reads from Mirror GBL (via atomic cross-chain query):
    - Region A's USDC contract has balances[issuer] = 0 (no mint occurred here)
    - Region B's USDC contract has balances[issuer] = 0
    - Only Main shows issuer's balance
 
 4) If issuer wants balance on Region A:
-   - Must use transferToRegion(Main ->' A)
+   - Must use transferToRegion(Main -> A)
    - Normal cross-region transfer rules apply
 ```
 
@@ -2756,7 +2779,7 @@ contract FederatedToken {
                 "Mint only allowed on home region");
         
         balances[to] += amount;
-        // Emit event for GBL to record
+        // Emit event for Mirror GBL to record
         emit Mint(to, amount, REGION_ID);
     }
     
@@ -2795,8 +2818,8 @@ Token Registry entry:
 Rules:
 - mint() only succeeds on home_region
 - Existing supply moves between regions via transferToRegion()
-- GBL tracks: sum(balances across all regions) = total_supply
-- Any discrepancy = bug or attack ->' bridge pause
+- Mirror Chain GBL tracks: sum(balances across all regions) = total_supply
+- Any discrepancy = bug or attack -> bridge pause
 ```
 
 **What about attacker deploying their own token?**
@@ -2870,8 +2893,8 @@ Safe federated token deployment:
    
 5) INITIAL MINT (Main only):
    - Circle calls USDC.mint(Circle, 1_000_000_000)
-   - GBL records: balances[USDC, Main, Circle] = 1B
-   - GBL records: total_supply[USDC] = 1B
+   - Mirror GBL creates: UTXO(USDC, Main, Circle, 1B)
+   - Mirror GBL records: total_supply[USDC] = 1B
    
 6) DEPLOY ON REGIONS (after checkpoint):
    - Each region deploys same code at 0xUSDC
@@ -2881,7 +2904,7 @@ Safe federated token deployment:
 7) DISTRIBUTION:
    - Circle transfers USDC to users via normal transfers
    - Cross-region transfers move balances as needed
-   - GBL always enforces: sum(regional) = total_supply
+   - Mirror Chain GBL always enforces: sum(regional) = total_supply
 ```
 
 **Racing attack is now impossible:**
@@ -3306,14 +3329,14 @@ a kiosk-style web UI for operators on port 3232.
 
 - **Primary Network (Federal Chain, Mirror Chain, EVM Chain):** All three chains use Cryftee modules for operations:
   - Federal Chain: Validator eligibility checks, governance vote aggregation, checkpoint acceptance logic
-  - Mirror Chain: UTXO validation assistance, high-throughput parallel processing
-  - **EVM Chain: Global Balance Ledger (GBL) operations** - GBL balance updates are computed by Cryftee modules and validated via consensus; this allows subnets to "opt into" GBL tracking without requiring custom bridge contracts
+  - Mirror Chain: UTXO validation assistance, high-throughput parallel processing, GBL management support
+  - EVM Chain: Smart contract execution support, cross-chain messaging coordination
   - All chains: CGS hosting for privacy-aware transaction propagation
 
 - **Subnets/Regions:** Each subnet validator runs Cryftee for:
   - CGS domain participation (privacy pools, intent routing)
   - IPFS pinning and content availability attestations
-  - Local GBL tracking (if opted into federation mirroring)
+  - Local balance tracking synchronization with Mirror Chain GBL (if opted into federation)
   - Checkpoint submission to Primary Network
 
 **Consensus validates Cryftee is operating as expected:**
@@ -3329,12 +3352,12 @@ This achieves **high parallel throughput** (Cryftee does the heavy lifting off-c
 
 **GBL and Cryftee: opt-in federation without bridges**
 
-The Global Balance Ledger (GBL) on EVM Chain can be accessed by:
-- **Cryftee modules** running on subnet validators - modules compute regional balance updates and submit checkpoint attestations
-- **Subnets opting into GBL** - instead of deploying custom bridge contracts, subnets run GBL-aware Cryftee modules that synchronize with EVM Chain's authoritative GBL
-- **Cross-region transfers** - Cryftee modules handle the debit-checkpoint-credit flow, with consensus validating each step
+The Global Balance Ledger (GBL) on Mirror Chain can be accessed by:
+- **Subnets opting into GBL** - subnets query Mirror Chain's GBL via atomic cross-chain messaging or precompiles; no custom bridge contracts required
+- **EVM Chain contracts** - query Mirror GBL via precompiles or atomic messaging for federation-wide balance views
+- **Cross-region transfers** - processed through Mirror Chain's UTXO model with checkpoint verification at each step
 
-This provides a **modular, standardized approach to cross-chain balance tracking** without requiring every subnet to implement custom bridging logic.
+This provides a **unified, robust approach to cross-chain balance tracking** with Mirror Chain as the authoritative ledger.
 ### 13.1 Why a sidecar runtime?
 
 - Keeps the consensus client lean: consensus and execution code stays minimal; auxiliary features
@@ -3550,7 +3573,7 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 - **Uncoordinated region deployment:** Region deploys contract before receiving Main checkpoint authorization. Mitigation: FederationDeployer requires authorization from Main checkpoint before allowing deployment; unauthorized calls revert.
 
-- **Constructor balance duplication:** Token constructor initializes balances (e.g., `balances[issuer] = 1B`), and deploying on multiple regions multiplies the supply. **Critical mitigation:** Federation-verified tokens MUST use zero-balance constructors; initial supply is minted via separate transaction on designated home_region only; EVM Chain GBL is authoritative source of truth, not local contract storage; governance code review rejects contracts with constructor-initialized balances.
+- **Constructor balance duplication:** Token constructor initializes balances (e.g., `balances[issuer] = 1B`), and deploying on multiple regions multiplies the supply. **Critical mitigation:** Federation-verified tokens MUST use zero-balance constructors; initial supply is minted via separate transaction on designated home_region only; Mirror Chain GBL is authoritative source of truth, not local contract storage; governance code review rejects contracts with constructor-initialized balances.
 
 - **Home region bypass:** Attacker tries to call mint() on non-home region. Mitigation: mint() function checks `REGION_ID == registry.homeRegion(address(this))` and reverts otherwise; only authorized_minter on home_region can create new supply.
 
@@ -3581,15 +3604,15 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 ### 14.9 Global Balance Ledger (GBL), Contract Mirror Registry (CMR), and State Balance Ledger (SBL) threats
 
-- **GBL manipulation:** Attacker attempts to modify EVM Chain GBL records to inflate regional balances. Mitigation: GBL updates require checkpoint proofs from origin region; Main validator consensus on all GBL state transitions; slashing for malicious proposals.
-- **GBL-regional desync:** Region's local balance tracking diverges from GBL. Mitigation: periodic reconciliation audits; discrepancy detection triggers bridge pause; conservation invariant checked on every checkpoint.
-- **CMR manipulation:** Attacker attempts to modify EVM Chain CMR to add unauthorized target_regions or mark non-deployed contracts as deployed. Mitigation: CMR updates only via verified checkpoint proofs; fee verification before region addition; Main validator consensus on all CMR state transitions.
+- **GBL manipulation:** Attacker attempts to modify Mirror Chain GBL records to inflate regional balances. Mitigation: GBL updates require checkpoint proofs from origin region; Mirror Chain validator consensus on all GBL UTXO transitions; slashing for malicious proposals; UTXO model provides strong integrity guarantees.
+- **GBL-regional desync:** Region's local balance tracking diverges from Mirror GBL. Mitigation: periodic reconciliation audits; discrepancy detection triggers bridge pause; conservation invariant checked on every checkpoint; UTXOs provide audit trail.
+- **CMR manipulation:** Attacker attempts to modify EVM Chain CMR to add unauthorized target_regions or mark non-deployed contracts as deployed. Mitigation: CMR updates only via verified checkpoint proofs; fee verification before region addition; EVM Chain validator consensus on all CMR state transitions.
 - **CMR-region desync:** Region's local deployment registry diverges from EVM Chain CMR. Mitigation: regions derive mirror permissions from CMR state in checkpoints; unauthorized local deployments not recognized by federation; periodic reconciliation audits.
 - **CMR status forgery:** Region checkpoint falsely claims successful deployment. Mitigation: Main can verify deployment by querying region; ZK proof of contract existence; slashing for false checkpoint claims.
-- **SBL-GBL desync:** City's State Balance Ledger diverges from State's view of City balances. Mitigation: State checkpoints include City balance summaries; discrepancies flagged for investigation; City suspension pending resolution.
-- **City balance inflation:** City attempts to credit users with balances not backed by State allocation. Mitigation: SBL credits must not exceed State-allocated balance for City; checkpoints rejected if SBL sum exceeds allocation.
+- **SBL-GBL desync:** City's State Balance Ledger diverges from State's view of City balances, or State's aggregate diverges from Mirror GBL. Mitigation: State checkpoints include City balance summaries; discrepancies flagged for investigation; City suspension pending resolution; Mirror GBL reconciliation.
+- **City balance inflation:** City attempts to credit users with balances not backed by State allocation. Mitigation: SBL credits must not exceed State-allocated balance for City; checkpoints rejected if SBL sum exceeds allocation; Mirror GBL tracks State total.
 - **State blocking City transfers:** State refuses to process legitimate City-to-State balance movements. Mitigation: City can appeal to Main; emergency exit mechanism via Main governance; State reputation damage.
-- **Orphaned regional balances:** Region becomes permanently unreachable, leaving GBL balances stranded. Mitigation: governance can trigger balance recovery after extended unreachability; Main serves as arbiter of final state.
+- **Orphaned regional balances:** Region becomes permanently unreachable, leaving Mirror GBL balances stranded. Mitigation: governance can trigger balance recovery after extended unreachability; Main serves as arbiter of final state; UTXO-based recovery possible.
 
 ### 14.10 Region-first deployment and federation fee threats
 
@@ -3661,15 +3684,16 @@ exhaustive: it is easier to delete items later than to discover them during an o
 ### 15.2 Milestone 1: Primary Network prototype (Federal + Mirror + EVM)
 
 - Fork and bootstrap consensus client (cryftgo baseline) and integrate Cryftee sidecar launch.
-- Implement three-chain Primary Network: Federal Chain (native VM for validators/governance), Mirror Chain (native UTXO for assets), and EVM Chain (EVM for smart contracts).
-- Implement EVM Chain Global Balance Ledger (GBL) with per-region balance tracking.
+- Implement three-chain Primary Network: Federal Chain (native VM for validators/governance), Mirror Chain (native UTXO for assets + GBL extended UTXO), and EVM Chain (EVM for smart contracts).
+- Implement Mirror Chain Global Balance Ledger (GBL) with extended UTXO model for per-region balance tracking.
+- Implement EVM Chain atomic cross-chain messaging and precompiles for Mirror GBL queries.
 - Implement EVM Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
 - Implement CMR synchronization with Federal Chain subnet registry.
 - Implement Main chain registry contracts (regions, subnets, publishers, pin providers).
 - Implement Federation Contract Registry with CREATE2 verification and code_hash tracking.
 - Implement RegionDeployer and FederationDeployer contracts on Main.
 - Implement checkpoint acceptance contract and quorum verification (BLS aggregate or equivalent).
-- Implement cross-region transfer tracking and conservation invariant verification.
+- Implement cross-region transfer tracking via Mirror Chain UTXO transitions and conservation invariant verification.
 - Implement federation fee collection and treasury distribution.
 - Implement governance framework (proposal lifecycle, timelocks, two-chamber vote scaffolding).
 - Implement basic fee market and reward distribution accounting (no pinning yet).
@@ -3767,7 +3791,7 @@ requests.
 - Security audits for Cryftee runtime, module verification, and key management integrations.
 - Governance audits: vote export integrity, aggregation correctness, and timelock safety.
 - Operational playbooks: upgrades, rollback, emergency pause policies, key rotation procedures.
-- Multi-region stress testing: simultaneous State launches, cross-region transfer congestion, GBL conservation under load.
+- Multi-region stress testing: simultaneous State launches, cross-region transfer congestion, Mirror GBL conservation under load.
 - Disaster recovery testing: Main partition scenarios, checkpoint withholding, orphaned region recovery.
 
 ### 15.8 Whitepaper completeness checklist (for publication)
@@ -3803,7 +3827,7 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 | **Regions (CSS-1)** | ✅ YES (enabled) | This is where "web2 feel" comes from; already proven in subnet architectures |
 | **Federal Chain** | ✅ YES (validator management, checkpoints) | Core federation coordination; uses native VM (proven, not experimental) |
 | **Mirror Chain** | ✅ YES (native CRYFT transfers) | High-throughput UTXO chain; proven design |
-| **GBL/CMR** | ✅ YES (with enforced invariants) | Partitioned balances + contract registry; ensure chain responsibilities consistent and invariants mechanically enforceable |
+| **GBL/CMR** | ✅ YES (with enforced invariants) | Mirror Chain GBL with extended UTXO + EVM Chain CMR; partitioned balances + contract registry; ensure chain responsibilities consistent and invariants mechanically enforceable |
 | **Smart Slots** | ⚠️ TESTNET-ONLY or WHITELISTED | Feature flag: disabled by default; enable only for governance-approved contracts with enforced under-claim detection (Section 7.3.5) |
 | **CGS (privacy)** | ❌ TESTNET-ONLY | Not mainnet until Section 9.9 gating criteria met; all txs use legacy (non-private) path initially |
 | **CRVS consensus** | ❌ DEFERRED | Deploy with proven consensus; upgrade to CRVS post-launch via governance after Milestone 15.5 validation complete |
@@ -3815,7 +3839,7 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 **User-facing value:**
 - ✅ Low-latency regions (sub-second finality for region-local transactions)
 - ✅ EVM compatibility (deploy Solidity contracts, use MetaMask, no code changes)
-- ✅ Cross-region asset transfers (via GBL debit-checkpoint-credit flow)
+- ✅ Cross-region asset transfers (via Mirror GBL debit-checkpoint-credit flow)
 - ✅ Federation-verified contracts (deterministic addresses across regions)
 - ✅ Proven security (Avalanche-style consensus, no unvalidated experiments in safety kernel)
 
@@ -3845,8 +3869,8 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 - Parallel execution: `--enable-parallel-scheduler=false` by default; serial execution proven safe
 
 **Principle 3: Mechanical invariant enforcement**
-- GBL conservation: `sum(regional_balances) == total_supply` enforced by EVM Chain state machine
-- CMR consistency: Region deployments verified against Main registry before execution
+- Mirror GBL conservation: `sum(utxo.amount for asset) == total_supply` enforced by Mirror Chain UTXO model
+- CMR consistency: Region deployments verified against EVM Chain registry before execution
 - Checkpoint validity: Quorum signatures required; optional ZK proofs post-launch
 
 **Principle 4: Clear upgrade path**
@@ -3863,7 +3887,7 @@ Before launching Mainnet v1, ALL of the following must be complete:
 |:-----|:--------------------|:-------|
 | **Baseline consensus audit** | External audit of Avalanche integration; all critical/high findings resolved | ❌ TODO |
 | **EVM Chain compatibility** | Passes Ethereum test suite; MetaMask/Hardhat work without modifications | ❌ TODO |
-| **GBL invariant validation** | Formal verification or exhaustive property tests: no balance creation/loss; conservation holds under 1M cross-region transfers | ❌ TODO |
+| **GBL invariant validation** | Formal verification or exhaustive property tests: no balance creation/loss; conservation holds under 1M cross-region transfers; UTXO integrity verified | ❌ TODO |
 | **Checkpoint security** | Quorum signature verification; replay protection; no checkpoint forgery in adversarial tests | ❌ TODO |
 | **Region interop testing** | 3+ regions with cross-region transfers, contract mirroring, checkpoint flow; p95 settlement <30s | ❌ TODO |
 | **Testnet soak (>=3 months)** | Incentivized testnet with real validator economics; no critical bugs; uptime >99.9% | ❌ TODO |
@@ -3931,9 +3955,9 @@ This is not "giving up." This is **risk management**. You can iterate on CRVS, C
 - **Mirror Chain (Mirror):** The high-throughput native asset transfer chain within the Primary Network. Optimized for CRYFT transfers and native asset issuance using a UTXO model. Default chain for base asset movements.
 - **EVM Chain (EVM Execution):** The account-based smart contract execution chain within the Primary Network. Compatible with Solidity/Vyper tooling--the dApp chain. When we say "EVM chain," we mean the EVM Chain specifically, not the entire Cryft network. Interactions with EVM Chain do not require region ID specification.
 - **Region ID:** Unique identifier for a State/Region chain within the federation. Required for State/Region chain transactions and cross-region operations. NOT required for Primary Network EVM Chain interactions.
-- **Global Balance Ledger (GBL):** The authoritative data structure (part of EVM Chain or Federal Chain) tracking partitioned EVM Chain token balances across all regions--which account owns how much of each EVM Chain asset on which region. Native CRYFT balances live on Mirror Chain.
-- **Contract Mirror Registry (CMR):** The authoritative data structure (part of EVM Chain or Federal Chain) tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
-- **State Balance Ledger (SBL):** A State-level ledger tracking City balances within that State; not visible to the Primary Network.
+- **Global Balance Ledger (GBL):** The authoritative partitioned ledger for EVM token balances across all regions, managed by Mirror Chain using an extended UTXO model. Each UTXO includes metadata: {asset_id, region_id, account, amount}. Mirror Chain serves as the single source of truth; EVM Chain and subnets access GBL via atomic cross-chain messaging or precompiles. Native CRYFT balances also use Mirror Chain (standard UTXO).
+- **Contract Mirror Registry (CMR):** The authoritative data structure on EVM Chain tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
+- **State Balance Ledger (SBL):** A State-level ledger tracking City balances within that State; mirrors Mirror Chain's GBL structure at State level; not visible to the Primary Network.
 - **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via Federal Chain checkpoints). Requires region ID for transaction submission.
 - **City chain / Local chain:** A sub-chain that registers via its parent State, not directly with the Primary Network; balances tracked in parent State's SBL.
 - **CSS-1:** Cryft Standard Subnet profile for interoperability.
@@ -3942,14 +3966,14 @@ This is not "giving up." This is **risk management**. You can iterate on CRVS, C
 - **CGS:** Cryft Global Synchronizer, the privacy-aware propagation and synchronization plane.
 - **Cryftee:** Signed WASM module runtime sidecar providing chain utilities and CGS hosting.
 - **Pin provider:** An operator who earns rewards by keeping content available on IPFS.
-- **Partitioned balance:** An asset accounting model where balances are tracked per-region; the same contract address exists on all regions but balances are region-specific.
+- **Partitioned balance:** An asset accounting model where balances are tracked per-region via Mirror Chain GBL extended UTXO; the same contract address exists on all regions but balances are region-specific.
 - **Federation Contract Registry:** Main-hosted registry of canonical contract deployments, recording address, code_hash, deployer, and verified regions.
 - **CREATE2 deployment:** Deterministic contract deployment using CREATE2 opcode, ensuring same address across all regions given identical deployer, salt, and init_code.
-- **Cross-region transfer:** Movement of assets from one region to another via debit-checkpoint-credit flow, recorded in EVM Chain GBL.
+- **Cross-region transfer:** Movement of assets from one region to another via debit-checkpoint-credit flow, recorded in Mirror Chain GBL as UTXO transitions.
 - **Cross-City transfer:** Movement of assets between Cities under the same State, recorded in State's SBL (does not touch Main).
 - **Transfer_id:** Unique identifier for a cross-region transfer, used to prevent replay attacks.
 - **Credit line (mirroring):** Spending authorization granted to regions for a user's mirrored balance, backed by assets held on Main.
-- **Conservation invariant:** The rule that sum(regional balances) must equal total supply for any token; enforced natively by EVM Chain GBL.
+- **Conservation invariant:** The rule that sum(regional balances) must equal total supply for any token; enforced by Mirror Chain GBL UTXO model (`sum(utxo.amount for asset) == total_supply`).
 - **Home region:** The designated region where a token's initial supply is minted; mint() calls only succeed on this region.
 - **Zero-balance constructor:** Required pattern for federation-verified tokens where constructor initializes no balances; prevents supply duplication on multi-region deployment.
 - **FederationDeployer:** A contract deployed on Main and all regions that enforces governance-approved deployments via CREATE2; requires Main checkpoint authorization before deploying.

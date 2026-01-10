@@ -75,14 +75,14 @@ a kiosk-style web UI for operators on port 3232.
 
 - **Primary Network (Federal Chain, Mirror Chain, EVM Chain):** All three chains use Cryftee modules for operations:
   - Federal Chain: Validator eligibility checks, governance vote aggregation, checkpoint acceptance logic
-  - Mirror Chain: UTXO validation assistance, high-throughput parallel processing
-  - **EVM Chain: Global Balance Ledger (GBL) operations** - GBL balance updates are computed by Cryftee modules and validated via consensus; this allows subnets to "opt into" GBL tracking without requiring custom bridge contracts
+  - Mirror Chain: UTXO validation assistance, high-throughput parallel processing, GBL management support
+  - EVM Chain: Smart contract execution support, cross-chain messaging coordination
   - All chains: CGS hosting for privacy-aware transaction propagation
 
 - **Subnets/Regions:** Each subnet validator runs Cryftee for:
   - CGS domain participation (privacy pools, intent routing)
   - IPFS pinning and content availability attestations
-  - Local GBL tracking (if opted into federation mirroring)
+  - Local balance tracking synchronization with Mirror Chain GBL (if opted into federation)
   - Checkpoint submission to Primary Network
 
 **Consensus validates Cryftee is operating as expected:**
@@ -98,12 +98,12 @@ This achieves **high parallel throughput** (Cryftee does the heavy lifting off-c
 
 **GBL and Cryftee: opt-in federation without bridges**
 
-The Global Balance Ledger (GBL) on EVM Chain can be accessed by:
-- **Cryftee modules** running on subnet validators - modules compute regional balance updates and submit checkpoint attestations
-- **Subnets opting into GBL** - instead of deploying custom bridge contracts, subnets run GBL-aware Cryftee modules that synchronize with EVM Chain's authoritative GBL
-- **Cross-region transfers** - Cryftee modules handle the debit-checkpoint-credit flow, with consensus validating each step
+The Global Balance Ledger (GBL) on Mirror Chain can be accessed by:
+- **Subnets opting into GBL** - subnets query Mirror Chain's GBL via atomic cross-chain messaging or precompiles; no custom bridge contracts required
+- **EVM Chain contracts** - query Mirror GBL via precompiles or atomic messaging for federation-wide balance views
+- **Cross-region transfers** - processed through Mirror Chain's UTXO model with checkpoint verification at each step
 
-This provides a **modular, standardized approach to cross-chain balance tracking** without requiring every subnet to implement custom bridging logic.
+This provides a **unified, robust approach to cross-chain balance tracking** with Mirror Chain as the authoritative ledger.
 ### 13.1 Why a sidecar runtime?
 
 - Keeps the consensus client lean: consensus and execution code stays minimal; auxiliary features

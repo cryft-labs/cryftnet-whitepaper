@@ -108,14 +108,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.20<br>
-<strong>Date:</strong> January 08, 2026<br>
+<strong>Revision:</strong> v1.21<br>
+<strong>Date:</strong> January 10, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Added production-readiness sections: Smart Slots under-claiming enforcement (7.3.5), CGS consensus boundary clarification (9.5-9.9), decision machine for open questions (16.2), pragmatic Mainnet v1 deployment strategy (15.9).
+<strong>Latest Changes:</strong> Updated GBL to Mirror Chain extended UTXO model (Sections 4.1, 10, 14, etc.). Mirror Chain now serves as the dedicated partitioned ledger and source of truth for EVM-based balances across opted-in subnets.
 </p>
 
 <p align="center"><em>

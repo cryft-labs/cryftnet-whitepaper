@@ -1,14 +1,14 @@
 ﻿<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.20<br>
-<strong>Date:</strong> January 08, 2026<br>
+<strong>Revision:</strong> v1.21<br>
+<strong>Date:</strong> January 10, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Added production-readiness sections: Smart Slots under-claiming enforcement (7.3.5), CGS consensus boundary clarification (9.5-9.9), decision machine for open questions (16.2), pragmatic Mainnet v1 deployment strategy (15.9).
+<strong>Latest Changes:</strong> Updated GBL to Mirror Chain extended UTXO model (Sections 4.1, 10, 14, etc.). Mirror Chain now serves as the dedicated partitioned ledger and source of truth for EVM-based balances across opted-in subnets.
 </p>
 
 <p align="center"><em>
@@ -169,6 +169,7 @@ python compile-whitepaper.py
 
 | Version | Date | Notes |
 |:--------|:-----|:------|
+| v1.21 | January 10, 2026 | **MIRROR CHAIN GBL ARCHITECTURE:** Updated GBL from EVM Chain to Mirror Chain using extended UTXO model. Each UTXO includes metadata: {asset_id, region_id, account, amount}. Mirror Chain serves as dedicated partitioned ledger and source of truth for EVM-based balances across opted-in subnets. EVM Chain and subnets access Mirror GBL via atomic cross-chain messaging or precompiles. Updated Sections 4.1, 10.4, 10.6, 10.7, 11, 13, 14.9, 15.2, 15.9, and glossary. CMR remains on EVM Chain. Conservation invariant enforced by Mirror Chain UTXO model. |
 | v1.20 | January 08, 2026 | **PRODUCTION READINESS:** Added deterministic under-claiming enforcement for Smart Slots (Section 7.3.5) with runtime access-trace validation. Clarified CGS consensus boundary (Sections 9.5-9.9): CGS is mempool transport only, not consensus-critical; added concrete threshold encryption key management, explicit privacy goals, and mainnet gating criteria. Transformed Section 16.2 open questions into decision machine with 27 actionable items (type, owner, milestone, acceptance tests, priority tiers). Added pragmatic Mainnet v1 deployment strategy (Section 15.9): proven baseline consensus, regions enabled, Smart Slots/CGS/CRVS testnet-only or deferred. |
 | v1.19 | January 08, 2026 | **CHAIN RENAMING:** P-Chain → Federal Chain, X-Chain → Mirror Chain, M-Chain → EVM Chain. Updated all 16 sections with new nomenclature. Fixed mermaid diagram syntax errors. Corrected UTF-8 encoding issues (malformed arrows, em-dashes, special characters). |
 | v1.18 | January 07, 2026 | **ARCHITECTURE CLARIFICATION:** Primary Network consists of THREE chains: Federal Chain (validator/staking/subnets), Mirror Chain (native asset transfers/issuance), EVM Chain (EVM execution). Replaces previous "dual-chain Main" terminology. Staking anchored to Federal Chain, native assets and GBL to EVM Chain, smart contracts to EVM Chain. When we say "EVM chain," we mean EVM Chain specifically. |

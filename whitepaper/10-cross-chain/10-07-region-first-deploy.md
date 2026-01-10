@@ -9,7 +9,7 @@
                 "Mint only allowed on home region");
         
         balances[to] += amount;
-        // Emit event for GBL to record
+        // Emit event for Mirror GBL to record
         emit Mint(to, amount, REGION_ID);
     }
     
@@ -48,8 +48,8 @@ Token Registry entry:
 Rules:
 - mint() only succeeds on home_region
 - Existing supply moves between regions via transferToRegion()
-- GBL tracks: sum(balances across all regions) = total_supply
-- Any discrepancy = bug or attack ->' bridge pause
+- Mirror Chain GBL tracks: sum(balances across all regions) = total_supply
+- Any discrepancy = bug or attack -> bridge pause
 ```
 
 **What about attacker deploying their own token?**

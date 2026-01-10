@@ -77,7 +77,7 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 - **Uncoordinated region deployment:** Region deploys contract before receiving Main checkpoint authorization. Mitigation: FederationDeployer requires authorization from Main checkpoint before allowing deployment; unauthorized calls revert.
 
-- **Constructor balance duplication:** Token constructor initializes balances (e.g., `balances[issuer] = 1B`), and deploying on multiple regions multiplies the supply. **Critical mitigation:** Federation-verified tokens MUST use zero-balance constructors; initial supply is minted via separate transaction on designated home_region only; EVM Chain GBL is authoritative source of truth, not local contract storage; governance code review rejects contracts with constructor-initialized balances.
+- **Constructor balance duplication:** Token constructor initializes balances (e.g., `balances[issuer] = 1B`), and deploying on multiple regions multiplies the supply. **Critical mitigation:** Federation-verified tokens MUST use zero-balance constructors; initial supply is minted via separate transaction on designated home_region only; Mirror Chain GBL is authoritative source of truth, not local contract storage; governance code review rejects contracts with constructor-initialized balances.
 
 - **Home region bypass:** Attacker tries to call mint() on non-home region. Mitigation: mint() function checks `REGION_ID == registry.homeRegion(address(this))` and reverts otherwise; only authorized_minter on home_region can create new supply.
 
@@ -108,15 +108,15 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 ### 14.9 Global Balance Ledger (GBL), Contract Mirror Registry (CMR), and State Balance Ledger (SBL) threats
 
-- **GBL manipulation:** Attacker attempts to modify EVM Chain GBL records to inflate regional balances. Mitigation: GBL updates require checkpoint proofs from origin region; Main validator consensus on all GBL state transitions; slashing for malicious proposals.
-- **GBL-regional desync:** Region's local balance tracking diverges from GBL. Mitigation: periodic reconciliation audits; discrepancy detection triggers bridge pause; conservation invariant checked on every checkpoint.
-- **CMR manipulation:** Attacker attempts to modify EVM Chain CMR to add unauthorized target_regions or mark non-deployed contracts as deployed. Mitigation: CMR updates only via verified checkpoint proofs; fee verification before region addition; Main validator consensus on all CMR state transitions.
+- **GBL manipulation:** Attacker attempts to modify Mirror Chain GBL records to inflate regional balances. Mitigation: GBL updates require checkpoint proofs from origin region; Mirror Chain validator consensus on all GBL UTXO transitions; slashing for malicious proposals; UTXO model provides strong integrity guarantees.
+- **GBL-regional desync:** Region's local balance tracking diverges from Mirror GBL. Mitigation: periodic reconciliation audits; discrepancy detection triggers bridge pause; conservation invariant checked on every checkpoint; UTXOs provide audit trail.
+- **CMR manipulation:** Attacker attempts to modify EVM Chain CMR to add unauthorized target_regions or mark non-deployed contracts as deployed. Mitigation: CMR updates only via verified checkpoint proofs; fee verification before region addition; EVM Chain validator consensus on all CMR state transitions.
 - **CMR-region desync:** Region's local deployment registry diverges from EVM Chain CMR. Mitigation: regions derive mirror permissions from CMR state in checkpoints; unauthorized local deployments not recognized by federation; periodic reconciliation audits.
 - **CMR status forgery:** Region checkpoint falsely claims successful deployment. Mitigation: Main can verify deployment by querying region; ZK proof of contract existence; slashing for false checkpoint claims.
-- **SBL-GBL desync:** City's State Balance Ledger diverges from State's view of City balances. Mitigation: State checkpoints include City balance summaries; discrepancies flagged for investigation; City suspension pending resolution.
-- **City balance inflation:** City attempts to credit users with balances not backed by State allocation. Mitigation: SBL credits must not exceed State-allocated balance for City; checkpoints rejected if SBL sum exceeds allocation.
+- **SBL-GBL desync:** City's State Balance Ledger diverges from State's view of City balances, or State's aggregate diverges from Mirror GBL. Mitigation: State checkpoints include City balance summaries; discrepancies flagged for investigation; City suspension pending resolution; Mirror GBL reconciliation.
+- **City balance inflation:** City attempts to credit users with balances not backed by State allocation. Mitigation: SBL credits must not exceed State-allocated balance for City; checkpoints rejected if SBL sum exceeds allocation; Mirror GBL tracks State total.
 - **State blocking City transfers:** State refuses to process legitimate City-to-State balance movements. Mitigation: City can appeal to Main; emergency exit mechanism via Main governance; State reputation damage.
-- **Orphaned regional balances:** Region becomes permanently unreachable, leaving GBL balances stranded. Mitigation: governance can trigger balance recovery after extended unreachability; Main serves as arbiter of final state.
+- **Orphaned regional balances:** Region becomes permanently unreachable, leaving Mirror GBL balances stranded. Mitigation: governance can trigger balance recovery after extended unreachability; Main serves as arbiter of final state; UTXO-based recovery possible.
 
 ### 14.10 Region-first deployment and federation fee threats
 
@@ -188,15 +188,16 @@ exhaustive: it is easier to delete items later than to discover them during an o
 ### 15.2 Milestone 1: Primary Network prototype (Federal + Mirror + EVM)
 
 - Fork and bootstrap consensus client (cryftgo baseline) and integrate Cryftee sidecar launch.
-- Implement three-chain Primary Network: Federal Chain (native VM for validators/governance), Mirror Chain (native UTXO for assets), and EVM Chain (EVM for smart contracts).
-- Implement EVM Chain Global Balance Ledger (GBL) with per-region balance tracking.
+- Implement three-chain Primary Network: Federal Chain (native VM for validators/governance), Mirror Chain (native UTXO for assets + GBL extended UTXO), and EVM Chain (EVM for smart contracts).
+- Implement Mirror Chain Global Balance Ledger (GBL) with extended UTXO model for per-region balance tracking.
+- Implement EVM Chain atomic cross-chain messaging and precompiles for Mirror GBL queries.
 - Implement EVM Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
 - Implement CMR synchronization with Federal Chain subnet registry.
 - Implement Main chain registry contracts (regions, subnets, publishers, pin providers).
 - Implement Federation Contract Registry with CREATE2 verification and code_hash tracking.
 - Implement RegionDeployer and FederationDeployer contracts on Main.
 - Implement checkpoint acceptance contract and quorum verification (BLS aggregate or equivalent).
-- Implement cross-region transfer tracking and conservation invariant verification.
+- Implement cross-region transfer tracking via Mirror Chain UTXO transitions and conservation invariant verification.
 - Implement federation fee collection and treasury distribution.
 - Implement governance framework (proposal lifecycle, timelocks, two-chamber vote scaffolding).
 - Implement basic fee market and reward distribution accounting (no pinning yet).

@@ -1,8 +1,8 @@
    
 5) INITIAL MINT (Main only):
    - Circle calls USDC.mint(Circle, 1_000_000_000)
-   - GBL records: balances[USDC, Main, Circle] = 1B
-   - GBL records: total_supply[USDC] = 1B
+   - Mirror GBL creates: UTXO(USDC, Main, Circle, 1B)
+   - Mirror GBL records: total_supply[USDC] = 1B
    
 6) DEPLOY ON REGIONS (after checkpoint):
    - Each region deploys same code at 0xUSDC
@@ -12,7 +12,7 @@
 7) DISTRIBUTION:
    - Circle transfers USDC to users via normal transfers
    - Cross-region transfers move balances as needed
-   - GBL always enforces: sum(regional) = total_supply
+   - Mirror Chain GBL always enforces: sum(regional) = total_supply
 ```
 
 **Racing attack is now impossible:**

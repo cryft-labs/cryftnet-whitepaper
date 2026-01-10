@@ -15,7 +15,7 @@ Federation Contract Registry entry:
   balance_portability: true,
   deployed_regions: [A, B, C, D],
   initialized_on: [A],           // Only home region initialized
-  total_supply: 1_000_000_000,   // Tracked by GBL
+  total_supply: 1_000_000_000,   // Tracked by Mirror Chain GBL
   conservation_verified: true
 }
 ```
@@ -173,9 +173,9 @@ Result: Issuer has 4B tokens total! Supply inflated 4x.
 
 CREATE2 guarantees the same ADDRESS for same parameters, but each region executes the constructor INDEPENDENTLY. The constructor runs once per region, initializing local storage on each.
 
-**Solution: EVM Chain GBL is the authoritative source**
+**Solution: Mirror Chain GBL is the authoritative source**
 
-The contract's local `balances` mapping is a **cache**, not the source of truth. The EVM Chain Global Balance Ledger (GBL) is authoritative:
+The contract's local `balances` mapping is a **cache**, not the source of truth. The Mirror Chain Global Balance Ledger (GBL) is authoritative:
 
 ```text
 Federation-aware token architecture:
@@ -188,17 +188,17 @@ Federation-aware token architecture:
 
 2) Initial mint happens on ONE region only (typically Main):
    - After deployment, issuer calls mint(amount, home_region=Main)
-   - Main's GBL records: balances[USDC, Main, issuer] = 1_000_000_000
-   - Main's GBL records: total_supply[USDC] = 1_000_000_000
+   - Mirror Chain GBL creates: UTXO(USDC, Main, issuer, 1_000_000_000)
+   - Mirror Chain GBL records: total_supply[USDC] = 1_000_000_000
    - No other region has any balance
 
-3) Regional contract reads from GBL (via checkpoint sync):
+3) Regional contract reads from Mirror GBL (via atomic cross-chain query):
    - Region A's USDC contract has balances[issuer] = 0 (no mint occurred here)
    - Region B's USDC contract has balances[issuer] = 0
    - Only Main shows issuer's balance
 
 4) If issuer wants balance on Region A:
-   - Must use transferToRegion(Main ->' A)
+   - Must use transferToRegion(Main -> A)
    - Normal cross-region transfer rules apply
 ```
 
