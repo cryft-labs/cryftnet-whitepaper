@@ -1,14 +1,14 @@
 ﻿<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.22<br>
+<strong>Revision:</strong> v1.23<br>
 <strong>Date:</strong> January 10, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Added lazy mirroring via CREATE2 with Mirror Chain Code Vault (Sections 4.1, 10.3, 14.11, 15.2-15.3, 16.1). Implements deploy-on-first-use pattern with ensureDeployedAndCall(), enabling identical contract addresses across regions without eager deployment. Code Vault stores canonical bytecode commitments; EVM Chain CMR authorizes deployments; zero-balance constructor enforcement prevents supply duplication.
+<strong>Latest Changes:</strong> Filled P0/P1 gaps for CRVS spec, Smart Slots determinism, under-claim enforcement, CGS boundary, GBL authority, atomic messaging, checkpoints, replay protection, RegionDeployer Solidity, two-phase init, object slots, fee/gas model, ping protocol, tokenomics, governance chambers, Cryftee sandbox, pinning proofs (new Appendices 16.3–16.10); minor P2 naming/external ref fixes.
 </p>
 
 <p align="center"><em>

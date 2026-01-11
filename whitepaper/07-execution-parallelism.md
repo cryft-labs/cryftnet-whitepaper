@@ -143,7 +143,7 @@ existence; it is a promise to users and tooling providers. Certified subnets may
 
 ---
 
-## 9. Cantons Global Synchronizer (CGS): privacy propagation and federation sync
+## 9. Cryft Global Synchronizer (CGS): privacy propagation and federation sync
 
 CGS is a Cryftee-hosted plane for privacy-aware propagation of intents and synchronization across
 regions. It is inspired by canton-style private synchronization in the sense that parties coordinate over

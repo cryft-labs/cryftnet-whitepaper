@@ -66,6 +66,8 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 5. **Economic clarity:** Staking rewards flow through Federal Chain. Asset issuance/burns happen on Mirror Chain. DeFi fees stay on EVM Chain. Clean separation prevents cross-subsidy confusion.
 
+6. **Atomic cross-chain coordination:** Shared validator set enables atomic messaging between chains. Block proposers produce **bundle blocks** containing state transitions for all three chains with a shared `bundle_hash`. Validators vote on the entire bundle atomically--failures cause rollback across all chains. This ensures operations like "debit Mirror GBL + credit EVM contract" execute atomically without two-phase commit complexity. (See Appendix 16.4 for detailed atomic messaging specification.)
+
 **Federal Chain responsibilities:**
 
 - **Validator Registry:** Global validator identities, stake bonds, delegation relationships, and slashing records. All staking operations occur on Federal Chain.
@@ -170,25 +172,48 @@ sequenceDiagram
   Mirror->>Mirror: GBL: create UTXO(asset, B, recipient, amount)
 ```
 
-**EVM Chain contracts accessing Mirror GBL:**
+**EVM Chain contracts accessing Mirror GBL (authoritative model):**
 
-EVM Chain contracts **query** Mirror Chain GBL state via atomic cross-chain messaging or precompiles:
+**CRITICAL:** Mirror Chain GBL is the **single authoritative source** for partitioned balances. EVM contracts MUST NOT maintain independent balance state for federation-verified tokens. Local `balances` mappings in contracts are **read-only caches** synchronized from Mirror GBL.
+
+**Required pattern for federation-verified tokens:**
 
 ```text
-// EVM Chain contract queries Mirror GBL via precompile or atomic message
-function getRegionalBalance(address asset, uint64 regionId, address account) 
-  returns (uint256) {
-  // Precompile at 0x0000...0100 queries Mirror Chain GBL
-  return MIRROR_GBL_PRECOMPILE.queryBalance(asset, regionId, account);
+// Federation-verified ERC-20 wrapper contract
+contract FederationToken {
+  // Local storage is CACHE ONLY - not authoritative
+  mapping(address => uint256) public balances;  // synced from Mirror GBL
+  
+  // All balance-modifying operations MUST use Mirror GBL precompiles
+  function transfer(address to, uint256 amount) external {
+    // Authority: Mirror Chain GBL via precompile at 0x0000...0100
+    MIRROR_GBL_PRECOMPILE.transfer(ASSET_ID, REGION_ID, msg.sender, to, amount);
+    
+    // Update local cache for read convenience
+    balances[msg.sender] -= amount;
+    balances[to] += amount;
+  }
+  
+  function transferToRegion(uint64 destRegion, address to, uint256 amount) external {
+    // Cross-region transfer via Mirror GBL
+    MIRROR_GBL_PRECOMPILE.transferToRegion(ASSET_ID, REGION_ID, destRegion, msg.sender, to, amount);
+    balances[msg.sender] -= amount;  // debit local cache
+  }
+  
+  function balanceOf(address account) external view returns (uint256) {
+    // Query authoritative source
+    return MIRROR_GBL_PRECOMPILE.queryBalance(ASSET_ID, REGION_ID, account);
+  }
 }
-
-// Useful for:
-// - DeFi protocols that need to know user's federation-wide balance
-// - Governance contracts weighting votes by total holdings
-// - Treasury contracts distributing rewards proportionally
 ```
 
-Note: Native CRYFT balances use standard Mirror Chain UTXO. EVM Chain can wrap CRYFT via bridge contract (wrapped CRYFT is ERC-20 on EVM Chain, backed 1:1 by Mirror UTXO).
+**Allowances and approvals:** Implemented as Mirror UTXO lock scripts (multisig or timelock), not local mappings.
+
+**Realism tie-in:** Similar to Optimism's canonical bridged tokens (L1 authoritative, L2 cached) or Cosmos ICS-20 (chain-of-origin authoritative).
+
+**Non-federation tokens:** Standard ERC-20 contracts without GBL integration maintain local state as usual (not partitioned across regions).
+
+Note: Native CRYFT balances use standard Mirror Chain UTXO (not extended). EVM Chain can wrap CRYFT via bridge contract (wrapped CRYFT is ERC-20 on EVM Chain, backed 1:1 by Mirror UTXO).
 
 **Contract Mirror Registry (CMR) architecture:**
 

@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.22<br>
+<strong>Revision:</strong> v1.23<br>
 <strong>Date:</strong> January 10, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Added lazy mirroring via CREATE2 with Mirror Chain Code Vault (Sections 4.1, 10.3, 14.11, 15.2-15.3, 16.1). Implements deploy-on-first-use pattern with ensureDeployedAndCall(), enabling identical contract addresses across regions without eager deployment. Code Vault stores canonical bytecode commitments; EVM Chain CMR authorizes deployments; zero-balance constructor enforcement prevents supply duplication.
+<strong>Latest Changes:</strong> Filled P0/P1 gaps for CRVS spec, Smart Slots determinism, under-claim enforcement, CGS boundary, GBL authority, atomic messaging, checkpoints, replay protection, RegionDeployer Solidity, two-phase init, object slots, fee/gas model, ping protocol, tokenomics, governance chambers, Cryftee sandbox, pinning proofs (new Appendices 16.3–16.10); minor P2 naming/external ref fixes.
 </p>
 
 <p align="center"><em>
@@ -150,6 +150,8 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 5. **Economic clarity:** Staking rewards flow through Federal Chain. Asset issuance/burns happen on Mirror Chain. DeFi fees stay on EVM Chain. Clean separation prevents cross-subsidy confusion.
 
+6. **Atomic cross-chain coordination:** Shared validator set enables atomic messaging between chains. Block proposers produce **bundle blocks** containing state transitions for all three chains with a shared `bundle_hash`. Validators vote on the entire bundle atomically--failures cause rollback across all chains. This ensures operations like "debit Mirror GBL + credit EVM contract" execute atomically without two-phase commit complexity. (See Appendix 16.4 for detailed atomic messaging specification.)
+
 **Federal Chain responsibilities:**
 
 - **Validator Registry:** Global validator identities, stake bonds, delegation relationships, and slashing records. All staking operations occur on Federal Chain.
@@ -254,25 +256,48 @@ sequenceDiagram
   Mirror->>Mirror: GBL: create UTXO(asset, B, recipient, amount)
 ```
 
-**EVM Chain contracts accessing Mirror GBL:**
+**EVM Chain contracts accessing Mirror GBL (authoritative model):**
 
-EVM Chain contracts **query** Mirror Chain GBL state via atomic cross-chain messaging or precompiles:
+**CRITICAL:** Mirror Chain GBL is the **single authoritative source** for partitioned balances. EVM contracts MUST NOT maintain independent balance state for federation-verified tokens. Local `balances` mappings in contracts are **read-only caches** synchronized from Mirror GBL.
+
+**Required pattern for federation-verified tokens:**
 
 ```text
-// EVM Chain contract queries Mirror GBL via precompile or atomic message
-function getRegionalBalance(address asset, uint64 regionId, address account) 
-  returns (uint256) {
-  // Precompile at 0x0000...0100 queries Mirror Chain GBL
-  return MIRROR_GBL_PRECOMPILE.queryBalance(asset, regionId, account);
+// Federation-verified ERC-20 wrapper contract
+contract FederationToken {
+  // Local storage is CACHE ONLY - not authoritative
+  mapping(address => uint256) public balances;  // synced from Mirror GBL
+  
+  // All balance-modifying operations MUST use Mirror GBL precompiles
+  function transfer(address to, uint256 amount) external {
+    // Authority: Mirror Chain GBL via precompile at 0x0000...0100
+    MIRROR_GBL_PRECOMPILE.transfer(ASSET_ID, REGION_ID, msg.sender, to, amount);
+    
+    // Update local cache for read convenience
+    balances[msg.sender] -= amount;
+    balances[to] += amount;
+  }
+  
+  function transferToRegion(uint64 destRegion, address to, uint256 amount) external {
+    // Cross-region transfer via Mirror GBL
+    MIRROR_GBL_PRECOMPILE.transferToRegion(ASSET_ID, REGION_ID, destRegion, msg.sender, to, amount);
+    balances[msg.sender] -= amount;  // debit local cache
+  }
+  
+  function balanceOf(address account) external view returns (uint256) {
+    // Query authoritative source
+    return MIRROR_GBL_PRECOMPILE.queryBalance(ASSET_ID, REGION_ID, account);
+  }
 }
-
-// Useful for:
-// - DeFi protocols that need to know user's federation-wide balance
-// - Governance contracts weighting votes by total holdings
-// - Treasury contracts distributing rewards proportionally
 ```
 
-Note: Native CRYFT balances use standard Mirror Chain UTXO. EVM Chain can wrap CRYFT via bridge contract (wrapped CRYFT is ERC-20 on EVM Chain, backed 1:1 by Mirror UTXO).
+**Allowances and approvals:** Implemented as Mirror UTXO lock scripts (multisig or timelock), not local mappings.
+
+**Realism tie-in:** Similar to Optimism's canonical bridged tokens (L1 authoritative, L2 cached) or Cosmos ICS-20 (chain-of-origin authoritative).
+
+**Non-federation tokens:** Standard ERC-20 contracts without GBL integration maintain local state as usual (not partitioned across regions).
+
+Note: Native CRYFT balances use standard Mirror Chain UTXO (not extended). EVM Chain can wrap CRYFT via bridge contract (wrapped CRYFT is ERC-20 on EVM Chain, backed 1:1 by Mirror UTXO).
 
 **Contract Mirror Registry (CMR) architecture:**
 
@@ -1406,7 +1431,7 @@ existence; it is a promise to users and tooling providers. Certified subnets may
 
 ---
 
-## 9. Cantons Global Synchronizer (CGS): privacy propagation and federation sync
+## 9. Cryft Global Synchronizer (CGS): privacy propagation and federation sync
 
 CGS is a Cryftee-hosted plane for privacy-aware propagation of intents and synchronization across
 regions. It is inspired by canton-style private synchronization in the sense that parties coordinate over
@@ -4326,6 +4351,364 @@ This section transforms open questions into actionable decision items with clear
 - D-01: Under-claim enforcement -> spec decision -> "no observed nondeterminism in >=10M tx fuzz runs; deterministic fallback works"
 - D-24: City emergency bridge to Main (censorship escape hatch) -> spec + governance -> post-mainnet priority
 
+---
+
+### 16.3 CRVS Normative Specification v1
+
+This appendix provides the canonical, implementable spec for CRVS consensus, based on AvalancheGo with rotor optimizations. All implementations MUST follow this exactly to avoid forks.
+
+**Message Formats** (Protobuf schemas):
+- Proposal: {header: bytes, tx_list_hash: bytes32, parent_hash: bytes32, timestamp: uint64, sig: bytes}
+- Vote: {candidate_hash: bytes32, round: uint32, sig: bytes}
+- RelayChunk: {content_hash: bytes32, chunk_data: bytes, sig: bytes}
+- SamplingQuery: {slot: uint64, preferred_candidate: optional bytes32}
+
+**State Machine (per-validator)**:
+- States: Proposing, VotingFast, VotingSlow, Finalized
+- Transitions: Proposing -> VotingFast on proposal send; VotingFast -> VotingSlow on miss_quorum(k=2) OR conflicts>=2; VotingSlow -> Finalized on stable_quorum(k=3) AND no conflicts; timeouts (delta_propagate=2s, round_timeout=5s + rand(1s jitter)) reset rounds.
+
+**Fork-Choice Rule**:
+PreferredCandidate = min(rank(C) for C in quorum_candidates where votes(C) >= q_fast)
+rank(C) = (C.slot, keccak256(C.header), C.proposer_vk)
+Lock on q_fast votes; finalize on beta=12 consecutive samples exceeding alpha=15 in k=20.
+
+**Slashing Conditions & Evidence**:
+- Equivocation: Two votes same round (evidence: {votes: [Vote1, Vote2]})
+- Withholding: Relay failure proof (evidence: {request: RelayChunkRequest, timeout: uint64})
+- Invalid Vote: Bad sig/format (evidence: {vote: Vote, error: string})
+- Slashing: Automatic on valid evidence; slash 5% stake.
+
+**Assumptions**:
+- Partial synchrony: GST=10s max delay
+- Clock drift: <500ms
+- Adversary: <30% Byzantine
+
+---
+
+### 16.4 Atomic Messaging Spec
+
+Proposers produce bundle blocks (Federal+Mirror+EVM) with shared bundle_hash = keccak256(concat(headers)); validators vote on bundle. Failures rollback all chains in bundle. Validity: Each chain's rules + cross-chain invariants (e.g., GBL updates atomic with events).
+
+**Bundle Block Structure:**
+
+```text
+BundleBlock {
+  federal_header: BlockHeader,
+  mirror_header: BlockHeader,
+  evm_header: BlockHeader,
+  bundle_hash: keccak256(federal_header || mirror_header || evm_header),
+  cross_chain_messages: [
+    {
+      from_chain: enum { Federal, Mirror, EVM },
+      to_chain: enum { Federal, Mirror, EVM },
+      message_type: string,
+      payload: bytes,
+      nonce: uint64
+    },
+    ...
+  ],
+  proposer_sig: bytes
+}
+```
+
+**Atomic Execution:**
+
+1. Validator receives BundleBlock
+2. Validates each chain's header independently
+3. Validates cross-chain message invariants (e.g., GBL conservation)
+4. If ANY chain invalid OR invariant violated: reject entire bundle
+5. If all valid: vote to accept bundle
+6. Upon quorum: apply all three chains atomically
+
+**Rollback Mechanism:**
+
+If bundle fails mid-execution (validator crash, etc.):
+- All three chains rollback to last finalized bundle
+- Proposer slashed for invalid bundle
+- Next proposer creates recovery bundle
+
+---
+
+### 16.5 Checkpoint & Message Root Spec
+
+Message root: Poseidon Merkle tree; leaves: ABI-encoded messages sorted by type+id. Proofs: Standard Merkle paths. Validator-set: Federal registry hashes per epoch.
+
+**Message Root Construction:**
+
+```text
+messages = [msg1, msg2, ...] // All cross-chain messages in checkpoint
+sorted_messages = sort(messages, key=lambda m: (m.type, m.id))
+leaves = [keccak256(abi.encode(msg)) for msg in sorted_messages]
+message_root = PoseidonMerkleRoot(leaves)
+```
+
+**Checkpoint Structure:**
+
+```text
+Checkpoint {
+  region_id: uint64,
+  height: uint64,
+  block_hash: bytes32,
+  state_root: bytes32,
+  message_root: bytes32,
+  validator_set_hash: bytes32,  // From Federal registry for this epoch
+  quorum_sig: BLS_Signature,
+  timestamp: uint64
+}
+```
+
+**Merkle Proof Verification:**
+
+```text
+VerifyMessageInclusion(checkpoint, message, proof):
+  leaf = keccak256(abi.encode(message))
+  computed_root = PoseidonMerkleVerify(leaf, proof)
+  return computed_root == checkpoint.message_root
+```
+
+---
+
+### 16.6 Gas Schedule
+
+Slot claim: 200 gas/claim; trace logging: 100 gas/access; penalty: 1.5x consumed.
+
+**Smart Slots Gas Costs:**
+
+| Operation | Gas Cost | Notes |
+|:----------|:---------|:------|
+| Slot claim (per slot) | 200 gas | Paid at tx validation time |
+| Trace logging (per access) | 100 gas | Paid during execution |
+| Under-claim penalty | 1.5x consumed gas | Applied if actual access > claimed |
+| Object slot declaration | 200 gas | Via DECLARE_OBJECT_SLOT precompile |
+| Parallel lane scheduling | 0 gas | Free (part of consensus) |
+| Serial fallback | +1000 gas | Penalty for forcing serial execution |
+
+**Example:**
+
+```text
+Transaction with 3 slot claims, 5 actual accesses, 50k gas execution:
+- Slot claim cost: 3 * 200 = 600 gas
+- Trace logging: 5 * 100 = 500 gas
+- Execution: 50,000 gas
+- Total: 51,100 gas
+
+If under-claimed (6 accesses, only claimed 3):
+- Penalty: 51,100 * 1.5 = 76,650 gas
+```
+
+---
+
+### 16.7 Ping Spec
+
+QUIC PING with Ed25519 sig + nonce; reports: summaries + random samples; on-chain: post aggregated proof, verify quorum sigs.
+
+**Ping Protocol:**
+
+```text
+PingRequest {
+  target_node: NodeID,
+  timestamp: uint64,
+  nonce: bytes32,
+  sig: Ed25519Sig
+}
+
+PingResponse {
+  request_hash: bytes32,
+  latency_ms: uint32,
+  timestamp: uint64,
+  sig: Ed25519Sig
+}
+```
+
+**Eligibility Proof:**
+
+Validator aggregates ping responses and posts summary on-chain:
+
+```text
+PingReport {
+  validator: address,
+  epoch: uint64,
+  num_pings: uint32,
+  avg_latency_ms: uint32,
+  sample_pings: [PingResponse],  // Random sample for verification
+  aggregated_sig: BLS_Signature  // Quorum of validators attesting to report
+}
+```
+
+**On-Chain Verification:**
+
+```text
+VerifyPingEligibility(report):
+  1. Verify aggregated_sig covers >=2/3 of validator set
+  2. Verify sample_pings signatures
+  3. Verify avg_latency_ms <= threshold (e.g., 100ms)
+  4. Verify num_pings >= minimum (e.g., 100 pings/epoch)
+  5. Mark validator eligible for low-latency rewards
+```
+
+---
+
+### 16.8 v1 Monetary Policy
+
+No emission; 50% fee burn; formula a=1, b=0.5; slashing evidence structs.
+
+**Monetary Policy Parameters:**
+
+```text
+Emission Rate: 0 CRYFT/block  // No new issuance
+Fee Burn Rate: 50%            // Half of tx fees burned
+Slashing Rate: 5%             // Of validator stake per offense
+Minimum Stake: 1000 CRYFT     // To become validator
+```
+
+**Fee Distribution:**
+
+```text
+For each transaction with fee F:
+  burned = F * 0.5
+  validator_reward = F * 0.3
+  treasury = F * 0.2
+
+Total Supply: Fixed at genesis (no inflation)
+```
+
+**Slashing Evidence Structures:**
+
+```text
+EquivocationEvidence {
+  vote1: Vote,
+  vote2: Vote,
+  validator_pubkey: bytes,
+  // Verification: vote1.round == vote2.round AND vote1.candidate != vote2.candidate
+}
+
+WithholdingEvidence {
+  request: RelayChunkRequest,
+  timeout_proof: uint64,
+  validator_pubkey: bytes,
+  // Verification: timeout_proof > request.timestamp + MAX_RELAY_DELAY
+}
+
+InvalidVoteEvidence {
+  vote: Vote,
+  error: string,
+  validator_pubkey: bytes,
+  // Verification: vote.sig invalid OR vote.format incorrect
+}
+```
+
+---
+
+### 16.9 Cryftee Sandbox Spec
+
+Host functions: limited (fs read-only, net peers only); limits (1s CPU, 512MB mem); admin API: HTTPS+TLS; kiosk UI: sandboxed iframes.
+
+**Cryftee Module Sandbox:**
+
+```text
+Sandbox Limits:
+- CPU: 1 second per request
+- Memory: 512MB max
+- Filesystem: Read-only access to /data
+- Network: Only peers in validator set (no arbitrary outbound)
+- Syscalls: Whitelist only (no exec, no raw sockets)
+```
+
+**Host Functions:**
+
+```rust
+// Available to Cryftee WASM modules
+interface CryfteeHost {
+  // Storage
+  fn read_file(path: &str) -> Result<Vec<u8>>;
+  
+  // Network (restricted to peers)
+  fn send_to_peer(peer_id: NodeID, data: &[u8]) -> Result<()>;
+  fn recv_from_peer(timeout_ms: u32) -> Result<(NodeID, Vec<u8>)>;
+  
+  // Crypto
+  fn sign_ed25519(data: &[u8]) -> Result<Signature>;
+  fn verify_bls_sig(sig: &[u8], pubkey: &[u8], msg: &[u8]) -> bool;
+  
+  // Logging
+  fn log(level: LogLevel, msg: &str);
+}
+```
+
+**Admin API:**
+
+```text
+HTTPS + TLS required
+Endpoints:
+  POST /modules/install   - Install signed WASM module
+  GET  /modules/list      - List installed modules
+  POST /modules/enable    - Enable module
+  POST /modules/disable   - Disable module
+  GET  /health            - Health check
+```
+
+**Kiosk UI:**
+
+- Sandboxed iframes for module UIs
+- No direct DOM access to host page
+- PostMessage API for limited communication
+- CSP: `default-src 'none'; script-src 'self'; style-src 'self'`
+
+---
+
+### 16.10 Pinning Proofs Spec
+
+UnixFS chunking; merkle proofs; on-chain: auditor attestations (quorum sigs), full proofs off-chain for disputes.
+
+**IPFS Pinning Proof Structure:**
+
+```text
+PinningProof {
+  cid: IPFS_CID,
+  pin_provider: address,
+  epoch: uint64,
+  challenge_block: bytes32,  // Random challenge from on-chain
+  merkle_proof: bytes,       // Proof of chunk availability
+  auditor_attestations: [
+    {
+      auditor: address,
+      timestamp: uint64,
+      sig: BLS_Signature
+    },
+    ...
+  ]
+}
+```
+
+**Challenge-Response Protocol:**
+
+```text
+1. On-chain: Post random challenge_block for CID
+2. Pin provider: Compute Merkle proof for random chunk derived from challenge_block
+3. Pin provider: Submit proof + auditor attestations (quorum sigs)
+4. On-chain: Verify quorum (>=2/3 auditors) attested
+5. If valid: reward pin provider; else: slash
+```
+
+**UnixFS Chunking:**
+
+- Default chunk size: 256KB
+- Merkle tree: SHA-256 based
+- On-chain storage: Only root CID + auditor sigs
+- Dispute: Full Merkle proof posted on-chain if challenged
+
+**Auditor Attestation:**
+
+Auditors independently verify chunk availability:
+
+```text
+Auditor verifies:
+  1. Fetch chunk from pin provider
+  2. Compute chunk_hash = SHA256(chunk_data)
+  3. Verify Merkle inclusion proof
+  4. Sign attestation: BLS_Sign(auditor_key, (cid, chunk_hash, epoch))
+  5. Submit to pin provider for aggregation
+```
 
 
 
