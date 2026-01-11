@@ -108,14 +108,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.21<br>
+<strong>Revision:</strong> v1.22<br>
 <strong>Date:</strong> January 10, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Updated GBL to Mirror Chain extended UTXO model (Sections 4.1, 10, 14, etc.). Mirror Chain now serves as the dedicated partitioned ledger and source of truth for EVM-based balances across opted-in subnets.
+<strong>Latest Changes:</strong> Added lazy mirroring via CREATE2 with Mirror Chain Code Vault (Sections 4.1, 10.3, 14.11, 15.2-15.3, 16.1). Implements deploy-on-first-use pattern with ensureDeployedAndCall(), enabling identical contract addresses across regions without eager deployment. Code Vault stores canonical bytecode commitments; EVM Chain CMR authorizes deployments; zero-balance constructor enforcement prevents supply duplication.
 </p>
 
 <p align="center"><em>

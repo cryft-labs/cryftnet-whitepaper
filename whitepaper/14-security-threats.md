@@ -131,7 +131,22 @@ The partitioned balance model introduces specific threat vectors that must be ad
 - **Cross-region initialization race:** Same contract initialized with different parameters on different regions. Mitigation: RegionDeployer requires init_data to be identical across regions; hash of init_data recorded on Main; mismatched initializations flagged.
 - **Region expansion DoS:** Attacker declares maximum target_regions[] to congest checkpoints. Mitigation: per-deployment maximum regions (e.g., 50); checkpoint size limits; gas costs scale with region count.
 
-### 14.11 Threat matrix (comprehensive summary)
+### 14.11 Lazy mirroring and Code Vault threats
+
+- **Malicious code injection via Code Vault:** Attacker attempts to inject malicious bytecode into Mirror Chain Code Vault. Mitigation: Code Vault entries require governance approval or multi-signature authorization; immutable once committed; code_id is hash-based and cannot be reused.
+- **Code Vault / CMR desync:** Mirror Chain Code Vault shows code_id as available, but EVM Chain CMR does not authorize deployment. Mitigation: RegionDeployer enforces CMR authorization check before deployment; unauthorized deployments revert regardless of Code Vault state.
+- **Incorrect init_code / runtime_code mismatch:** Deployed contract's runtime bytecode does not match Code Vault's runtime_code_hash commitment. Mitigation: RegionDeployer verifies keccak256(deployed.code) == Code Vault runtime_code_hash after CREATE2; mismatches cause deployment revert.
+- **Front-running ensureDeployedAndCall():** Attacker observes pending ensureDeployedAndCall() tx and front-runs with own deployment to grief first caller. **Natural protection:** CREATE2 allows only one deployment per (deployer, salt, init_code_hash); duplicate attempts fail. First successful deployment wins; second caller's ensureDeployedAndCall() detects existing code and proceeds to call phase. **Residual risk:** Griefing by deploying with different init_code to occupy address (prevented by init_code_hash verification).
+- **Stale authorization proof:** User submits ensureDeployedAndCall() with authorization proof from old checkpoint, but CMR has since revoked authorization for that code_id/region. Mitigation: RegionDeployer verifies proof against latest finalized Main checkpoint; stale proofs rejected; proof includes checkpoint height/hash.
+- **Deploy-before-checkpoint race:** Attacker deploys contract on region before Main checkpoint authorizing it arrives. Mitigation: RegionDeployer requires valid authorization proof before deployment; proof binds to specific checkpoint; unauthorized deployments revert.
+- **ensureDeployedAndCall() DoS via repeated deployment attempts:** Attacker spams ensureDeployedAndCall() with invalid proofs to congest region. Mitigation: invalid proof verification reverts immediately (before expensive operations); standard tx fee mechanism prevents spam; rate limiting at mempool level.
+- **Constructor-based supply duplication (critical):** Token contract deploys on multiple regions via lazy mirroring, constructor initializes `balances[issuer] = 1B` on each region, inflating total supply. **Critical mitigation:** Federation-verified contracts MUST use zero-balance constructors (enforced by code review); constructor MUST NOT mint supply or set balances; initial state set via separate initialize() transaction restricted to home_region only; Mirror GBL is authoritative for balances, not local contract storage; governance rejects code_id approval for contracts with constructor-initialized balances.
+- **Loader init_code fetch failure:** Region attempts to deploy using loader init_code, but IPFS fetch fails. Mitigation: Mirror Code Vault stores full init_code as fallback; regions can request full init_code if loader fails; timeout and retry logic; deployment fee refunded on persistent failure.
+- **Code Vault data availability:** Mirror Chain Code Vault becomes unavailable, preventing new deployments. Mitigation: Code Vault data replicated across Mirror Chain validators; IPFS backup for large init_code blobs; emergency fallback to Main EVM Chain storage if Mirror unavailable.
+- **Max code size violation:** Attacker attempts to deploy contract exceeding EVM code size limit (24KB). Mitigation: RegionDeployer enforces max code size check before CREATE2; oversized deployments revert; Code Vault rejects code_id registration for oversized bytecode.
+- **Unauthorized lazy deployment on non-target region:** Attacker calls ensureDeployedAndCall() on Region Z, which is NOT in target_regions[] for that code_id. Mitigation: CMR authorization proof explicitly lists authorized regions; RegionDeployer verifies REGION_ID is in authorized list; unauthorized regions reject deployment with proof verification failure.
+
+### 14.12 Threat matrix (comprehensive summary)
 
 | Threat | Plane | Impact | Mitigation summary |
 |:-------|:------|:-------|:-------------------|
@@ -170,6 +185,18 @@ The partitioned balance model introduces specific threat vectors that must be ad
 | Initialization replay | Security | Parameter hijacking | initialized flag, OpenZeppelin Initializable pattern |
 | Cross-region init race | Consistency | Parameter mismatch | Identical init_data requirement, Main hash recording |
 | Region expansion DoS | Availability | Checkpoint congestion | Max regions limit, size limits, scaled gas costs |
+| Malicious code injection (Code Vault) | Security | Deployment of malicious contracts | Governance approval, multi-sig authorization, immutable code_id |
+| Code Vault / CMR desync | Consistency | Unauthorized deployment | CMR authorization enforced before deployment, dual verification |
+| init_code / runtime_code mismatch | Security | Code tampering | Post-deployment bytecode verification against Code Vault hash |
+| Front-running ensureDeployedAndCall | Security | Griefing | CREATE2 allows single deployment per hash; duplicate fails |
+| Stale authorization proof | Security | Unauthorized deployment | Proof verified against latest checkpoint, includes checkpoint height |
+| Deploy-before-checkpoint race | Security | Unauthorized early deployment | Authorization proof required before deployment, reverts without proof |
+| ensureDeployedAndCall DoS | Availability | Region congestion | Early revert on invalid proof, standard tx fees, mempool rate limits |
+| Constructor supply duplication | Asset integrity | Supply inflation | Zero-balance constructor enforcement, code review, GBL authority |
+| Loader init_code fetch failure | Availability | Deployment failures | Full init_code fallback, retry logic, fee refund on persistent failure |
+| Code Vault unavailability | Availability | Deployment blockage | Validator replication, IPFS backup, emergency Main EVM fallback |
+| Max code size violation | Security | Resource exhaustion | Code size check before CREATE2, Code Vault registration limits |
+| Unauthorized lazy deployment | Security | Deployment on wrong region | CMR proof lists authorized regions, REGION_ID verification |
 
 ---
 
@@ -188,14 +215,20 @@ exhaustive: it is easier to delete items later than to discover them during an o
 ### 15.2 Milestone 1: Primary Network prototype (Federal + Mirror + EVM)
 
 - Fork and bootstrap consensus client (cryftgo baseline) and integrate Cryftee sidecar launch.
-- Implement three-chain Primary Network: Federal Chain (native VM for validators/governance), Mirror Chain (native UTXO for assets + GBL extended UTXO), and EVM Chain (EVM for smart contracts).
+- Implement three-chain Primary Network: Federal Chain (native VM for validators/governance), Mirror Chain (native UTXO for assets + GBL extended UTXO + Code Vault), and EVM Chain (EVM for smart contracts + CMR).
 - Implement Mirror Chain Global Balance Ledger (GBL) with extended UTXO model for per-region balance tracking.
-- Implement EVM Chain atomic cross-chain messaging and precompiles for Mirror GBL queries.
-- Implement EVM Chain Contract Mirror Registry (CMR) for deployment mirror state tracking.
+- **Implement Mirror Chain Code Vault (Bytecode Vault) for canonical smart contract code storage and commitment.**
+- **Implement code_id registration, init_code_hash and runtime_code_hash commitment storage in Code Vault.**
+- Implement EVM Chain atomic cross-chain messaging and precompiles for Mirror GBL and Code Vault queries.
+- Implement EVM Chain Contract Mirror Registry (CMR) for deployment mirror state tracking and authorization.
+- **Implement CMR integration with Code Vault: code_id references, verification_level policies, authorization proofs.**
 - Implement CMR synchronization with Federal Chain subnet registry.
 - Implement Main chain registry contracts (regions, subnets, publishers, pin providers).
 - Implement Federation Contract Registry with CREATE2 verification and code_hash tracking.
 - Implement RegionDeployer and FederationDeployer contracts on Main.
+- **Implement ensureDeployedAndCall() function in RegionDeployer for lazy mirroring (deploy-on-first-use).**
+- **Implement CMR authorization proof verification in RegionDeployer (checkpoint Merkle proofs or ZK proofs).**
+- **Implement runtime bytecode verification against Code Vault runtime_code_hash after CREATE2 deployment.**
 - Implement checkpoint acceptance contract and quorum verification (BLS aggregate or equivalent).
 - Implement cross-region transfer tracking via Mirror Chain UTXO transitions and conservation invariant verification.
 - Implement federation fee collection and treasury distribution.
@@ -210,3 +243,6 @@ exhaustive: it is easier to delete items later than to discover them during an o
 - Implement region-first deployment with target_regions[] declaration.
 - Implement federation mirroring receiver (mirror() function with authorization verification).
 - Implement two-phase initialization pattern for mirrored contracts.
+- **Implement ensureDeployedAndCall() support on regional RegionDeployer contracts.**
+- **Add test suite: deterministic address tests across regions, deploy-on-first-use functionality tests.**
+- **Add security tests: unauthorized deployment attempts, code integrity verification, constructor safety validation.**

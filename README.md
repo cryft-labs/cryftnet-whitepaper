@@ -1,14 +1,14 @@
 ﻿<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.21<br>
+<strong>Revision:</strong> v1.22<br>
 <strong>Date:</strong> January 10, 2026<br>
 <strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Updated GBL to Mirror Chain extended UTXO model (Sections 4.1, 10, 14, etc.). Mirror Chain now serves as the dedicated partitioned ledger and source of truth for EVM-based balances across opted-in subnets.
+<strong>Latest Changes:</strong> Added lazy mirroring via CREATE2 with Mirror Chain Code Vault (Sections 4.1, 10.3, 14.11, 15.2-15.3, 16.1). Implements deploy-on-first-use pattern with ensureDeployedAndCall(), enabling identical contract addresses across regions without eager deployment. Code Vault stores canonical bytecode commitments; EVM Chain CMR authorizes deployments; zero-balance constructor enforcement prevents supply duplication.
 </p>
 
 <p align="center"><em>
@@ -169,6 +169,7 @@ python compile-whitepaper.py
 
 | Version | Date | Notes |
 |:--------|:-----|:------|
+| v1.22 | January 10, 2026 | **LAZY MIRRORING & CODE VAULT:** Added lazy mirroring via CREATE2 with Mirror Chain Code Vault for deploy-on-first-use pattern. Mirror Chain stores canonical bytecode commitments (code_id, init_code_hash, runtime_code_hash); EVM Chain CMR authorizes deployments. Implemented ensureDeployedAndCall() in RegionDeployer enabling contracts to deploy on-demand when first called on a region, maintaining identical addresses via CREATE2 determinism. First caller pays deployment gas + federation fee; subsequent callers pay normal gas. Added 11 new security threats (Section 14.11) covering Code Vault injection, code integrity verification, constructor supply duplication enforcement, authorization proofs, and lazy deployment attacks. Updated roadmap (Milestones 15.2-15.3) with Code Vault implementation, CMR integration, authorization proof verification, and runtime bytecode checks. Added 6 glossary terms: Code Vault, code_id, ensureDeployedAndCall(), lazy mirroring, loader init_code. Zero-balance constructor enforcement prevents supply duplication across regions. Mirror remains lean (no smart contract execution). |
 | v1.21 | January 10, 2026 | **MIRROR CHAIN GBL ARCHITECTURE:** Updated GBL from EVM Chain to Mirror Chain using extended UTXO model. Each UTXO includes metadata: {asset_id, region_id, account, amount}. Mirror Chain serves as dedicated partitioned ledger and source of truth for EVM-based balances across opted-in subnets. EVM Chain and subnets access Mirror GBL via atomic cross-chain messaging or precompiles. Updated Sections 4.1, 10.4, 10.6, 10.7, 11, 13, 14.9, 15.2, 15.9, and glossary. CMR remains on EVM Chain. Conservation invariant enforced by Mirror Chain UTXO model. |
 | v1.20 | January 08, 2026 | **PRODUCTION READINESS:** Added deterministic under-claiming enforcement for Smart Slots (Section 7.3.5) with runtime access-trace validation. Clarified CGS consensus boundary (Sections 9.5-9.9): CGS is mempool transport only, not consensus-critical; added concrete threshold encryption key management, explicit privacy goals, and mainnet gating criteria. Transformed Section 16.2 open questions into decision machine with 27 actionable items (type, owner, milestone, acceptance tests, priority tiers). Added pragmatic Mainnet v1 deployment strategy (Section 15.9): proven baseline consensus, regions enabled, Smart Slots/CGS/CRVS testnet-only or deferred. |
 | v1.19 | January 08, 2026 | **CHAIN RENAMING:** P-Chain → Federal Chain, X-Chain → Mirror Chain, M-Chain → EVM Chain. Updated all 16 sections with new nomenclature. Fixed mermaid diagram syntax errors. Corrected UTF-8 encoding issues (malformed arrows, em-dashes, special characters). |
