@@ -8,14 +8,14 @@ Region expansion (post-deploy)     | 0.01 CRYFT
 
 Example: Deploy token to 5 regions with balance portability
 - Local deployment gas: ~500k gas
-- Mirroring to 4 additional regions: 4 Ã-- 0.01 = 0.04 CRYFT
-- Balance portability on 5 regions: 5 Ã-- 0.005 = 0.025 CRYFT
+- Mirroring to 4 additional regions: 4 × 0.01 = 0.04 CRYFT
+- Balance portability on 5 regions: 5 × 0.005 = 0.025 CRYFT
 - Total federation fee: 0.065 CRYFT + local gas
 
 Fees flow to:
-- 50% ->' Main treasury (funds federation operations)
-- 30% ->' Target region validators (incentivizes mirroring)
-- 20% ->' Checkpoint relayers (incentivizes fast propagation)
+- 50% -> Main treasury (funds federation operations)
+- 30% -> Target region validators (incentivizes mirroring)
+- 20% -> Checkpoint relayers (incentivizes fast propagation)
 ```
 
 **RegionDeployer architecture:**
@@ -125,7 +125,8 @@ RegionDeployer (exists at 0xRegionDeployer on all chains):
       require(deployed == contractAddress, "CREATE2 address mismatch");
       
       // 3d. Verify runtime bytecode matches Code Vault commitment
-      bytes32 deployed_code_hash = keccak256(deployed.code);
+      bytes32 deployed_code_hash;
+      assembly { deployed_code_hash := extcodehash(deployed) }
       require(
         verifyRuntimeCodeHash(code_id, deployed_code_hash),
         "Runtime bytecode mismatch"
@@ -139,8 +140,9 @@ RegionDeployer (exists at 0xRegionDeployer on all chains):
       emit ContractLazilyDeployed(contractAddress, code_id, msg.sender, deploymentFee);
     }
     
-    // 4. Execute the call atomically
-    (bool success, bytes memory result) = contractAddress.call{value: msg.value}(call_data);
+    // 4. Execute the call atomically (forward remaining value after fee)
+    uint256 callValue = codeSize == 0 ? msg.value - deploymentFee : msg.value;
+    (bool success, bytes memory result) = contractAddress.call{value: callValue}(call_data);
     require(success, "Contract call failed");
     
     return result;

@@ -80,7 +80,7 @@ Slot s:
 - Valid candidates are those with valid parent_ref, correct block time window, and valid txs.
 Deterministic tie-break:
 ```text
-PreferredCandidateSet = all valid candidates seen within âˆ†propagate
+PreferredCandidateSet = all valid candidates seen within Δpropagate (within the propagation window)
 Rank(C) = (slot s, H(C.header), proposer_vk)
 Choose smallest Rank among candidates that reach vote threshold.
 ```
@@ -106,3 +106,193 @@ Slow path:
 
 ### 6.4 Metastable sampling (Avalanche-inspired)
 
+**Core mechanism:** Validators refine their preference for a candidate by repeatedly sampling a small subset of peers and asking "Which candidate do you currently prefer for slot s?" If a candidate consistently receives majority support across consecutive samples, confidence increases until finalization.
+
+**State machine per validator for slot s:**
+
+```text
+States:
+  UNDECIDED        -> No preferred candidate yet
+  PREFERRED(C)     -> Currently prefer candidate C, confidence < finalization threshold
+  FINALIZED(C)     -> Committed to candidate C, irreversible
+
+Transitions:
+  UNDECIDED -> PREFERRED(C):  
+    When first valid candidate C seen and passes initial checks
+  
+  PREFERRED(C) -> PREFERRED(C'):  
+    If sampled peers strongly prefer C' over C (churn threshold crossed)
+  
+  PREFERRED(C) -> FINALIZED(C):  
+    When confidence(C) >= beta consecutive rounds with alpha/k threshold met
+  
+  FINALIZED(C) -> (terminal):  
+    No further state changes for this slot
+```
+
+**Sampling algorithm:**
+
+```text
+Parameters:
+  k = 20        # sample size per round
+  alpha = 15    # acceptance threshold (must have >= alpha votes for C)
+  beta = 12     # consecutive successful rounds needed to finalize
+  delta_sample = 200ms  # time between sample rounds
+
+Per-slot state:
+  preferred_candidate = None
+  confidence[C] = 0 for all candidates
+  round_number = 0
+
+Loop until finalized:
+  round_number += 1
+  
+  // Sample k random peers from committee
+  peers = random_sample(committee, k)
+  
+  // Query each peer for their current preference
+  responses = query_peers(peers, "preferred_candidate_for_slot", s)
+  
+  // Count votes for each candidate
+  vote_counts = count_by_candidate(responses)
+  C_max = candidate_with_most_votes(vote_counts)
+  
+  // Check if C_max meets acceptance threshold
+  if vote_counts[C_max] >= alpha:
+    if C_max == preferred_candidate:
+      confidence[C_max] += 1
+    else:
+      // Switch preference if new candidate has strong support
+      preferred_candidate = C_max
+      confidence[C_max] = 1
+      confidence[other candidates] = 0
+  else:
+    // No clear leader this round, decay confidence
+    confidence[preferred_candidate] = max(0, confidence[preferred_candidate] - 1)
+  
+  // Check for finalization
+  if confidence[preferred_candidate] >= beta:
+    FINALIZE(preferred_candidate)
+    broadcast_finalization_vote(preferred_candidate)
+    return
+  
+  sleep(delta_sample)
+```
+
+**Fork-choice rule (deterministic tie-breaking):**
+
+When multiple valid candidates exist for the same slot:
+
+```text
+Rank(C) = (C.slot, keccak256(C.header), C.proposer_vk)
+
+Preference order:
+  1. Candidate with highest confidence score
+  2. If tied, candidate with most recent successful sample round
+  3. If still tied, candidate with smallest Rank() value
+
+This ensures deterministic convergence even under adversarial candidate spam.
+```
+
+**Safety properties:**
+
+- **Finalization is irreversible:** Once a validator finalizes candidate C for slot s, it will never accept C' != C for that slot
+- **No conflicting finality under honest majority:** If >50% of validators are honest and network is eventually synchronous, no two honest validators will finalize different candidates for the same slot
+- **Metastability convergence:** Once a supermajority prefers C, the sampling dynamics amplify that preference, making it exponentially unlikely for the network to switch to C'
+
+**Liveness properties:**
+
+- **Guaranteed progress under GST:** After Global Stabilization Time (GST), when network delays are bounded and >50% validators are honest, the network will finalize some candidate for every slot
+- **Timeout-based fallback:** If confidence for any candidate fails to reach beta after T_max rounds (e.g., 30 rounds ~= 6 seconds), validators may propose a new candidate with stronger guarantees or enter recovery mode
+
+**Adversary resilience:**
+
+| Adversary % | Impact | Mitigation |
+|:------------|:-------|:-----------|
+| <15% | Minimal impact; may slow finality by 1-2 rounds | Sampling dynamics dominate |
+| 15-30% | Can delay finality; cannot create conflicting forks under partial synchrony | Slow path activates, quorum thresholds increase |
+| 30-49% | Can delay finality significantly; cannot break safety | Manual recovery may be required; governance intervention |
+| >=50% | Can halt network or create forks | Safety assumption violated; chain is insecure |
+
+**Hysteresis rules (prevent oscillation):**
+
+To prevent validators from thrashing between candidates C and C' when sampling results are marginal:
+
+```text
+Preference switch rule:
+  Current preference: C
+  New candidate: C'
+  
+  Switch to C' only if:
+    1. vote_counts[C'] >= alpha (meets threshold), AND
+    2. vote_counts[C'] > vote_counts[C] + hysteresis_gap, where hysteresis_gap = 3
+    
+  Example: If C has 14 votes and C' has 16 votes (diff=2 < gap=3), don't switch yet.
+           If C has 13 votes and C' has 17 votes (diff=4 > gap=3), switch to C'.
+
+This adds "stickiness" to preferences, reducing churn from sampling noise.
+```
+
+**Fast path vs slow path triggers:**
+
+```text
+Fast path active when:
+  - Network health score >= 0.85 (based on recent round-trip times, relay availability)
+  - No conflicting candidates with >= quorum_fast votes
+  - Participation rate >= 0.90 (>90% of validators responding to samples)
+  
+  Fast path finalization: beta_fast = 8 consecutive rounds with alpha = 15 out of k = 20
+
+Slow path activated when:
+  - Network health score < 0.85, OR
+  - Multiple candidates have >= quorum_fast/2 votes (fork contention), OR
+  - Participation rate < 0.90
+  
+  Slow path finalization: beta_slow = 15 consecutive rounds with alpha = 17 out of k = 20
+  
+Hysteresis between paths:
+  - Once slow path is activated, require 10 consecutive "healthy" rounds before returning to fast path
+  - This prevents rapid oscillation between modes during marginal network conditions
+```
+
+**Clock skew handling:**
+
+Validators tolerate clock drift up to ±500ms. If a validator's clock is skewed beyond this:
+- Its sampling queries may time out (peers reject queries for "future" or "stale" slots)
+- It will observe low response rates and may enter slow path or fallback mode
+- Monitoring alerts trigger if clock skew is detected (via NTP health checks)
+
+**Assumptions:**
+
+- **Partial synchrony:** After unknown GST, message delays bounded by Δ_max = 10 seconds
+- **Clock drift:** <500ms between validators (enforced via NTP monitoring)
+- **Adversary bound:** <30% Byzantine validators (safety); <50% required for liveness
+- **Network model:** Eventually message delivery; routers may censor but cannot forge validator signatures
+
+**Failure modes:**
+
+| Condition | Behavior | Recovery |
+|:----------|:---------|:---------|
+| Network partition (>30% isolated) | Minority partition halts; majority continues | Partition heals -> minority re-syncs to majority chain |
+| Clock skew >500ms on >30% validators | Slow path activates; finality degrades to ~10-15s | NTP fixes -> fast path resumes |
+| All relays censored/offline | Fallback to direct gossip; 2-5x bandwidth increase | Relay election rotates; new relays selected |
+| Adversary spams candidates | Fork-choice rule deterministically selects one; sampling converges | No persistent impact; spam filtered by gas limits |
+| Confidence never reaches beta | Timeout after 30 rounds -> manual intervention or proposer rotation | Governance investigation; potential config adjustment |
+
+**Relationship to Avalanche consensus:**
+
+CRVS borrows Avalanche's metastable sampling core (k, alpha, beta parameters; repeated peer queries; confidence accumulation) but differs in:
+- **Propagation layer:** Avalanche uses all-to-all gossip; CRVS uses rotor relays with fallback
+- **Vote aggregation:** CRVS optionally uses BLS signature aggregation (votor-inspired); Avalanche doesn't aggregate
+- **Fast/slow path logic:** Explicit dual-path design vs Avalanche's single parameterization
+- **Integration:** CRVS is designed for a three-chain federated system; Avalanche is for independent subnets
+
+**What's not proven (yet):**
+
+This design is a **proposal**. Before mainnet:
+- Formal safety proof under partial synchrony model
+- Simulation results showing convergence under adversarial network conditions
+- Parameter sensitivity analysis (how much do k, alpha, beta changes affect safety/liveness?)
+- Testnet soak test with real economic incentives and adversarial validators
+
+See Section 6.8 for the complete path to production readiness.

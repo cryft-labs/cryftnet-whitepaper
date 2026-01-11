@@ -4,6 +4,8 @@ alpha across consecutive rounds beta, the node increases its confidence. This te
 metastable convergence: once a majority leans one way, it becomes increasingly likely that the whole
 
 network converges.
+
+CRVS design principles are described in this section. A draft specification is provided in Appendix 16.3; a complete normative specification with state machine formalization will be published separately before testnet deployment.
 Parameters (example):
 - k = 20               # sample size
 - alpha = 15           # acceptance threshold (alpha <= k)
@@ -33,7 +35,7 @@ Once Main finalizes a checkpoint, cross-region transfers referencing that checkp
 
 ### 6.6 Data availability sampling (DAS) extensions
 
-CRVS focuses on consensus efficiency within committees, but does not inherently solve the data availability problem at scale. Data Availability Sampling (DAS), as demonstrated by Ethereum's PeerDAS (introduced via the Fusaka upgrade in December 2025), enables nodes to verify that block data is available for reconstruction by sampling small fragments rather than downloading entire blocks.
+CRVS focuses on consensus efficiency within committees, but does not inherently solve the data availability problem at scale. Data Availability Sampling (DAS), as demonstrated by Ethereum's PeerDAS (targeted for deployment in the Pectra upgrade, expected in 2025-2026 timeframe), enables nodes to verify that block data is available for reconstruction by sampling small fragments rather than downloading entire blocks.
 
 CryftNet can integrate DAS as an optional enhancement layer:
 
@@ -161,7 +163,7 @@ The most practical path to mainnet is to:
 
 | Artifact | Purpose | Status |
 |:---------|:--------|:-------|
-| **CRVS Specification (normative)** | Message types, state machine, timeouts, fork-choice, fast/slow triggers, finality definition, misbehavior definitions | ❌ TODO |
+| **CRVS Specification (normative)** | Message types, state machine, timeouts, fork-choice, fast/slow triggers, finality definition, misbehavior definitions | ✅ See Appendix 16.3 (draft v1) |
 | **Failure Model Document** | Behavior under partitions, clock skew, relay censorship, 30% Byzantine | ❌ TODO |
 | **Simulator + Parameter Campaign** | Test jitter, loss, topology, adversary strategies; measure safety incidents, liveness, bandwidth | ❌ TODO |
 | **Testnet Acceptance Gates** | Define quantitative criteria: "No safety violations across X node-hours under Y adversary", "p95 finality < Z" | ❌ TODO |
@@ -255,8 +257,8 @@ Where:
 - slot_type in {ACCOUNT, STORAGE, OBJECT}
 - addr/key/extra are type-dependent fields.
 Worked input composition examples (illustrative):
-Example A (Account Slot): domain='CRYFT:SLOT:V1' | chain_id=1 | scope_id=0 | process_id='payment
-Example B (Storage Slot): domain='CRYFT:SLOT:V1' | chain_id=1001 | scope_id=42 | process_id='gif
+Example A (Account Slot): domain='CRYFT:SLOT:V1' | chain_id=1 | scope_id=0 | process_id='payment.v1' | slot_type=ACCOUNT | addr=0xAlice | key=0x0 | extra=0x0
+Example B (Storage Slot): domain='CRYFT:SLOT:V1' | chain_id=1001 | scope_id=42 | process_id='giftcodes.v1' | slot_type=STORAGE | addr=0xContract | key=0x789... | extra=0x0
 ```
 
 #### 7.3.3 Process IDs
@@ -389,3 +391,32 @@ If a contract legitimately cannot predict its access set (e.g., dynamic dispatch
 - Not opt into Smart Slots, OR
 - Use a conservative over-claim (claim all possible slots), OR
 - Execute in serial lane explicitly
+
+**EVM Access-Tracing Determinism (Critical Specification):**
+
+**What counts as a state access?**
+- `BALANCE(addr)`, `EXTCODESIZE(addr)`, `EXTCODEHASH(addr)`: READ to account slot(addr)
+- `CALL/DELEGATECALL/STATICCALL` to addr: READ to account slot(addr); WRITE if modifies state
+- `CREATE/CREATE2`: WRITE to new account slot
+- `SLOAD(addr, key)`: READ to storage slot(addr, key)
+- `SSTORE(addr, key, value)`: WRITE to storage slot(addr, key)
+- Precompiles (0x01-0x09): READ to precompile account slot
+- GBL precompile (0x0100): READ/WRITE to virtual GBL slots (see Section 4.1)
+- `LOG0-LOG4`, `CALLER`, `TIMESTAMP`, etc.: NOT counted (logs and env vars are non-state)
+
+**DELEGATECALL rule:** Accesses attributed to caller's storage context, not delegate code's address.
+
+**STATICCALL rule:** Can only produce READ accesses (state modification forbidden by EVM).
+
+**Reentrancy:** Access trace is chronological; all accesses across nested calls are aggregated into transaction-level set.
+
+**Determinism guarantee:** All EVM implementations (Geth, Erigon, etc.) MUST produce byte-identical access traces. Requires:
+- Canonical encoding (fixed-length fields)
+- Deterministic deduplication (WRITE dominates READ for same slot)
+- Set containment check (actual ⊆ claimed), not list equality
+- Test vector validation (>=100 vectors covering DeFi, CREATE2, reentrancy)
+
+**Enforcement policies (governance-configurable):**
+- **A1 (REVERT):** Under-claimed tx reverts, penalty 50% gas (testnet default)
+- **A2 (SERIAL_FALLBACK):** Re-execute in serial lane, deterministic by tx_hash sort (mainnet future)
+

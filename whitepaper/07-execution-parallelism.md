@@ -26,18 +26,18 @@
 }
 ```
 
-#### 7.3.5 Deterministic scheduling and conflict rules (pre-lock design)
+#### 7.3.6 Deterministic scheduling and conflict rules (pre-lock design)
 
-CryftNet uses a deterministic pre-lock scheduler for parallel transactions. Validators must arrive at
-identical schedules given the same mempool snapshot. The scheduler organizes transactions into
-lanes by process_id and attempts to acquire READ and WRITE locks on slots. Locks are acquired in
-sorted slot_id order to avoid deadlocks.
+Validators derive the schedule deterministically from the ordered tx list in the proposed block (proposer-chosen order). The scheduler organizes transactions into lanes by process_id and attempts to acquire READ and WRITE locks on slots. Locks are acquired in sorted slot_id order to avoid deadlocks. Deterministic ordering key: (process_id, keccak256(tx_hash)).
+
+Proposer selects and orders txs; validators verify the schedule matches lock rules. Invalid schedules result in invalid block rejection.
+
 Inputs:
-- mempool transactions T (including legacy and parallel)
-- deterministic ordering key: (process_id, tx_hash, arrival_index)
+- block transactions T (in proposer-committed order)
+- deterministic ordering key: (process_id, keccak256(tx_hash))
 1) Partition:
    Legacy = [t in T where t.type == legacy]
-   Parallel = group by process_id: L[p] = sorted(t in T where t.process_id==p)
+   Parallel = group by process_id: L[p] = sorted(t in T where t.process_id==p, key=keccak256(tx_hash))
 2) Initialize lock tables:
    read_locks[slot_id] = set()
    write_lock[slot_id] = optional owner
@@ -232,6 +232,9 @@ Slot commitments bridge privacy and determinism, but with a clear separation:
 ```
 
 **Block content (consensus-critical):**
+
+**CRITICAL**: On-chain block MUST contain plaintext calldata + revealed_claims (or digest + full claims via IPFS CID if large). **No ciphertext is stored on-chain** for consensus execution. Ciphertext exists only off-chain (mempool/CGS layer).
+
 ```text
 Block = {
   ...,
@@ -239,17 +242,22 @@ Block = {
     // Legacy tx (unchanged)
     { type: "legacy", from, to, value, data, nonce, ... },
     
-    // Private intent (revealed at inclusion)
+    // Private intent (revealed at inclusion; NO CIPHERTEXT IN BLOCK)
     { 
       type: "cryft_private",
       slot_commitment: 0x1234...,
-      revealed_claims: [...],  // MUST be present for execution
-      ciphertext: 0xabcd...,
-      proof_of_reveal: signature  // proves sender authorized reveal
+      revealed_claims: [...],       // MUST be present for execution (plaintext)
+      plaintext_calldata: 0x...,    // Decrypted call data for EVM execution
+      proof_of_reveal: signature    // Proves sender authorized reveal
+      // NO ciphertext field - privacy exists in mempool propagation only
     }
   ]
 }
 ```
+
+**All validators execute using revealed plaintext.** Transactions that cannot be decrypted or lack revealed plaintext are invalid and rejected.
+
+**Privacy model**: CGS provides privacy during mempool propagation (before inclusion). Once a validator includes a tx in a block, the plaintext is revealed to all validators for deterministic execution. Block data is public.
 
 **Verification (every validator, with or without CGS):**
 ```text

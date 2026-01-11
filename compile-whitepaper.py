@@ -48,6 +48,12 @@ MALFORMED_FIXES = {
     '\xe2\u2020': '->',        # â† (corrupted →, dagger U+2020 instead of bytes 0x86)
     '\u00ce\u00a3': 'sum',     # ÎŁ (double Latin-1 encoded Σ)
     '\xe2\u20ac"': '--',       # â€" (corrupted EM DASH — U+2014)
+    # Common corruption patterns from whitepaper
+    'â€"': '--',               # em dash corruption
+    'âˆ†': 'Δ',                # delta corruption
+    'âœ"': '✓',                # checkmark corruption
+    'âŒ': '✗',                 # crossmark corruption
+    'Ã¢Ë†â€': 'Δ',            # delta severe corruption
 }
 
 def fix_encoding(text):
@@ -115,7 +121,7 @@ def compile_whitepaper(base_dir):
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Filled P0/P1 gaps for CRVS spec, Smart Slots determinism, under-claim enforcement, CGS boundary, GBL authority, atomic messaging, checkpoints, replay protection, RegionDeployer Solidity, two-phase init, object slots, fee/gas model, ping protocol, tokenomics, governance chambers, Cryftee sandbox, pinning proofs (new Appendices 16.3–16.10); minor P2 naming/external ref fixes.
+<strong>Latest Changes:</strong> Filled P0/P1 gaps for CRVS spec, Smart Slots determinism, under-claim enforcement, CGS boundary, GBL authority, atomic messaging, checkpoints, replay protection, RegionDeployer Solidity, two-phase init, object slots, fee/gas model, ping protocol, tokenomics, governance chambers, Cryftee sandbox, pinning proofs (new Appendices 16.3-16.10); minor P2 naming/external ref fixes.
 </p>
 
 <p align="center"><em>

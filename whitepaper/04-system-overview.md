@@ -66,7 +66,148 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 5. **Economic clarity:** Staking rewards flow through Federal Chain. Asset issuance/burns happen on Mirror Chain. DeFi fees stay on EVM Chain. Clean separation prevents cross-subsidy confusion.
 
-6. **Atomic cross-chain coordination:** Shared validator set enables atomic messaging between chains. Block proposers produce **bundle blocks** containing state transitions for all three chains with a shared `bundle_hash`. Validators vote on the entire bundle atomically--failures cause rollback across all chains. This ensures operations like "debit Mirror GBL + credit EVM contract" execute atomically without two-phase commit complexity. (See Appendix 16.4 for detailed atomic messaging specification.)
+6. **Atomic cross-chain coordination:** Shared validator set enables atomic messaging between chains. Block proposers produce **bundle blocks** containing state transitions for all three chains with a shared `bundle_hash = keccak256(federal_header || mirror_header || evm_header)`. Validators vote on the entire bundle atomically--failures cause rollback across all chains. **Execution semantics**: (1) Each chain's state transition validated independently against its VM rules; (2) Cross-chain message invariants verified (e.g., GBL conservation: debit on Mirror + credit on EVM must balance); (3) If ANY chain invalid OR invariant violated, entire bundle rejected; (4) Upon quorum acceptance, all three chains advance atomically to same bundle height. **Rollback boundary**: Only unfinalized bundles can be rolled back; finality is bundle-finality (single finality event for all three chains). **Failure handling**: Mid-execution failures (validator crash, network partition) trigger rollback to last finalized bundle; proposer may be slashed for invalid bundle proposal. (See Appendix 16.4 for detailed atomic messaging specification.)
+
+   **⚠️ Architectural Note:** This atomic bundle block design is **NOT** Avalanche's standard model of separate chains with independent block production sharing only a validator set. CryftNet implements a **multi-VM atomic commit per height**--a novel kernel-level behavior where validators produce and vote on synchronized state transitions across all three VMs in a single atomic unit. This is a significant architectural departure from typical multi-chain systems and requires custom consensus/execution engine implementation. The trade-off: eliminates cross-chain bridge complexity and latency at the cost of tighter coupling between chains and more complex validator duties.
+
+   **Bundle Block Execution Mechanics (detailed):**
+
+   **Execution Ordering:** VMs execute in fixed order within each bundle to ensure deterministic cross-chain reads:
+   ```text
+   1. Federal Chain executes first (validator set updates, governance)
+   2. Mirror Chain executes second (GBL updates, asset transfers, Code Vault updates)
+   3. EVM Chain executes third (smart contracts, with read access to updated GBL via precompiles)
+   ```
+
+   **Cross-chain message application:** Messages are applied *before* the receiving chain executes its transactions:
+   ```text
+   For each chain C in [Federal, Mirror, EVM]:
+     1. Apply pending cross-chain messages TO chain C (from other chains in previous bundles)
+     2. Execute chain C's transactions for this bundle
+     3. Generate outgoing cross-chain messages FROM chain C
+     4. Validate cross-chain invariants (e.g., GBL conservation)
+   ```
+
+   **Liveness Failure Modes:**
+
+   | Failure Scenario | Behavior | Recovery |
+   |:-----------------|:---------|:---------|
+   | One VM crashes during execution | Entire bundle rejected; proposer slashed; next proposer selected | Next proposer creates recovery bundle with valid state |
+   | One VM times out (>5s execution) | Bundle considered invalid; proposer may not be slashed (timeout may be environmental); next proposer selected | Governance may adjust block gas limits or VM parameters |
+   | One VM produces invalid state transition | Bundle rejected during validation phase; proposer slashed for invalid bundle | Next proposer creates valid bundle |
+   | All three VMs execute successfully but cross-chain invariant violated | Bundle rejected; proposer slashed for invariant violation | Next proposer creates bundle respecting invariants |
+   | Validator set cannot reach quorum on bundle validity | Bundle remains unfinalized; timeout triggers re-proposal | After 3 failed attempts, governance intervention or automatic fallback to empty bundle |
+
+   **Critical property:** If ANY VM fails (crash, timeout, invalid transition), the ENTIRE network waits for the next bundle proposal. There is no "partial advancement" where two chains move forward and one stays behind. This ensures atomic commit but means **liveness depends on the health of all three VMs**. If the EVM implementation has a bug that crashes on a specific opcode, Federal and Mirror chains cannot finalize new blocks until the bug is fixed.
+
+   **Mitigation strategies for VM liveness coupling:**
+
+   1. **Emergency governance bypass:** Main governance can vote to skip a problematic bundle (e.g., if a malicious tx exploits a VM bug). Requires supermajority (80%) + 24hr timelock.
+   
+   2. **Empty bundle fallback:** If bundle proposal fails 3 consecutive times, validators may propose an empty bundle (no transactions, only cross-chain message settlement). This keeps the chain alive while problematic transactions are excluded.
+   
+   3. **Per-VM feature flags:** Governance can temporarily disable risky VM features (e.g., new opcodes, experimental precompiles) if they threaten liveness.
+   
+   4. **Testnet validation:** All VM upgrades MUST be tested on incentivized testnet for >= 30 days before Main deployment.
+
+   **Data Availability & Bandwidth Requirements:**
+
+   To vote on a bundle, validators MUST have access to:
+   - Federal header + transaction list (~10-50 KB typical)
+   - Mirror header + UTXO transaction list (~50-200 KB typical)
+   - EVM header + transaction list (~100-500 KB typical, could be larger for complex blocks)
+   - Cross-chain message queue (~10-50 KB)
+   - Cross-chain invariant proofs (~5-20 KB)
+
+   **Total per bundle:** ~200-1000 KB depending on activity level. At 2 bundles/second (target), this is ~400 KB/s to 2 MB/s download bandwidth per validator.
+
+   **Light vote path:** Validators may vote based on headers + Merkle roots + invariant proofs WITHOUT downloading full transaction lists. This reduces bandwidth to ~20-50 KB per bundle but requires trusting that >67% of validators validated full data. Not recommended for high-value chains.
+
+   **Data availability sampling (DAS) integration:** Once DAS is deployed (post-mainnet), validators can use erasure coding + sampling to verify data availability with ~10-20 KB samples instead of full downloads. This improves scalability while maintaining security.
+
+   **Crash Consistency & Persistent Checkpoints:**
+
+   Validators maintain persistent state at three levels:
+
+   ```text
+   1. Last Finalized Bundle (LFB):
+      - Federal state root at height H_f
+      - Mirror state root at height H_m
+      - EVM state root at height H_e
+      - bundle_hash, finalization quorum signature
+      - Stored on disk with fsync() guarantee before voting on next bundle
+   
+   2. Pending Bundle (in-memory):
+      - Tentative state roots for current bundle being validated
+      - Not persisted until quorum reached
+   
+   3. Rollback Log (write-ahead log):
+      - Before applying bundle B, write: "BEGIN_BUNDLE_B, parent=LFB, changes=[...]"
+      - After bundle finalized, write: "COMMIT_BUNDLE_B"
+      - If validator crashes mid-bundle, on restart: discard in-progress bundle, revert to LFB
+   ```
+
+   **Crash scenarios:**
+
+   | Crash Point | Recovery |
+   |:------------|:---------|
+   | During bundle execution (before voting) | Discard in-progress bundle; revert to LFB; re-sync missing bundles from peers |
+   | After voting but before quorum | Local vote lost; wait for quorum from other validators; apply finalized bundle if quorum reached |
+   | During bundle commit to disk | Rollback log replayed on restart; either full commit or full rollback (no partial state) |
+   | After commit but before LFB update | Re-commit is idempotent; LFB pointer updated to new bundle |
+
+   **Key invariant:** No validator can have "half-applied" bundles. Either all three chains are at bundle height H, or all three are at H-1. Partial application is impossible due to atomic commit semantics.
+
+   **Upgrade Coupling & VM Independence:**
+
+   **Problem:** If VMs must execute in lockstep, how do we upgrade one VM without risking a network halt if the upgrade has bugs?
+
+   **Solution: Staged upgrade with governance escape hatches**
+
+   ```text
+   Upgrade process for VM X (e.g., EVM Chain):
+   
+   Phase 1: Testnet deployment (30 days minimum)
+     - Deploy upgraded VM on incentivized testnet
+     - Monitor for liveness issues, crashes, consensus divergence
+     - Bounty program for breaking the upgrade
+   
+   Phase 2: Governance proposal
+     - Propose upgrade on Main
+     - Include: upgrade block height, fallback conditions, emergency rollback procedure
+     - Voting period: 14 days
+     - Acceptance threshold: 67% validator vote
+   
+   Phase 3: Activation
+     - At block height H, validators switch to new VM implementation
+     - First 1000 bundles with new VM are "probation period"
+     - If >3 bundle failures during probation, automatic rollback to old VM triggered
+   
+   Phase 4: Stabilization
+     - After 1000 successful bundles, upgrade considered stable
+     - Old VM implementation kept as backup for 90 days
+   ```
+
+   **Emergency rollback conditions:**
+
+   - Governance supermajority (80%) votes to rollback
+   - Automated trigger: >3 bundle failures within 1000 blocks
+   - Critical bug discovered (e.g., consensus divergence, VM crash on valid input)
+
+   **VM independence limit:** Federal, Mirror, and EVM CAN have different upgrade schedules, but their bundle execution interface must remain compatible. If EVM adds a new precompile, Federal/Mirror don't need to change. If Federal changes validator set encoding, EVM/Mirror don't need to change. **BUT:** If the bundle format itself changes (e.g., adding a 4th chain), all three VMs must upgrade together.
+
+   **Subsystem Degradation (if atomic coordination is lost):**
+
+   This section clarifies what happens if the bundle block system fails catastrophically:
+
+   **If bundle blocks become non-viable (e.g., persistent liveness failures):**
+   1. **Fallback to independent chains:** Federal, Mirror, and EVM can continue producing blocks independently using standard Avalanche consensus
+   2. **Cross-chain coordination degrades to async bridges:** GBL updates become async message-passing instead of atomic precompile reads
+   3. **Latency increases:** Cross-chain transactions require checkpoint-based settlement (5-30s instead of 2-5s)
+   4. **Security model changes:** Trust assumptions shift from "single validator set consensus" to "economic security of bridge contracts"
+
+   **The chain still produces blocks**--regional committees can finalize blocks locally even if Main bundle blocks are broken. Federation-wide atomic settlement is lost, but individual regions remain operational. This is an **acceptable degradation** because the core value (regional low-latency execution) is preserved, and only cross-region atomic settlement is affected.
+
 
 **Federal Chain responsibilities:**
 
@@ -176,6 +317,190 @@ sequenceDiagram
 
 **CRITICAL:** Mirror Chain GBL is the **single authoritative source** for partitioned balances. EVM contracts MUST NOT maintain independent balance state for federation-verified tokens. Local `balances` mappings in contracts are **read-only caches** synchronized from Mirror GBL.
 
+**Execution-time truth rule:** During transaction execution, balance reads MUST query Mirror GBL via precompile (authoritative). Local storage cache is updated post-execution for UX convenience but is NOT used for balance decisions. **Cache synchronization guarantee:** Before a transaction executes, validators ensure local cache reflects the latest Mirror GBL state from the current bundle block. Cache drift is impossible because bundle blocks are atomic across all three chains.
+
+**Invariants enforced by validator consensus:**
+1. **Atomic bundle guarantee:** Mirror GBL updates and EVM state transitions occur in the same bundle block. No interleaving.
+2. **Pre-execution sync:** Validators MUST sync cache from Mirror GBL before executing any balance-touching transaction in the bundle.
+3. **Single source of truth:** All balance decisions (transfer validation, allowance checks) use Mirror GBL precompile response, never cached storage.
+4. **Post-execution consistency:** Cache updates occur deterministically after successful Mirror GBL state change. Failures roll back both.
+5. **No divergence:** If cache != GBL at bundle proposal time, bundle is invalid and rejected by honest validators.
+
+**GBL Precompile Interface (address 0x0100):**
+
+```solidity
+interface IGBLPrecompile {
+    // Query balance for (asset_id, region_id, account)
+    // Returns: balance in smallest unit (e.g., wei for ETH-like tokens)
+    // Gas cost: 700 gas (warm) / 2600 gas (cold, first access in tx)
+    // Reverts: Never (returns 0 for non-existent balances)
+    function queryBalance(bytes32 asset_id, uint64 region_id, address account) 
+        external view returns (uint256 balance);
+    
+    // Transfer within same region (atomic, synchronous)
+    // Effects: Updates Mirror GBL UTXO set atomically with EVM state
+    // Gas cost: 5000 gas base + 700 per account touched
+    // Reverts: If insufficient balance, invalid region_id, or GBL invariant violation
+    function transfer(
+        bytes32 asset_id, 
+        uint64 region_id, 
+        address from, 
+        address to, 
+        uint256 amount
+    ) external returns (bool success);
+    
+    // Initiate cross-region transfer (async, creates pending state)
+    // Effects: Debits from_region balance, creates pending claim on to_region
+    // Returns: transfer_id for tracking settlement status
+    // Gas cost: 15000 gas (higher due to cross-chain message queueing)
+    // Settlement time: 5-30 seconds (via checkpoint to Main)
+    // Reverts: If insufficient balance or invalid region configuration
+    function transferToRegion(
+        bytes32 asset_id, 
+        uint64 from_region, 
+        uint64 to_region, 
+        address from,
+        address to, 
+        uint256 amount
+    ) external returns (bytes32 transfer_id);
+    
+    // Query pending cross-region transfer status
+    // Returns: (settled, dest_region_height) where settled=true means funds available on dest
+    // Gas cost: 700 gas
+    function getTransferStatus(bytes32 transfer_id) 
+        external view returns (bool settled, uint64 dest_region_height);
+    
+    // Query total supply for asset across ALL regions
+    // Useful for federation-wide token metrics
+    // Gas cost: 2000 gas (aggregates across regions)
+    function totalSupply(bytes32 asset_id) 
+        external view returns (uint256 total);
+    
+    // Query which regions have non-zero balances for an account
+    // Returns: array of region_ids where account has balance > 0
+    // Gas cost: 5000 gas base + 100 per region
+    // Use case: Wallets discovering user's multi-region balances
+    function getAccountRegions(bytes32 asset_id, address account) 
+        external view returns (uint64[] memory regions);
+}
+```
+
+**Precompile behavior specifications:**
+
+**Reentrancy protection:**
+- GBL precompile calls are NON-REENTRANT
+- If contract A calls GBL precompile, which triggers callback to A, the callback CANNOT call GBL precompile again
+- Violation: Reverts with "GBL: reentrant call"
+- Reason: Prevents complex cross-chain reentrancy exploits
+
+**Failure modes and error codes:**
+
+```text
+queryBalance():
+  - Never reverts
+  - Returns 0 for invalid asset_id or account with no balance
+  - Returns 0 if region_id not in asset's target_regions
+
+transfer():
+  - Reverts "GBL: insufficient balance" if from.balance < amount
+  - Reverts "GBL: invalid region" if region_id not in asset's target_regions
+  - Reverts "GBL: zero amount" if amount == 0
+  - Reverts "GBL: self transfer" if from == to (no-op transfers forbidden)
+  - Reverts "GBL: conservation violated" if debit+credit doesn't balance (critical error, bundle rejected)
+
+transferToRegion():
+  - Reverts "GBL: insufficient balance" if from.balance < amount
+  - Reverts "GBL: invalid source region" if from_region != current_region
+  - Reverts "GBL: region not federated" if to_region not in asset's target_regions
+  - Reverts "GBL: zero amount" if amount == 0
+  - Reverts "GBL: same region" if from_region == to_region (use transfer() instead)
+```
+
+**Gas cost rationale:**
+
+- queryBalance (700 gas): Comparable to SLOAD, reflects Mirror UTXO read cost
+- transfer (5000 gas): Comparable to ERC-20 transfer (2x SLOAD + 2x SSTORE ~= 5200 gas)
+- transferToRegion (15000 gas): Higher due to cross-chain message queuing and checkpoint overhead
+- totalSupply (2000 gas): Aggregates cached per-region totals (not full UTXO scan)
+
+**Cache consistency enforcement (validator duty):**
+
+Before executing bundle B:
+  ```text
+  For each asset_id in federation registry:
+    For each region_id in asset's target_regions:
+      cached_root = EVM_Chain.gblCacheRoot(asset_id, region_id)
+      mirror_root = Mirror_Chain.gblRoot(asset_id, region_id)
+      
+      IF cached_root != mirror_root:
+        REJECT bundle B
+        REASON: "GBL cache desync detected"
+        PROPOSER: Slashed (5% stake)
+  ```
+
+This check happens during Phase 4 (invariant validation) of bundle execution. Prevents cache drift from ever reaching consensus.
+
+**Composability constraints:**
+
+- DEXes (Uniswap, etc.) work normally within a region (GBL precompile is just a different balance read)
+- Cross-region DEX trades require async settlement (initiator locks funds, counterparty claims after checkpoint)
+- Flashloan compatibility: Within-region flashloans work; cross-region flashloans not supported (async nature breaks atomicity)
+- Reentrancy: Standard EVM reentrancy guards still apply; GBL precompile adds its own non-reentrancy check
+
+**ERC-20 wrapper pattern (recommended):**
+
+```solidity
+// Wrapper ensures ERC-20 compatibility while using GBL backend
+contract FederatedERC20 {
+    IGBLPrecompile constant GBL = IGBLPrecompile(0x0100);
+    bytes32 public immutable ASSET_ID;
+    uint64 public immutable REGION_ID;
+    
+    // Cache (synced by validators before tx execution)
+    mapping(address => uint256) private _cachedBalances;
+    
+    function balanceOf(address account) public view returns (uint256) {
+        // Always query authoritative source
+        return GBL.queryBalance(ASSET_ID, REGION_ID, account);
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(GBL.transfer(ASSET_ID, REGION_ID, msg.sender, to, amount), "Transfer failed");
+        
+        // Update cache (deterministic, validators verify this matches GBL)
+        _cachedBalances[msg.sender] -= amount;
+        _cachedBalances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    // Standard ERC-20 allowance mechanism (region-local)
+    mapping(address => mapping(address => uint256)) private _allowances;
+    
+    function approve(address spender, uint256 amount) public returns (bool) {
+        _allowances[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+    
+    function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        uint256 currentAllowance = _allowances[from][msg.sender];
+        require(currentAllowance >= amount, "Insufficient allowance");
+        
+        require(GBL.transfer(ASSET_ID, REGION_ID, from, to, amount), "Transfer failed");
+        
+        _allowances[from][msg.sender] = currentAllowance - amount;
+        _cachedBalances[from] -= amount;
+        _cachedBalances[to] += amount;
+        
+        emit Transfer(from, to, amount);
+        return true;
+    }
+}
+```
+
+
 **Required pattern for federation-verified tokens:**
 
 ```text
@@ -207,7 +532,15 @@ contract FederationToken {
 }
 ```
 
-**Allowances and approvals:** Implemented as Mirror UTXO lock scripts (multisig or timelock), not local mappings.
+**Allowances and approvals (ERC-20 compatibility clarification):**
+
+**For local-region operations**: Standard `approve/allowance/transferFrom` semantics are preserved on-region. Approval mappings (`mapping(address => mapping(address => uint256)) public allowances`) live in contract storage as usual. This ensures existing DeFi contracts (Uniswap, Aave, etc.) work without modification.
+
+**For cross-region operations**: Approvals are region-local and do not automatically transfer. Cross-region token movements use direct `transferToRegion()` (sender-initiated) rather than delegated transfers. Future versions may support cross-region approval via Mirror UTXO lock scripts.
+
+**Trade-off**: This maintains full ERC-20 compatibility within a region (recommended) at the cost of region-local approval state. Alternative: Implement approvals as Mirror lock scripts (breaks ERC-20 compatibility but enables cross-region approvals).
+
+**Decision**: CryftNet v1 chooses ERC-20 compatibility to maximize ecosystem adoption.
 
 **Realism tie-in:** Similar to Optimism's canonical bridged tokens (L1 authoritative, L2 cached) or Cosmos ICS-20 (chain-of-origin authoritative).
 
@@ -367,6 +700,12 @@ flowchart TB
 
 A key architectural question is whether subnet (State/Region) validators must also validate the Primary Network. CryftNet adopts a **tiered requirement model**:
 
+**Terminology clarification:**
+- **Primary Network** = Federal Chain + Mirror Chain + EVM Chain (three chains, shared validator set)
+- **Federal Chain** = Settlement/checkpoint/DAO chain specifically  
+- **Main EVM Chain** = EVM Chain within Primary Network (hosts CMR, registries)
+- Legacy references to "Main" are deprecated; use specific chain names for clarity
+
 **Tier 1: CSS-1 State chains (required Primary Network participation)**
 
 Validators for Cryft Standard Subnet (CSS-1) State chains **must** also be validators on the Primary Network (validating Federal Chain, Mirror Chain, and EVM Chain). This requirement ensures:
@@ -382,17 +721,17 @@ Custom subnets (non-CSS) may choose whether their validators participate in the 
 
 | Participation Level | Requirements | Benefits | Trade-offs |
 |:--------------------|:-------------|:---------|:-----------|
-| **Full** | Validate Main + subnet | Full federation services, governance rights, priority routing | Higher operational cost |
-| **Partial** | Stake on Main, validate subnet only | Bridge access, registry listing, basic services | No governance votes, standard routing |
+| **Full** | Validate Primary Network + subnet | Full federation services, governance rights, priority routing | Higher operational cost |
+| **Partial** | Stake on Federal Chain, validate subnet only | Bridge access, registry listing, basic services | No governance votes, standard routing |
 | **None** | Subnet-only validation | Maximum independence | No federation services, manual bridging only |
 
-**Minimum stake requirements:**
+**Minimum stake requirements (canonical):**
 
 ```text
-Main validator:           100,000 CRYFT minimum stake
-CSS-1 State validator:    50,000 CRYFT additional stake (per State)
-Custom subnet validator:  Defined by subnet parameters
-City validator:           Defined by parent State (typically lower)
+Primary Network validator:    1,000 CRYFT minimum stake (see Appendix 16.8)
+CSS-1 State validator:         500 CRYFT additional stake (per State)
+Custom subnet validator:       Defined by subnet parameters
+City validator:                Defined by parent State (typically lower)
 ```
 
 **Cross-validation benefits:**

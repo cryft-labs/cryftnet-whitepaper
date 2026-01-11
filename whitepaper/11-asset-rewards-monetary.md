@@ -95,7 +95,7 @@ Step 2: Credit allocation
 Step 3: Spending
 - Alice spends 300 on Region A ->' local_spent[A] = 300
 - Alice spends 200 on Region B ->' local_spent[B] = 200
-- Total spent: 500, within 1000 limit âœ"
+- Total spent: 500, within 1000 limit ✓
 
 Step 4: Reconciliation (on checkpoint)
 - Main receives: spent_A=300, spent_B=200, spent_C=0
@@ -154,18 +154,25 @@ fees: fees for anchoring checkpoints and relaying cross-chain messages. - CGS fe
 intent propagation, threshold services, and spam resistance. - Storage/pinning fees: budgets
 attached to pin jobs for IPFS availability.
 
-### 11.3 Validator rewards: Main and regions
+### 11.3 Validator rewards: Primary Network and regions
 
-Reward sources are a sum of: - base emission (optional): E_epoch - transaction fees: F_epoch (gas
-fees) net of burns (if any) - settlement fees: S_epoch - treasury subsidies: T_epoch (optional) Let
+**v1 Fixed Policy (Mainnet Launch):**
+CryftNet mainnet v1 launches with a **fixed monetary policy** (see Appendix 16.8 for canonical specification):
+- **No emission**: 0 CRYFT/block (no inflation)
+- **Fee distribution**: 50% burned, 30% to validator rewards, 20% to treasury
+- **Minimum stake**: 1,000 CRYFT for Primary Network validators
+- **Slashing rate**: 5% of stake per provable misbehavior
 
-```text
-R_epoch = E_epoch + F_epoch + S_epoch + T_epoch. Rewards are split: - Main validator set:
-R_main = R_epoch * w_main - Region validator sets: R_regions = R_epoch * w_regions (distributed
-among participating regions by activity and stake) - CGS service providers: R_cgs = R_epoch *
-w_cgs - Pin providers: R_pin = P_epoch (separately budgeted by pin jobs, plus optional treasury
-top-ups) Where w_main + w_regions + w_cgs <= 1; remaining may be burned or sent to treasury.
-```
+This v1 policy provides economic predictability for mainnet launch.
+
+**Future Flexibility (Post-Mainnet via Governance):**
+After mainnet stabilizes, governance may propose adjustments including:
+- Optional emission schedules
+- Adjustable fee burn rates and reward splits  
+- Regional reward weight tuning
+- CGS service provider compensation models
+
+Any changes require supermajority governance approval on Federal Chain.
 
 #### 11.3.1 Parameter table (example defaults)
 

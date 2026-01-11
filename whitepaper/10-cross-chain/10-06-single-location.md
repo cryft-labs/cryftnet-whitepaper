@@ -1,4 +1,4 @@
-   - No supply duplication âœ"
+   - No supply duplication ✓
 ```
 
 **Federation Registry tracks initialization:**

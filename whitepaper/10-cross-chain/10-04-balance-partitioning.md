@@ -1,16 +1,29 @@
-      ? options.target_regions.length - 1  // Exclude home region
-      : 0;
-    fee += mirrorRegions * mirrorFeePerRegion;
-    
-    // Balance portability fee per region
-    if (options.balance_portability) {
-      fee += options.target_regions.length * portabilityFeePerRegion;
-    }
-    
-    return fee;
-  }
-  
-  // Main-triggered mirroring (after checkpoint, only for declared regions)
+// Mirror Chain GBL-based balance partitioning:
+//
+// When a token contract is deployed with balance_portability=true,
+// Mirror Chain tracks per-region balances for each account using GBL UTXOs.
+// This section describes how balance partitioning works across regions.
+
+### GBL UTXO Structure for Partitioned Balances
+
+Each partitioned balance is represented as a UTXO on Mirror Chain with metadata:
+
+```text
+GBL_UTXO {
+  asset_id: bytes32,       // Token contract address
+  region_id: uint64,       // Which region this balance is locked to
+  account: address,        // Token holder
+  amount: uint256,         // Balance on this region
+  nonce: uint64            // For replay protection
+}
+```
+
+### Cross-Region Balance Transfer Flow
+
+When a user moves tokens from Region A to Region B:
+
+```text
+// Main-triggered mirroring (after checkpoint, only for declared regions)
   function mirror(
     bytes calldata init_code,
     bytes32 salt,

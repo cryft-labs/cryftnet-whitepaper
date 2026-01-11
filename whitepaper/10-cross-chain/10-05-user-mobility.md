@@ -86,7 +86,7 @@ Deployment with initial state:
    }
 
 2) Contract deployed on Region A:
-   - balances[issuer] = 1B on Region A âœ"
+   - balances[issuer] = 1B on Region A ✓
 
 3) Main mirrors to Region B, C, D:
    - Constructor runs on each region? NO!
@@ -152,6 +152,6 @@ Correct approach: Separate deployment from initialization
    f) initialize() cannot be called on mirrors (wrong region OR already initialized)
 
 3) Result:
-   - Same address (0xToken) on all regions âœ"
-   - Initial supply exists ONLY on Region A âœ"
-   - Mirror regions start with zero balances âœ"
+   - Same address (0xToken) on all regions ✓
+   - Initial supply exists ONLY on Region A ✓
+   - Mirror regions start with zero balances ✓
