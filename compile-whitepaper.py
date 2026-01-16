@@ -114,14 +114,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.23<br>
-<strong>Date:</strong> January 10, 2026<br>
-<strong>Status:</strong> Draft<br>
+<strong>Revision:</strong> v1.25<br>
+<strong>Date:</strong> January 15, 2026<br>
+<strong>Status:</strong> Draft (Production Review Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes:</strong> Filled P0/P1 gaps for CRVS spec, Smart Slots determinism, under-claim enforcement, CGS boundary, GBL authority, atomic messaging, checkpoints, replay protection, RegionDeployer Solidity, two-phase init, object slots, fee/gas model, ping protocol, tokenomics, governance chambers, Cryftee sandbox, pinning proofs (new Appendices 16.3-16.10); minor P2 naming/external ref fixes.
+<strong>Latest Changes (v1.25):</strong> Added Code Vault dual storage mode architecture (Section 4.5): on-chain storage for critical contracts (max permanence, 1MB limit) vs. IPFS-referenced storage for larger bytecode (cost-efficient with pinning incentives). Includes extended UTXO structure with mode selection, lock_script schemas (init_code_hash, runtime_code_hash, CID references), transaction flow examples for both modes, pinning budget integration with Section 11.4 rewards, CMR integration for lazy mirroring deployment. Storage mode invariants ensure integrity verification regardless of retrieval location; deployers choose tradeoff between guaranteed replication (on-chain) vs. economic incentives (IPFS with 98% SLA). Failure handling with governance appeals and provider slashing. Previous (v1.24): MAJOR PRODUCTION-READY EXPANSIONS for CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile interface (~1,310 lines). Earlier (v1.23): P0/P1 gap analysis, CRVS spec, Smart Slots determinism, CGS boundary, GBL authority, atomic messaging, checkpoints, RegionDeployer Solidity, two-phase init, pinning proofs (Appendices 16.3-16.10).
 </p>
 
 <p align="center"><em>
