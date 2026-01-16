@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.24<br>
+<strong>Revision:</strong> v1.23<br>
 <strong>Date:</strong> January 10, 2026<br>
-<strong>Status:</strong> Draft (Production Review Candidate)<br>
+<strong>Status:</strong> Draft<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.24):</strong> <strong>MAJOR PRODUCTION-READY EXPANSIONS</strong> – Complete CRVS state machine with fast/slow path triggers, safety/liveness proofs, slashing evidence formats (Section 6.4 + Appendix 16.3, ~600 lines added); Atomic bundle block execution phases with liveness failure modes, crash consistency, rollback mechanisms, upgrade coupling (Section 4.1 + Appendix 16.4, ~500 lines added); Smart Slots EVM access-tracing determinism specification with DELEGATECALL/STATICCALL attribution rules, enforcement policies (Section 6 + 7.3.5); GBL precompile interface with complete function signatures, gas costs, reentrancy protection, cache consistency enforcement, composability constraints (Section 4.1, ~180 lines added). All critical P0 subsystems now include explicit failure modes, assumptions, and "what happens when X fails" analysis for production review.
+<strong>Latest Changes:</strong> Filled P0/P1 gaps for CRVS spec, Smart Slots determinism, under-claim enforcement, CGS boundary, GBL authority, atomic messaging, checkpoints, replay protection, RegionDeployer Solidity, two-phase init, object slots, fee/gas model, ping protocol, tokenomics, governance chambers, Cryftee sandbox, pinning proofs (new Appendices 16.3-16.10); minor P2 naming/external ref fixes.
 </p>
 
 <p align="center"><em>
@@ -1082,6 +1082,160 @@ If a City chain fails or its State censors it, users can still recover:
 This ensures users are never permanently trapped in a City.
 
 This hierarchical model balances federation coherence with local autonomy, enabling CryftNet to scale to thousands of chains without overwhelming Main governance.
+
+### 4.5 Code Vault Storage Modes: On-Chain vs. IPFS-Referenced
+
+The Code Vault on Mirror Chain supports two storage modes for smart contract bytecode: **on-chain storage** (direct inclusion in the UTXO) and **IPFS-referenced storage** (storing a CID that points to pinned content on IPFS). This dual-model approach allows deployers to choose between maximum permanence (on-chain, at higher cost) and cost-efficiency (IPFS, with pinning incentives ensuring availability). Both modes maintain the same security guarantees for code integrity and deterministic deployment, as regions verify against committed hashes regardless of storage location.
+
+#### 4.5.1 Design Rationale
+- **On-Chain Storage**: Bytecode is stored directly in the Mirror Chain UTXO, ensuring it is replicated across all validators and immune to pinning failures or IPFS network issues. This mode is ideal for high-value, canonical contracts (e.g., federation governance or stablecoins) where data loss is unacceptable. Trade-off: Higher transaction fees due to data size.
+- **IPFS-Referenced Storage**: Bytecode is uploaded to IPFS and referenced via a CID in the UTXO. Availability is ensured through the network's pinning rewards (Section 11.4), with auditors and challenges verifying persistence. This mode is cheaper and scalable for larger contracts but relies on economic incentives. Trade-off: Theoretical risk of pinning errors, mitigated by protocol-level rewards and slashing.
+
+Deployers specify the mode during Code Vault deposit. Regions fetching for lazy mirroring (via `ensureDeployedAndCall()`) only need the hashes for verification--full bytecode retrieval (if needed) is off-chain and optional.
+
+#### 4.5.2 Storage Mode Invariants
+- **Integrity**: Both modes commit `init_code_hash` and `runtime_code_hash` in the UTXO. Regions reject deployments if the deployed bytecode does not match `runtime_code_hash`.
+- **Availability**: On-chain is guaranteed by chain replication; IPFS uses pinning jobs with budgets and SLAs (e.g., 98% uptime).
+- **Immutability**: Once committed, the `code_id` (derived from UTXO ID) cannot be altered. Spending the UTXO is forbidden via a "burn" lock script.
+- **Fallback**: If IPFS fetch fails during deployment, regions can query Mirror Chain for a full blob fallback (if stored on-chain) or retry pinning providers.
+
+#### 4.5.3 Extended UTXO Structure for Code Vault Deposits
+Code Vault entries use a specialized UTXO with the following structure (binary-encoded in transactions):
+
+| Field                  | Type          | Description                                                                 |
+|------------------------|---------------|-----------------------------------------------------------------------------|
+| `utxo_id`             | bytes32      | Unique UTXO identifier (hash-based).                                        |
+| `asset_id`            | bytes32      | Reserved for Code Vault (e.g., `0xCODE_VAULT`).                             |
+| `region_id`           | uint64       | 0 for federation-wide; optional region-specific.                            |
+| `account`             | address      | Deployer's address (for authorization and ownership).                       |
+| `amount`              | uint256      | 0 (no monetary value; data storage only).                                   |
+| `lock_script`         | bytes        | Contains mode, hashes, and data/CID; signed by deployer.                    |
+
+The `lock_script` is extended as follows:
+
+```json
+{
+  "type": "CODE_COMMIT",
+  "storage_mode": "ON_CHAIN" | "IPFS",  // Deployer choice
+  "init_code_hash": "bytes32",          // keccak256(init_code)
+  "runtime_code_hash": "bytes32",       // keccak256(runtime_bytecode)
+  
+  // Mode-specific fields (mutually exclusive)
+  "init_code_blob": "bytes"?,           // Full init_code if ON_CHAIN
+  "runtime_bytecode": "bytes"?,         // Full runtime bytecode if ON_CHAIN
+  "init_code_cid": "string"?,           // IPFS CID if IPFS
+  "runtime_bytecode_cid": "string"?,    // IPFS CID if IPFS
+  
+  "pin_duration_epochs": "uint64"?,     // Optional for IPFS: epochs for pinning job
+  "pin_budget": "uint256"?,             // Optional for IPFS: CRYFT budget for pinning
+  "nonce": "uint64",                    // Replay protection
+  "sig": "bytes"                        // Deployer signature over lock_script hash
+}
+```
+
+- **Size Limits**: On-chain blobs capped at 1MB per UTXO to prevent bloat; larger -> revert. IPFS has no limit (scalable).
+- **Fees**: Base fee + `data_size * GAS_PER_BYTE` (e.g., 16 gas/byte for on-chain). IPFS mode adds optional `pin_budget` (escrowed for rewards).
+
+#### 4.5.4 Transaction Flow for Code Vault Deposit
+Deployers submit a Mirror Chain transaction to create a Code Vault UTXO. Below is a conceptual flow with examples.
+
+##### Example 1: On-Chain Storage (Direct Bytecode Inclusion)
+Assume a small contract (e.g., simple ERC-20) with runtime bytecode ~10KB.
+
+```python
+# Pseudocode: Mirror Chain SDK transaction builder
+deployer = "0xDeployer"
+private_key = "0xPrivateKey"
+
+# Bytecode (truncated example)
+init_code = "0x6080604052..."  # Full init code
+runtime_bytecode = "0x6060604052..."  # Runtime portion
+
+# Hashes
+init_hash = keccak256(init_code)
+runtime_hash = keccak256(runtime_bytecode)
+
+# Lock script
+lock_script = {
+    "type": "CODE_COMMIT",
+    "storage_mode": "ON_CHAIN",
+    "init_code_hash": init_hash,
+    "runtime_code_hash": runtime_hash,
+    "init_code_blob": init_code,
+    "runtime_bytecode": runtime_bytecode,
+    "nonce": get_nonce(deployer),
+}
+script_hash = keccak256(lock_script)
+signature = sign(script_hash, private_key)
+lock_script["sig"] = signature
+
+# Input UTXO (for fees)
+input = {"utxo_id": "0xInputUTXO", "amount": 1000}  # Enough for fees
+
+# Output UTXO (Code Vault entry)
+output = {
+    "asset_id": "0xCODE_VAULT",
+    "region_id": 0,
+    "account": deployer,
+    "amount": 0,
+    "lock_script": lock_script
+}
+
+# Build, sign, submit
+tx = build_tx(inputs=[input], outputs=[output])
+signed_tx = sign_tx(tx, private_key)
+submit_tx(signed_tx)  # Returns tx_id; code_id = keccak256(tx_id)
+```
+
+- **Estimated Cost**: Base fee (~0.01 CRYFT) + data fee (10KB * gas/byte -> ~0.05 CRYFT extra).
+- **Result**: Bytecode is now on-chain; no pinning needed.
+
+##### Example 2: IPFS-Referenced Storage (CID with Pinning)
+For larger bytecode (>24KB), upload to IPFS first.
+
+```python
+# Pseudocode
+# Step 1: Upload to IPFS (via Cryftee ipfs_v1 module)
+init_cid = ipfs_upload(init_code)  # "QmInitCID"
+runtime_cid = ipfs_upload(runtime_bytecode)  # "QmRuntimeCID"
+
+# Lock script
+lock_script = {
+    "type": "CODE_COMMIT",
+    "storage_mode": "IPFS",
+    "init_code_hash": keccak256(init_code),
+    "runtime_code_hash": keccak256(runtime_bytecode),
+    "init_code_cid": init_cid,
+    "runtime_bytecode_cid": runtime_cid,
+    "pin_duration_epochs": 4320,  # ~30 days
+    "pin_budget": 2500,           # CRYFT escrowed for pinning rewards
+    "nonce": get_nonce(deployer),
+}
+script_hash = keccak256(lock_script)
+signature = sign(script_hash, private_key)
+lock_script["sig"] = signature
+
+# Input/Output same as above, but input amount includes pin_budget
+input["amount"] = 1000 + 2500  # Fees + budget
+
+# Build, sign, submit
+tx = build_tx(inputs=[input], outputs=[output])
+signed_tx = sign_tx(tx, private_key)
+submit_tx(signed_tx)
+```
+
+- **Estimated Cost**: Base tx (~0.01 CRYFT) + pin_budget (escrowed, released over epochs to providers).
+- **Pinning Integration**: Transaction auto-creates a Pin Job (Section 11.4) with the provided budget/SLA.
+- **Result**: Bytecode on IPFS; Code Vault UTXO holds CIDs + hashes. Pinning ensures availability.
+
+#### 4.5.5 Integration with CMR and Deployment
+- **CMR Reference**: CMR entries include `code_id` from the UTXO. Storage mode is queryable via Mirror Chain precompiles.
+- **Lazy Mirroring**: During `ensureDeployedAndCall()`, regions fetch bytecode based on mode:
+  - ON_CHAIN: Direct from Mirror Chain UTXO (atomic query).
+  - IPFS: From pinned providers; fallback to Mirror if unavailable.
+- **Failure Handling**: If IPFS fetch fails (despite pinning), deployment reverts; user can retry or appeal via governance (slashing pin providers if fault proven).
+
+This model empowers deployers with choice while leveraging CryftNet's incentives for robust availability. For critical contracts, on-chain mode eliminates external dependencies; for others, IPFS reduces costs without compromising integrity.
 
 ## 5. Network model and latency strategy
 
