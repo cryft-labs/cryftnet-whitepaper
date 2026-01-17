@@ -114,14 +114,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.25<br>
-<strong>Date:</strong> January 15, 2026<br>
+<strong>Revision:</strong> v1.26<br>
+<strong>Date:</strong> January 17, 2026<br>
 <strong>Status:</strong> Draft (Production Review Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.25):</strong> Added Code Vault dual storage mode architecture (Section 4.5): on-chain storage for critical contracts (max permanence, higher cost) vs. IPFS-referenced storage for larger bytecode (cost-efficient with pinning incentives). Includes extended UTXO structure with mode selection, lock_script schemas (init_code_hash, runtime_code_hash, CID references), transaction flow examples for both modes, pinning budget integration with Section 11.4 rewards, CMR integration for lazy mirroring deployment. Storage mode invariants ensure integrity verification regardless of retrieval location; deployers choose tradeoff between guaranteed replication (on-chain) vs. economic incentives (IPFS with 98% SLA). Failure handling with governance appeals and provider slashing. Added EVM compatibility constraint: runtime bytecode must not exceed maximum contract size enforced by target regional/Federal EVM chains (typically 24KB per EIP-170), with deployment rejection for oversized bytecode even if Code Vault UTXO created successfully. Previous (v1.24): MAJOR PRODUCTION-READY EXPANSIONS for CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile interface (~1,310 lines). Earlier (v1.23): P0/P1 gap analysis, CRVS spec, Smart Slots determinism, CGS boundary, GBL authority, atomic messaging, checkpoints, RegionDeployer Solidity, two-phase init, pinning proofs (Appendices 16.3-16.10).
+<strong>Latest Changes (v1.26):</strong> **IMPLEMENTATION-READY HARDENING:** Added Section 4.1.1 Block Cadence & Asynchronicity clarifying independent Snowman instances with atomic finality at bundle level only. Added explicit "v1 = pure Snow" statement to Section 6.8: Primary Network launches with pure, unmodified Avalanche/Snowman consensus (no CRVS components active in v1). Enhanced Section 13.8 Cryftee Requirement & Node Stack with comprehensive node type matrix, implementation guidance, and module selection for validators. Added Cryftee attestation requirements to Section 14.1 threat model and Section 5.2 validator eligibility. Added mandatory startup failure requirement to Section 13.7: CryftGo MUST fail if Cryftee not running or required modules fail attestation. Added CSS-1 Cryftee requirement note to Section 4.2. These changes eliminate ambiguity and make whitepaper ready for CryftGo implementation. Previous (v1.25): Code Vault dual storage modes. Earlier (v1.24): CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile (~1,310 lines). Earlier (v1.23): P0/P1 gap analysis, encoding fixes.
 </p>
 
 <p align="center"><em>

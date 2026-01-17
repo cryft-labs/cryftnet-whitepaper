@@ -27,6 +27,7 @@ CryftNet security spans multiple planes: consensus, execution determinism, cross
 - **Relay censorship:** rotor relays could delay data. Mitigation: relays are non-authoritative; fallback gossip; relay performance affects rewards.
 - **Adaptive adversary:** targets soft leaders. Mitigation: leaderless option; rotate relay sets; use sampling.
 - **Checkpoint withholding:** region produces blocks but delays checkpointing to Main. Mitigation: checkpoint liveness requirements; rewards tied to checkpoint frequency; user failover to Main.
+- **Cryftee offline or invalid attestation:** Node cannot participate in consensus. Mitigation: CryftGo startup fails if Cryftee not running or required modules fail attestation; peers reject bundles from unattested nodes; reward eligibility requires valid attestation.
 
 ### 14.2 Smart Slot threats
 

@@ -522,7 +522,7 @@ Private cross-chain proof:
    - sender had sufficient balance
    - transfer is valid per protocol rules
    - commitment to recipient (hidden)
-3) Checkpoint to Main includes aggregated proof
+3) Checkpoint to Federal Chain includes aggregated proof
 4) Recipient on Region B claims with proof of inclusion + recipient key
 5) Region B mints without learning sender identity
 ```
@@ -633,9 +633,9 @@ Transfer from Region A ->' Region B:
    - Asset is locked in bridge contract (user cannot spend it)
    - Lock event emitted with unique transfer_id
 
-2) CHECKPOINT to Main:
+2) CHECKPOINT to Federal Chain:
    - Region A's next checkpoint includes the lock event in message_root
-   - Main finalizes checkpoint ->' lock is now globally ordered
+   - Federal Chain finalizes checkpoint ->' lock is now globally ordered
 
 3) MINT on Region B:
    - User (or relayer) submits claim to Region B with:

@@ -141,6 +141,10 @@ CRVS remains the consensus backbone--DAS and ZK-EVMs are complementary technolog
 
 **Pragmatic de-risking strategy: "Proven core, experimental edges"**
 
+**Phase 0 (Current) – Phase 4 (Mainnet v1):**
+
+**The Primary Network launches with pure, unmodified Avalanche/Snowman consensus (the proven baseline used in AvalancheGo).** No rotor relays, votor aggregation, or other CRVS components are active in v1. All Primary Network chains (Federal, Mirror, EVM) use standard Snowman block production and finality. **Regions may prototype CRVS components on testnet**, but production regions in v1 also use baseline Snowman.
+
 The most practical path to mainnet is to:
 
 1. **Use a proven consensus kernel** (the part that decides the canonical chain)

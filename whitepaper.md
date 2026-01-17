@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.25<br>
-<strong>Date:</strong> January 15, 2026<br>
+<strong>Revision:</strong> v1.26<br>
+<strong>Date:</strong> January 17, 2026<br>
 <strong>Status:</strong> Draft (Production Review Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.25):</strong> Added Code Vault dual storage mode architecture (Section 4.5): on-chain storage for critical contracts (max permanence, higher cost) vs. IPFS-referenced storage for larger bytecode (cost-efficient with pinning incentives). Includes extended UTXO structure with mode selection, lock_script schemas (init_code_hash, runtime_code_hash, CID references), transaction flow examples for both modes, pinning budget integration with Section 11.4 rewards, CMR integration for lazy mirroring deployment. Storage mode invariants ensure integrity verification regardless of retrieval location; deployers choose tradeoff between guaranteed replication (on-chain) vs. economic incentives (IPFS with 98% SLA). Failure handling with governance appeals and provider slashing. Added EVM compatibility constraint: runtime bytecode must not exceed maximum contract size enforced by target regional/Federal EVM chains (typically 24KB per EIP-170), with deployment rejection for oversized bytecode even if Code Vault UTXO created successfully. Previous (v1.24): MAJOR PRODUCTION-READY EXPANSIONS for CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile interface (~1,310 lines). Earlier (v1.23): P0/P1 gap analysis, CRVS spec, Smart Slots determinism, CGS boundary, GBL authority, atomic messaging, checkpoints, RegionDeployer Solidity, two-phase init, pinning proofs (Appendices 16.3-16.10).
+<strong>Latest Changes (v1.26):</strong> **IMPLEMENTATION-READY HARDENING:** Added Section 4.1.1 Block Cadence & Asynchronicity clarifying independent Snowman instances with atomic finality at bundle level only. Added explicit "v1 = pure Snow" statement to Section 6.8: Primary Network launches with pure, unmodified Avalanche/Snowman consensus (no CRVS components active in v1). Enhanced Section 13.8 Cryftee Requirement & Node Stack with comprehensive node type matrix, implementation guidance, and module selection for validators. Added Cryftee attestation requirements to Section 14.1 threat model and Section 5.2 validator eligibility. Added mandatory startup failure requirement to Section 13.7: CryftGo MUST fail if Cryftee not running or required modules fail attestation. Added CSS-1 Cryftee requirement note to Section 4.2. These changes eliminate ambiguity and make whitepaper ready for CryftGo implementation. Previous (v1.25): Code Vault dual storage modes. Earlier (v1.24): CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile (~1,310 lines). Earlier (v1.23): P0/P1 gap analysis, encoding fixes.
 </p>
 
 <p align="center"><em>
@@ -241,6 +241,16 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
    | After commit but before LFB update | Re-commit is idempotent; LFB pointer updated to new bundle |
 
    **Key invariant:** No validator can have "half-applied" bundles. Either all three chains are at bundle height H, or all three are at H-1. Partial application is impossible due to atomic commit semantics.
+
+#### 4.1.1 Block cadence & asynchronicity
+
+Each chain in the Primary Network (Federal, Mirror, EVM) and each region/state chain runs as an **independent Snowman instance** with its own block production loop, finality cadence, and target block interval.
+
+- **Asynchronous production** -- Chains are **not** required to produce blocks at the same real-time cadence. Federal Chain might target 2-second blocks, Mirror 1-second, EVM 1.5-second, and individual regions 0.3–1 second -- all running in parallel.
+- **Atomic finality only** -- Synchronization occurs only at the **bundle level** for the Primary Network: proposers collect state from all three chains, execute in order, and propose a single bundle vote using the shared Snowman consensus. Finality advances atomically across Federal, Mirror, and EVM only when a bundle is accepted.
+- **Regions remain fully independent** -- Region/state chains produce and finalize blocks asynchronously, checkpointing upward to Federal Chain periodically (async message). No real-time coordination is required between regions or between regions and Primary.
+
+This design preserves the performance isolation and regional low-latency goals while enabling atomic cross-chain settlement when needed.
 
    **Upgrade Coupling & VM Independence:**
 
@@ -799,6 +809,8 @@ Validators for Cryft Standard Subnet (CSS-1) State chains **must** also be valid
 - **Governance participation:** State validators participate in Primary Network governance (via Federal Chain), ensuring federation decisions reflect the interests of active State operators.
 - **Simplified slashing:** Misbehavior on a State chain can be slashed on Federal Chain without complex cross-chain evidence.
 
+**Cryftee requirement for CSS-1 validators:** CSS-1 validators are required to run a full Cryftee instance (with at minimum `bls_tls_signer_v1` and `ipfs_v1` modules) to participate in Primary Network consensus and earn rewards. This ensures all CSS-1 validators have the necessary off-chain utilities for staking operations, checkpoint signing, Code Vault access, and runtime attestation. Non-consensus nodes (RPC, archive) are exempt from this requirement.
+
 **Tier 2: Custom subnets (optional Primary Network participation)**
 
 Custom subnets (non-CSS) may choose whether their validators participate in the Primary Network:
@@ -1268,6 +1280,7 @@ EligibilityScore(v, R) =
 Constraints:
 - beacon_quorum_ok requires at least q of m beacons reporting in-window measurements.
 - reports are signed by beacons and include nonces to prevent replay.
+- Validator eligibility also requires a valid Cryftee attestation (`/v1/runtime/attestation` signed proof of module set) for consensus participants.
 
 
 ---
@@ -1716,6 +1729,10 @@ CRVS remains the consensus backbone--DAS and ZK-EVMs are complementary technolog
 - Well-defined failure modes under various adversarial conditions
 
 **Pragmatic de-risking strategy: "Proven core, experimental edges"**
+
+**Phase 0 (Current) – Phase 4 (Mainnet v1):**
+
+**The Primary Network launches with pure, unmodified Avalanche/Snowman consensus (the proven baseline used in AvalancheGo).** No rotor relays, votor aggregation, or other CRVS components are active in v1. All Primary Network chains (Federal, Mirror, EVM) use standard Snowman block production and finality. **Regions may prototype CRVS components on testnet**, but production regions in v1 also use baseline Snowman.
 
 The most practical path to mainnet is to:
 
@@ -4419,6 +4436,8 @@ GET  /api/modules/{module_id}/gui/
 CryftGo (the consensus client) launches Cryftee as a child process and configures it via environment variables. CryftGo can
 verify the Cryftee binary hash before launch and optionally require attestation for sensitive operations.
 
+**Mandatory startup requirement for validators:** CryftGo MUST fail startup if Cryftee is not running or if required modules (`bls_tls_signer_v1`, `ipfs_v1` for validators) fail to load or attest. This is enforced via startup checks and runtime attestation verification. Non-validator nodes (RPC, archive) may start without Cryftee.
+
 **CryftGo responsibilities:**
 - Consensus participation (block proposal, voting, finalization)
 - On-chain state validation and commitment
@@ -4441,8 +4460,122 @@ CRYFTTEE_API_TRANSPORT=uds
 CRYFTTEE_UDS_PATH=/tmp/cryfttee.sock
 ```
 
-**Web3Signer:**
+**Web3Signer:**```text
+WEB3SIGNER_API_URL=http://localhost:9000
+WEB3SIGNER_TLS_CERT=/path/to/web3signer.crt
+```
 
+### 13.8 Cryftee requirement & node stack
+
+**Cryftee is mandatory ONLY for validators participating in consensus or seeking to earn rewards.**
+
+CryftNet supports multiple node types with different operational requirements. Cryftee's off-chain utilities (BLS/TLS signing, checkpoint submission, IPFS/CGS operations, runtime attestation) are consensus-critical and reward-critical, but they are **not required** for nodes that merely serve queries or archive historical state.
+
+#### 13.8.1 Node types & Cryftee requirement summary
+
+| Node Type              | Participates in Consensus? | Earns Rewards? | Runs Cryftee? | Reason / Dependencies                                                                 |
+|------------------------|----------------------------|----------------|---------------|---------------------------------------------------------------------------------------|
+| **Full Validator**     | Yes                        | Yes            | **Required**  | Needs Cryftee for BLS/TLS signing, checkpoint submission, Code Vault/IPFS fetches, bundle validation support, attestation to peers |
+| **Light Validator**    | Yes (light-vote path)      | Yes (partial)  | **Required**  | Still needs Cryftee for staking ops, attestation, and some off-chain verification (e.g., GBL queries) |
+| **RPC Node**           | No                         | No             | **Not required** | Only serves JSON-RPC queries (eth_getBlockByNumber, etc.). Can rely on trusted full nodes or validators for data. No signing, no bundle validation, no checkpoint submission |
+| **Archive Node**       | No                         | No             | **Not required** | Stores historical state for queries. Can sync from validators without Cryftee. No consensus participation or reward eligibility |
+| **Explorer / Indexer** | No                         | No             | **Optional**  | May benefit from Cryftee's IPFS module for fetching pinned content, but not required |
+
+#### 13.8.2 Why Cryftee is required for consensus participants
+
+Cryftee's main responsibilities are **off-chain utilities that are consensus-critical or reward-critical**:
+
+- **BLS/TLS staking key operations** (`bls_tls_signer_v1`): Validators must sign block proposals, votes, and checkpoint submissions. These cryptographic operations are performed by Cryftee modules and verified by CryftGo.
+- **IPFS node management** (`ipfs_v1`): Code Vault lazy mirroring, bundle verification, and content availability attestations require IPFS operations. Validators fetch and pin critical content to maintain consensus integrity.
+- **Checkpoint production & signing**: Regions submit checkpoints to the Primary Network for cross-region verification. Cryftee produces these checkpoints and signs them for on-chain acceptance.
+- **Runtime attestation** (`/v1/runtime/attestation`): Peers verify that a validator is running the correct module set with valid signatures. This prevents malicious or outdated code from participating in consensus.
+- **CGS domain participation** (`private_sync_v1`): Privacy-aware transaction propagation and slot commitment require CGS routing, key rotation, and mediator confirmation logic.
+
+#### 13.8.3 Non-consensus nodes: RPC, archive, and indexers
+
+RPC and archive nodes **do not**:
+- Propose or vote on bundles
+- Sign checkpoints
+- Participate in validator committees
+- Earn block rewards or staking rewards
+- Need to prove module integrity to peers
+
+These nodes can safely run **just CryftGo** (the consensus client) in non-validator mode and connect to trusted validators for syncing and serving queries. They do not require Cryftee unless the operator wishes to leverage optional IPFS functionality for convenient access to pinned content.
+
+**Recommended configuration for non-consensus nodes:**
+```bash
+# RPC node (serves JSON-RPC queries only)
+cryftgo --rpc-only=true --staking-enabled=false --consensus-enabled=false
+
+# Archive node (stores historical state for queries)
+cryftgo --archive=true --staking-enabled=false --consensus-enabled=false
+```
+
+These nodes may optionally run Cryftee modules (e.g., `ipfs_v1` for convenient access to pinned content or explorer features) but are not obligated to do so.
+
+#### 13.8.4 Practical implications for CryftGo implementation
+
+When CryftGo starts, it determines whether Cryftee is required based on operational mode:
+
+**Startup logic** (`cmd/cryftgo/main.go` or `node/node.go`):
+- If `--staking-enabled=true` or `--validator-mode=true` -> **require** Cryftee running + valid attestation
+- If `--rpc-only=true` or `--archive=true` -> allow startup without Cryftee
+
+**Recommended flags:**
+```bash
+--require-cryftee-for-consensus    # default true; enforces Cryftee for validators
+--cryftee-path                     # path to Cryftee binary for auto-launch
+--cryftee-required-modules         # comma-separated list (e.g., bls_tls_signer_v1,ipfs_v1)
+--cryftee-attestation-required     # default true for validators; verify runtime attestation
+```
+
+**Benefits of this approach:**
+- **No unnecessary overhead** for public RPC providers or archive operators
+- **Clear security boundary**: validators are locked down with mandatory Cryftee modules and attestation
+- **Operational flexibility**: node operators can choose their configuration based on their role in the network
+
+#### 13.8.5 Module selection for validators
+
+Full validators should run the following **minimum module set**:
+
+- `bls_tls_signer_v1`: Required for staking operations and checkpoint signing
+- `ipfs_v1`: Required for Code Vault access and content availability attestations
+- `private_sync_v1`: Recommended for CGS domain participation (opt-in for privacy features)
+
+Light validators may run a subset (e.g., `bls_tls_signer_v1` only) if they delegate heavy computation to full validators.
+
+**Module configuration in manifest.json:**
+```json
+{
+  "modules": [
+    {
+      "id": "bls_tls_signer_v1",
+      "version": "1.2.0",
+      "required": true,
+      "hash": "sha256:abc123...",
+      "signature": "ed25519:def456..."
+    },
+    {
+      "id": "ipfs_v1",
+      "version": "2.0.0",
+      "required": true,
+      "hash": "sha256:789abc...",
+      "signature": "ed25519:012def..."
+    },
+    {
+      "id": "private_sync_v1",
+      "version": "1.0.0",
+      "required": false,
+      "hash": "sha256:345678...",
+      "signature": "ed25519:901234..."
+    }
+  ]
+}
+```
+
+This modular approach ensures that **consensus participants run Cryftee with verified modules**, while **non-consensus nodes remain lightweight and efficient** without unnecessary overhead.
+
+---
 
 ---
 
@@ -4475,6 +4608,7 @@ CryftNet security spans multiple planes: consensus, execution determinism, cross
 - **Relay censorship:** rotor relays could delay data. Mitigation: relays are non-authoritative; fallback gossip; relay performance affects rewards.
 - **Adaptive adversary:** targets soft leaders. Mitigation: leaderless option; rotate relay sets; use sampling.
 - **Checkpoint withholding:** region produces blocks but delays checkpointing to Main. Mitigation: checkpoint liveness requirements; rewards tied to checkpoint frequency; user failover to Main.
+- **Cryftee offline or invalid attestation:** Node cannot participate in consensus. Mitigation: CryftGo startup fails if Cryftee not running or required modules fail attestation; peers reject bundles from unattested nodes; reward eligibility requires valid attestation.
 
 ### 14.2 Smart Slot threats
 

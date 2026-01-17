@@ -10,7 +10,7 @@ CryftNet is organized as a federation:
 
 **Figure 1: CryftNet federation overview (conceptual)**
 
-This diagram shows the high-level federation architecture. Main (Federal Chain) serves as the canonical settlement layer, with Regions providing low-latency service and optional Local chains for dense communities. Cryftee sidecars run alongside all validator nodes, hosting WASM modules and CGS. The IPFS plane provides content distribution across the network.
+This diagram shows the high-level federation architecture. The Primary Network (Federal Chain + Mirror Chain + EVM Chain) serves as the canonical settlement layer, with Regions providing low-latency service and optional Local chains for dense communities. Cryftee sidecars run alongside all validator nodes, hosting WASM modules and CGS. The IPFS plane provides content distribution across the network.
 
 ```mermaid
 flowchart TB
@@ -38,8 +38,8 @@ flowchart TB
   IPFS <--> RegionB
 ```
 
-Main and regions are linked by checkpointing. Regions confirm locally, then periodically anchor a
-signed checkpoint to Main. Cross-region transfers use these checkpoints and standard message
+The Primary Network and regions are linked by checkpointing. Regions confirm locally, then periodically anchor a
+signed checkpoint to Federal Chain. Cross-region transfers use these checkpoints and standard message
 formats. The federation is "edge-like" in the sense that regions provide fast service nearby, but it
 avoids centralized operators: validator sets are governed by DAOs and measured for eligibility using
 network performance signals.
@@ -50,9 +50,9 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 | Chain | Purpose | VM | Consensus | Typical Operations |
 |:------|:--------|:---|:----------|:-------------------|
-| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | CRVS (high security) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
-| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | CRVS (high throughput) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
-| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | CRVS (fast finality) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
+| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | Snowman (v1 baseline) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
+| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | Snowman (v1 baseline) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
+| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | Snowman (v1 baseline) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
 
 **Why three separate chains?**
 
@@ -157,6 +157,16 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
    | After commit but before LFB update | Re-commit is idempotent; LFB pointer updated to new bundle |
 
    **Key invariant:** No validator can have "half-applied" bundles. Either all three chains are at bundle height H, or all three are at H-1. Partial application is impossible due to atomic commit semantics.
+
+#### 4.1.1 Block cadence & asynchronicity
+
+Each chain in the Primary Network (Federal, Mirror, EVM) and each region/state chain runs as an **independent Snowman instance** with its own block production loop, finality cadence, and target block interval.
+
+- **Asynchronous production** -- Chains are **not** required to produce blocks at the same real-time cadence. Federal Chain might target 2-second blocks, Mirror 1-second, EVM 1.5-second, and individual regions 0.3–1 second -- all running in parallel.
+- **Atomic finality only** -- Synchronization occurs only at the **bundle level** for the Primary Network: proposers collect state from all three chains, execute in order, and propose a single bundle vote using the shared Snowman consensus. Finality advances atomically across Federal, Mirror, and EVM only when a bundle is accepted.
+- **Regions remain fully independent** -- Region/state chains produce and finalize blocks asynchronously, checkpointing upward to Federal Chain periodically (async message). No real-time coordination is required between regions or between regions and Primary.
+
+This design preserves the performance isolation and regional low-latency goals while enabling atomic cross-chain settlement when needed.
 
    **Upgrade Coupling & VM Independence:**
 
@@ -715,6 +725,8 @@ Validators for Cryft Standard Subnet (CSS-1) State chains **must** also be valid
 - **Governance participation:** State validators participate in Primary Network governance (via Federal Chain), ensuring federation decisions reflect the interests of active State operators.
 - **Simplified slashing:** Misbehavior on a State chain can be slashed on Federal Chain without complex cross-chain evidence.
 
+**Cryftee requirement for CSS-1 validators:** CSS-1 validators are required to run a full Cryftee instance (with at minimum `bls_tls_signer_v1` and `ipfs_v1` modules) to participate in Primary Network consensus and earn rewards. This ensures all CSS-1 validators have the necessary off-chain utilities for staking operations, checkpoint signing, Code Vault access, and runtime attestation. Non-consensus nodes (RPC, archive) are exempt from this requirement.
+
 **Tier 2: Custom subnets (optional Primary Network participation)**
 
 Custom subnets (non-CSS) may choose whether their validators participate in the Primary Network:
@@ -786,7 +798,7 @@ CityRegistration {
 
 **Figure: City checkpoint aggregation flow**
 
-Cities checkpoint to their parent State (not to Main). The State aggregates City checkpoints and includes a summary (e.g., Merkle root) in its own checkpoint to Main EVM Chain. Main does not verify City checkpoints directly.
+Cities checkpoint to their parent State (not to the Primary Network). The State aggregates City checkpoints and includes a summary (e.g., Merkle root) in its own checkpoint to Federal Chain. The Primary Network does not verify City checkpoints directly.
 
 ```mermaid
 flowchart LR
@@ -795,7 +807,7 @@ flowchart LR
   State -->|includes City summary| Main
 ```
 
-The State's checkpoint to Main **may include** an aggregated City summary (Merkle root of City checkpoints), but this is optional. Main does not verify City checkpoints directly--it trusts the State to manage its Cities.
+The State's checkpoint to Federal Chain **may include** an aggregated City summary (Merkle root of City checkpoints), but this is optional. The Primary Network does not verify City checkpoints directly--it trusts the State to manage its Cities.
 
 **City benefits and limitations:**
 
@@ -822,13 +834,13 @@ City A1 ->' City A2 (same State A):
 
 **Cross-City transfers (different States):**
 
-Transfers between Cities under different States route through Main:
+Transfers between Cities under different States route through the Primary Network:
 
 ```text
 City A1 (State A) ->' City B1 (State B):
 1. City A1 checkpoints to State A
-2. State A checkpoints to Main (includes City A1's outbound message)
-3. State B receives from Main
+2. State A checkpoints to Federal Chain (includes City A1's outbound message)
+3. State B receives from Federal Chain
 4. City B1 claims from State B
 ```
 
@@ -837,8 +849,8 @@ City A1 (State A) ->' City B1 (State B):
 A successful City may choose to "graduate" to State status:
 
 1. City demonstrates sustained activity and validator quality.
-2. City applies to Main governance for State registration.
-3. Upon approval, City registers directly with EVM Chain.
+2. City applies to Federal Chain governance for State registration.
+3. Upon approval, City registers directly with Federal Chain and EVM Chain.
 4. City's existing users and contracts migrate or bridge.
 5. City can now spawn its own sub-Cities.
 
@@ -964,7 +976,7 @@ Wallets display City-level balances by:
 
 ```text
 Alice's USDC:
-|-- Main:           500 USDC
+|-- Primary Network:  500 USDC
 |-- State A:      1,000 USDC
 |   |-- Direct:     200 USDC
 |   |-- City A1:    500 USDC
@@ -975,15 +987,15 @@ Alice's USDC:
 Total:            1,750 USDC
 ```
 
-**Why Cities don't register with Main:**
+**Why Cities don't register with the Primary Network:**
 
 This hierarchical model provides:
 
-1. **Scalability:** Main Mirror GBL tracks ~100 States, not ~10,000 Cities.
-2. **State sovereignty:** States control their City ecosystem without Main approval.
-3. **Latency:** City->City transfers within a State are fast (no Main checkpoint wait).
-4. **Appropriate trust:** City users trust their State; they don't need global Main consensus.
-5. **Simpler Main governance:** Main governs States; States govern Cities.
+1. **Scalability:** Mirror Chain GBL tracks ~100 States, not ~10,000 Cities.
+2. **State sovereignty:** States control their City ecosystem without Primary Network approval.
+3. **Latency:** City->City transfers within a State are fast (no Federal Chain checkpoint wait).
+4. **Appropriate trust:** City users trust their State; they don't need global Primary Network consensus.
+5. **Simpler governance:** Federal Chain governs States; States govern Cities.
 
 **City emergency exit:**
 
@@ -991,9 +1003,9 @@ If a City chain fails or its State censors it, users can still recover:
 
 1. Prove City balance via State's last confirmed checkpoint
 2. Submit proof to State requesting balance escalation to State-direct
-3. If State refuses, appeal to Main governance with evidence
-4. Main can force-escalate City balances to State level (emergency measure)
-5. User then exits State->'Main via normal cross-region transfer
+3. If State refuses, appeal to Federal Chain governance with evidence
+4. Federal Chain can force-escalate City balances to State level (emergency measure)
+5. User then exits State->Primary Network via normal cross-region transfer
 
 This ensures users are never permanently trapped in a City.
 
@@ -1184,3 +1196,4 @@ EligibilityScore(v, R) =
 Constraints:
 - beacon_quorum_ok requires at least q of m beacons reporting in-window measurements.
 - reports are signed by beacons and include nonces to prevent replay.
+- Validator eligibility also requires a valid Cryftee attestation (`/v1/runtime/attestation` signed proof of module set) for consensus participants.

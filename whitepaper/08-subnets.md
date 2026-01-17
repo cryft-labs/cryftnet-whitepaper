@@ -4,7 +4,7 @@ Transfer back (Region B ->' Region A):
    - User calls bridge.burn(asset, amount, dest_region=A, recipient)
    - Asset is destroyed on Region B
 
-2) CHECKPOINT to Main:
+2) CHECKPOINT to Federal Chain:
    - Burn event included in Region B's checkpoint
 
 3) UNLOCK on Region A:

@@ -213,6 +213,8 @@ GET  /api/modules/{module_id}/gui/
 CryftGo (the consensus client) launches Cryftee as a child process and configures it via environment variables. CryftGo can
 verify the Cryftee binary hash before launch and optionally require attestation for sensitive operations.
 
+**Mandatory startup requirement for validators:** CryftGo MUST fail startup if Cryftee is not running or if required modules (`bls_tls_signer_v1`, `ipfs_v1` for validators) fail to load or attest. This is enforced via startup checks and runtime attestation verification. Non-validator nodes (RPC, archive) may start without Cryftee.
+
 **CryftGo responsibilities:**
 - Consensus participation (block proposal, voting, finalization)
 - On-chain state validation and commitment
@@ -235,4 +237,119 @@ CRYFTTEE_API_TRANSPORT=uds
 CRYFTTEE_UDS_PATH=/tmp/cryfttee.sock
 ```
 
-**Web3Signer:**
+**Web3Signer:**```text
+WEB3SIGNER_API_URL=http://localhost:9000
+WEB3SIGNER_TLS_CERT=/path/to/web3signer.crt
+```
+
+### 13.8 Cryftee requirement & node stack
+
+**Cryftee is mandatory ONLY for validators participating in consensus or seeking to earn rewards.**
+
+CryftNet supports multiple node types with different operational requirements. Cryftee's off-chain utilities (BLS/TLS signing, checkpoint submission, IPFS/CGS operations, runtime attestation) are consensus-critical and reward-critical, but they are **not required** for nodes that merely serve queries or archive historical state.
+
+#### 13.8.1 Node types & Cryftee requirement summary
+
+| Node Type              | Participates in Consensus? | Earns Rewards? | Runs Cryftee? | Reason / Dependencies                                                                 |
+|------------------------|----------------------------|----------------|---------------|---------------------------------------------------------------------------------------|
+| **Full Validator**     | Yes                        | Yes            | **Required**  | Needs Cryftee for BLS/TLS signing, checkpoint submission, Code Vault/IPFS fetches, bundle validation support, attestation to peers |
+| **Light Validator**    | Yes (light-vote path)      | Yes (partial)  | **Required**  | Still needs Cryftee for staking ops, attestation, and some off-chain verification (e.g., GBL queries) |
+| **RPC Node**           | No                         | No             | **Not required** | Only serves JSON-RPC queries (eth_getBlockByNumber, etc.). Can rely on trusted full nodes or validators for data. No signing, no bundle validation, no checkpoint submission |
+| **Archive Node**       | No                         | No             | **Not required** | Stores historical state for queries. Can sync from validators without Cryftee. No consensus participation or reward eligibility |
+| **Explorer / Indexer** | No                         | No             | **Optional**  | May benefit from Cryftee's IPFS module for fetching pinned content, but not required |
+
+#### 13.8.2 Why Cryftee is required for consensus participants
+
+Cryftee's main responsibilities are **off-chain utilities that are consensus-critical or reward-critical**:
+
+- **BLS/TLS staking key operations** (`bls_tls_signer_v1`): Validators must sign block proposals, votes, and checkpoint submissions. These cryptographic operations are performed by Cryftee modules and verified by CryftGo.
+- **IPFS node management** (`ipfs_v1`): Code Vault lazy mirroring, bundle verification, and content availability attestations require IPFS operations. Validators fetch and pin critical content to maintain consensus integrity.
+- **Checkpoint production & signing**: Regions submit checkpoints to the Primary Network for cross-region verification. Cryftee produces these checkpoints and signs them for on-chain acceptance.
+- **Runtime attestation** (`/v1/runtime/attestation`): Peers verify that a validator is running the correct module set with valid signatures. This prevents malicious or outdated code from participating in consensus.
+- **CGS domain participation** (`private_sync_v1`): Privacy-aware transaction propagation and slot commitment require CGS routing, key rotation, and mediator confirmation logic.
+
+#### 13.8.3 Non-consensus nodes: RPC, archive, and indexers
+
+RPC and archive nodes **do not**:
+- Propose or vote on bundles
+- Sign checkpoints
+- Participate in validator committees
+- Earn block rewards or staking rewards
+- Need to prove module integrity to peers
+
+These nodes can safely run **just CryftGo** (the consensus client) in non-validator mode and connect to trusted validators for syncing and serving queries. They do not require Cryftee unless the operator wishes to leverage optional IPFS functionality for convenient access to pinned content.
+
+**Recommended configuration for non-consensus nodes:**
+```bash
+# RPC node (serves JSON-RPC queries only)
+cryftgo --rpc-only=true --staking-enabled=false --consensus-enabled=false
+
+# Archive node (stores historical state for queries)
+cryftgo --archive=true --staking-enabled=false --consensus-enabled=false
+```
+
+These nodes may optionally run Cryftee modules (e.g., `ipfs_v1` for convenient access to pinned content or explorer features) but are not obligated to do so.
+
+#### 13.8.4 Practical implications for CryftGo implementation
+
+When CryftGo starts, it determines whether Cryftee is required based on operational mode:
+
+**Startup logic** (`cmd/cryftgo/main.go` or `node/node.go`):
+- If `--staking-enabled=true` or `--validator-mode=true` -> **require** Cryftee running + valid attestation
+- If `--rpc-only=true` or `--archive=true` -> allow startup without Cryftee
+
+**Recommended flags:**
+```bash
+--require-cryftee-for-consensus    # default true; enforces Cryftee for validators
+--cryftee-path                     # path to Cryftee binary for auto-launch
+--cryftee-required-modules         # comma-separated list (e.g., bls_tls_signer_v1,ipfs_v1)
+--cryftee-attestation-required     # default true for validators; verify runtime attestation
+```
+
+**Benefits of this approach:**
+- **No unnecessary overhead** for public RPC providers or archive operators
+- **Clear security boundary**: validators are locked down with mandatory Cryftee modules and attestation
+- **Operational flexibility**: node operators can choose their configuration based on their role in the network
+
+#### 13.8.5 Module selection for validators
+
+Full validators should run the following **minimum module set**:
+
+- `bls_tls_signer_v1`: Required for staking operations and checkpoint signing
+- `ipfs_v1`: Required for Code Vault access and content availability attestations
+- `private_sync_v1`: Recommended for CGS domain participation (opt-in for privacy features)
+
+Light validators may run a subset (e.g., `bls_tls_signer_v1` only) if they delegate heavy computation to full validators.
+
+**Module configuration in manifest.json:**
+```json
+{
+  "modules": [
+    {
+      "id": "bls_tls_signer_v1",
+      "version": "1.2.0",
+      "required": true,
+      "hash": "sha256:abc123...",
+      "signature": "ed25519:def456..."
+    },
+    {
+      "id": "ipfs_v1",
+      "version": "2.0.0",
+      "required": true,
+      "hash": "sha256:789abc...",
+      "signature": "ed25519:012def..."
+    },
+    {
+      "id": "private_sync_v1",
+      "version": "1.0.0",
+      "required": false,
+      "hash": "sha256:345678...",
+      "signature": "ed25519:901234..."
+    }
+  ]
+}
+```
+
+This modular approach ensures that **consensus participants run Cryftee with verified modules**, while **non-consensus nodes remain lightweight and efficient** without unnecessary overhead.
+
+---
