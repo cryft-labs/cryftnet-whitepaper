@@ -94,7 +94,7 @@ CryftNet is organized as a federation:
 
 **Figure 1: CryftNet federation overview (conceptual)**
 
-This diagram shows the high-level federation architecture. Main (Federal Chain) serves as the canonical settlement layer, with Regions providing low-latency service and optional Local chains for dense communities. Cryftee sidecars run alongside all validator nodes, hosting WASM modules and CGS. The IPFS plane provides content distribution across the network.
+This diagram shows the high-level federation architecture. The Primary Network (Federal Chain + Mirror Chain + EVM Chain) serves as the canonical settlement layer, with Regions providing low-latency service and optional Local chains for dense communities. Cryftee sidecars run alongside all validator nodes, hosting WASM modules and CGS. The IPFS plane provides content distribution across the network.
 
 ```mermaid
 flowchart TB
@@ -122,8 +122,8 @@ flowchart TB
   IPFS <--> RegionB
 ```
 
-Main and regions are linked by checkpointing. Regions confirm locally, then periodically anchor a
-signed checkpoint to Main. Cross-region transfers use these checkpoints and standard message
+The Primary Network and regions are linked by checkpointing. Regions confirm locally, then periodically anchor a
+signed checkpoint to Federal Chain. Cross-region transfers use these checkpoints and standard message
 formats. The federation is "edge-like" in the sense that regions provide fast service nearby, but it
 avoids centralized operators: validator sets are governed by DAOs and measured for eligibility using
 network performance signals.
@@ -134,9 +134,9 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 | Chain | Purpose | VM | Consensus | Typical Operations |
 |:------|:--------|:---|:----------|:-------------------|
-| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | CRVS (high security) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
-| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | CRVS (high throughput) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
-| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | CRVS (fast finality) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
+| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | Snowman (v1 baseline) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
+| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | Snowman (v1 baseline) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
+| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | Snowman (v1 baseline) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
 
 **Why three separate chains?**
 
@@ -882,7 +882,7 @@ CityRegistration {
 
 **Figure: City checkpoint aggregation flow**
 
-Cities checkpoint to their parent State (not to Main). The State aggregates City checkpoints and includes a summary (e.g., Merkle root) in its own checkpoint to Main EVM Chain. Main does not verify City checkpoints directly.
+Cities checkpoint to their parent State (not to the Primary Network). The State aggregates City checkpoints and includes a summary (e.g., Merkle root) in its own checkpoint to Federal Chain. The Primary Network does not verify City checkpoints directly.
 
 ```mermaid
 flowchart LR
@@ -891,7 +891,7 @@ flowchart LR
   State -->|includes City summary| Main
 ```
 
-The State's checkpoint to Main **may include** an aggregated City summary (Merkle root of City checkpoints), but this is optional. Main does not verify City checkpoints directly--it trusts the State to manage its Cities.
+The State's checkpoint to Federal Chain **may include** an aggregated City summary (Merkle root of City checkpoints), but this is optional. The Primary Network does not verify City checkpoints directly--it trusts the State to manage its Cities.
 
 **City benefits and limitations:**
 
@@ -918,13 +918,13 @@ City A1 ->' City A2 (same State A):
 
 **Cross-City transfers (different States):**
 
-Transfers between Cities under different States route through Main:
+Transfers between Cities under different States route through the Primary Network:
 
 ```text
 City A1 (State A) ->' City B1 (State B):
 1. City A1 checkpoints to State A
-2. State A checkpoints to Main (includes City A1's outbound message)
-3. State B receives from Main
+2. State A checkpoints to Federal Chain (includes City A1's outbound message)
+3. State B receives from Federal Chain
 4. City B1 claims from State B
 ```
 
@@ -933,8 +933,8 @@ City A1 (State A) ->' City B1 (State B):
 A successful City may choose to "graduate" to State status:
 
 1. City demonstrates sustained activity and validator quality.
-2. City applies to Main governance for State registration.
-3. Upon approval, City registers directly with EVM Chain.
+2. City applies to Federal Chain governance for State registration.
+3. Upon approval, City registers directly with Federal Chain and EVM Chain.
 4. City's existing users and contracts migrate or bridge.
 5. City can now spawn its own sub-Cities.
 
@@ -1060,7 +1060,7 @@ Wallets display City-level balances by:
 
 ```text
 Alice's USDC:
-|-- Main:           500 USDC
+|-- Primary Network:  500 USDC
 |-- State A:      1,000 USDC
 |   |-- Direct:     200 USDC
 |   |-- City A1:    500 USDC
@@ -1071,15 +1071,15 @@ Alice's USDC:
 Total:            1,750 USDC
 ```
 
-**Why Cities don't register with Main:**
+**Why Cities don't register with the Primary Network:**
 
 This hierarchical model provides:
 
-1. **Scalability:** Main Mirror GBL tracks ~100 States, not ~10,000 Cities.
-2. **State sovereignty:** States control their City ecosystem without Main approval.
-3. **Latency:** City->City transfers within a State are fast (no Main checkpoint wait).
-4. **Appropriate trust:** City users trust their State; they don't need global Main consensus.
-5. **Simpler Main governance:** Main governs States; States govern Cities.
+1. **Scalability:** Mirror Chain GBL tracks ~100 States, not ~10,000 Cities.
+2. **State sovereignty:** States control their City ecosystem without Primary Network approval.
+3. **Latency:** City->City transfers within a State are fast (no Federal Chain checkpoint wait).
+4. **Appropriate trust:** City users trust their State; they don't need global Primary Network consensus.
+5. **Simpler governance:** Federal Chain governs States; States govern Cities.
 
 **City emergency exit:**
 
@@ -1087,9 +1087,9 @@ If a City chain fails or its State censors it, users can still recover:
 
 1. Prove City balance via State's last confirmed checkpoint
 2. Submit proof to State requesting balance escalation to State-direct
-3. If State refuses, appeal to Main governance with evidence
-4. Main can force-escalate City balances to State level (emergency measure)
-5. User then exits State->'Main via normal cross-region transfer
+3. If State refuses, appeal to Federal Chain governance with evidence
+4. Federal Chain can force-escalate City balances to State level (emergency measure)
+5. User then exits State->Primary Network via normal cross-region transfer
 
 This ensures users are never permanently trapped in a City.
 
@@ -2541,7 +2541,7 @@ Private cross-chain proof:
    - sender had sufficient balance
    - transfer is valid per protocol rules
    - commitment to recipient (hidden)
-3) Checkpoint to Main includes aggregated proof
+3) Checkpoint to Federal Chain includes aggregated proof
 4) Recipient on Region B claims with proof of inclusion + recipient key
 5) Region B mints without learning sender identity
 ```
@@ -2652,9 +2652,9 @@ Transfer from Region A ->' Region B:
    - Asset is locked in bridge contract (user cannot spend it)
    - Lock event emitted with unique transfer_id
 
-2) CHECKPOINT to Main:
+2) CHECKPOINT to Federal Chain:
    - Region A's next checkpoint includes the lock event in message_root
-   - Main finalizes checkpoint ->' lock is now globally ordered
+   - Federal Chain finalizes checkpoint ->' lock is now globally ordered
 
 3) MINT on Region B:
    - User (or relayer) submits claim to Region B with:
@@ -2675,7 +2675,7 @@ Transfer back (Region B ->' Region A):
    - User calls bridge.burn(asset, amount, dest_region=A, recipient)
    - Asset is destroyed on Region B
 
-2) CHECKPOINT to Main:
+2) CHECKPOINT to Federal Chain:
    - Burn event included in Region B's checkpoint
 
 3) UNLOCK on Region A:
