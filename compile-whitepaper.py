@@ -114,14 +114,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.26<br>
-<strong>Date:</strong> January 17, 2026<br>
+<strong>Revision:</strong> v1.27<br>
+<strong>Date:</strong> January 20, 2026<br>
 <strong>Status:</strong> Draft (Production Review Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.26):</strong> **IMPLEMENTATION-READY HARDENING:** Added Section 4.1.1 Block Cadence & Asynchronicity clarifying independent Snowman instances with atomic finality at bundle level only. Added explicit "v1 = pure Snow" statement to Section 6.8: Primary Network launches with pure, unmodified Avalanche/Snowman consensus (no CRVS components active in v1). Enhanced Section 13.8 Cryftee Requirement & Node Stack with comprehensive node type matrix, implementation guidance, and module selection for validators. Added Cryftee attestation requirements to Section 14.1 threat model and Section 5.2 validator eligibility. Added mandatory startup failure requirement to Section 13.7: CryftGo MUST fail if Cryftee not running or required modules fail attestation. Added CSS-1 Cryftee requirement note to Section 4.2. These changes eliminate ambiguity and make whitepaper ready for CryftGo implementation. Previous (v1.25): Code Vault dual storage modes. Earlier (v1.24): CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile (~1,310 lines). Earlier (v1.23): P0/P1 gap analysis, encoding fixes.
+<strong>Latest Changes (v1.27):</strong> **SECTION NUMBERING CONSISTENCY:** Fixed all duplicate and misordered section numbers: resolved duplicate 10.9 sections, renumbered Section 11.3 subsections (11.3.1 Slashing Evidence, 11.3.2 Parameter Table), corrected Section 7.3 subsections (7.3.6 Deterministic Scheduling, 7.3.7 Receipts), added missing Section 10 parent header from README, and updated compilation script to include cross-chain README for proper hierarchy. All 16 main sections now properly numbered and sequentially ordered. Previous (v1.26): Implementation-ready hardening with block cadence clarification, v1 consensus specification, and Cryftee requirements. Earlier (v1.25): Code Vault dual storage modes. Earlier (v1.24): CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile.
 </p>
 
 <p align="center"><em>
@@ -177,7 +177,13 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
         compiled.append(content)
         compiled.append('\n---\n')
     
-    print("  📄 Adding section 10 (cross-chain, 9 sub-files)...")
+    print("  📄 Adding section 10 (cross-chain, README + 9 sub-files)...")
+    # Add Section 10 parent header from README
+    readme_path = base_dir / 'whitepaper/10-cross-chain/README.md'
+    readme_content = readme_path.read_text(encoding='utf-8')
+    compiled.append(readme_content)
+    compiled.append('')
+    
     for s10_file in s10_files:
         path = base_dir / s10_file
         content = path.read_text(encoding='utf-8')

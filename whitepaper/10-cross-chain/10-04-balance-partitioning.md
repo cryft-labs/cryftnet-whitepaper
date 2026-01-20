@@ -94,7 +94,7 @@ the actual deployer (RegionDeployer) is the same, each developer
 gets their own address namespace.
 ```
 
-### 10.9 Balance portability modes
+### 10.8 Balance portability modes
 
 When a contract opts into federation mirroring, it can choose how balances work:
 

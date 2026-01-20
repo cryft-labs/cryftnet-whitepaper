@@ -17,6 +17,8 @@
 
 ### 16.3 CRVS Normative Specification v1 (Draft)
 
+**⚠️ IMPORTANT: This appendix specifies CRVS consensus for FUTURE use (testnet-1 and beyond). For v1 mainnet Snowman baseline, see Section 11.3.2 for slashing evidence specification.**
+
 This appendix provides a **draft specification** for CRVS consensus, based on AvalancheGo with rotor optimizations. This is a design document, not yet a production-ready consensus specification. A full normative spec with state machine formalization, test vectors, and slashing evidence verification will be published separately as "CRVS-SPEC.md" before testnet-1.
 
 **⚠️ Status:** This specification is INCOMPLETE and requires formal verification, simulation validation, and security review before production use. See Section 6.8 for mainnet readiness gates.

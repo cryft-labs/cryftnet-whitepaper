@@ -161,9 +161,74 @@ CryftNet mainnet v1 launches with a **fixed monetary policy** (see Appendix 16.8
 - **No emission**: 0 CRYFT/block (no inflation)
 - **Fee distribution**: 50% burned, 30% to validator rewards, 20% to treasury
 - **Minimum stake**: 1,000 CRYFT for Primary Network validators
-- **Slashing rate**: 5% of stake per provable misbehavior
+- **Slashing rate**: 5% of stake per provable misbehavior (see Section 11.3.2 for v1 evidence specification)
 
 This v1 policy provides economic predictability for mainnet launch.
+
+#### 11.3.1 v1 Slashing Evidence Specification (Snowman Consensus)
+
+**Provable Misbehavior Set for v1 (Snowman/Avalanche Consensus):**
+
+Unlike BFT consensus protocols with explicit double-vote detection, Snowman consensus does not produce a simple "conflicting block signature" evidence surface. v1 slashing is limited to behaviors with **cryptographically verifiable on-chain evidence**.
+
+**Slashable in v1:**
+
+1. **Checkpoint Equivocation (5% stake)**
+   - **Evidence**: Two checkpoint signatures from same validator for same height with conflicting state roots.
+   - **Messages**: `CheckpointSignature{height, state_root, merkle_root, validator_pubkey, signature}`
+   - **Verification on Federal Chain**:
+     ```
+     1. Verify both signatures are valid for validator_pubkey
+     2. Verify height is identical
+     3. Verify state_root or merkle_root differ
+     4. Verify validator was in active set at that height
+     ```
+   - **Rationale**: Checkpoints anchor region/subnet state to Federal Chain; conflicting checkpoints enable double-spend attacks on cross-chain transfers.
+
+2. **Invalid Bundle Proposal (3% stake)**
+   - **Evidence**: Bundle proposal with provably invalid state transition (e.g., violated cross-chain invariant, invalid EVM execution).
+   - **Messages**: `BundleProposal{height, federal_block, mirror_block, evm_block, proposer_sig}` + `InvalidStateProof{violated_invariant, merkle_proof}`
+   - **Verification on Federal Chain**:
+     ```
+     1. Verify proposer signature on bundle
+     2. Re-execute state transition deterministically
+     3. Verify invariant violation (e.g., Mirror debit != EVM credit)
+     4. Verify proposer was scheduled for that bundle height
+     ```
+   - **Rationale**: Primary Network atomic bundles require all three VMs to execute validly; proposers who submit invalid bundles are penalized.
+
+3. **Cryftee Attestation Fraud (10% stake)**
+   - **Evidence**: Node submits attestation claiming valid Cryftee modules, but peer verification or governance audit proves attestation is forged or modules are malicious.
+   - **Messages**: `AttestationClaim{node_id, module_hashes[], signature}` + `FraudProof{challenge_response, verification_failure}`
+   - **Verification on Federal Chain**:
+     ```
+     1. Verify attestation signature matches validator's registered key
+     2. Governance committee or quorum of validators submit counter-proof
+     3. Counter-proof shows module hashes do not match canonical registry OR attestation signature is invalid
+     ```
+   - **Rationale**: Cryftee attestation is a security-critical requirement for validators; forging attestation undermines the entire execution integrity model.
+
+**NOT Slashable in v1 (lack of objective proof substrate):**
+
+1. **Snowman Vote Equivocation**: Snowman uses preference signaling, not finalization votes. Validators may legitimately change preferences during the consensus process. No objective "double-vote" surface exists.
+
+2. **Block Withholding**: Validators in Snowman do not have explicit block proposal duties based on deterministic assignment. Withholding cannot be proven without timing assumptions that are not consensus-safe.
+
+3. **Invalid Snowman Block Propagation**: Invalid blocks are rejected by peers during normal consensus operation; propagating an invalid block is not distinguishable from network errors or software bugs. No objective evidence format exists.
+
+4. **Liveness Failures**: Offline validators or delayed block production cannot be slashed because network conditions, hardware failures, and software bugs are indistinguishable from intentional behavior.
+
+**Evidence Submission Flow:**
+
+1. **Observation**: Any network participant observes slashable misbehavior.
+2. **Evidence Construction**: Participant constructs evidence package with required cryptographic proofs.
+3. **On-Chain Submission**: Evidence submitted to Federal Chain via `submitSlashingEvidence(evidence_bytes)` transaction.
+4. **Automated Verification**: Federal Chain VM verifies evidence deterministically using rules above.
+5. **Slashing Execution**: If valid, Federal Chain immediately:
+   - Reduces validator's bonded stake by slashing percentage
+   - Marks validator as "slashed" (may affect future participation)
+   - Burns slashed amount or distributes to treasury per governance policy
+6. **Appeal Process**: Validator may appeal via governance proposal within 30 days; requires supermajority vote to reverse.
 
 **Future Flexibility (Post-Mainnet via Governance):**
 After mainnet stabilizes, governance may propose adjustments including:
@@ -174,7 +239,7 @@ After mainnet stabilizes, governance may propose adjustments including:
 
 Any changes require supermajority governance approval on Federal Chain.
 
-#### 11.3.1 Parameter table (example defaults)
+#### 11.3.2 Parameter table (example defaults)
 
 | Parameter | Symbol | Example | Notes |
 |:----------|:-------|:--------|:------|

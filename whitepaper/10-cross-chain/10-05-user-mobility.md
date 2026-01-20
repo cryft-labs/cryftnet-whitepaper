@@ -69,7 +69,7 @@ contract ReplicatedToken {
 }
 ```
 
-### 10.10 Initial supply and home region
+**Initial supply and home region**
 
 **The home region problem:**
 

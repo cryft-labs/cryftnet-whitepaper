@@ -62,9 +62,9 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 - **Replay attack on claims:** Attacker replays a valid claim proof to credit balance multiple times on destination region. Mitigation: each transfer_id is marked as consumed after first claim; claimed[transfer_id] = true prevents replay.
 
-- **Forged checkpoint proof:** Attacker forges a Merkle proof of a debit that never happened. Mitigation: proofs are verified against Main-finalized checkpoint roots; ZK validity proofs make forgery computationally infeasible; validators who sign invalid checkpoints are slashed.
+- **Forged checkpoint proof:** Attacker forges a Merkle proof of a debit that never happened. Mitigation: proofs are verified against Federal Chain-finalized checkpoint roots; ZK validity proofs make forgery computationally infeasible; validators who sign invalid checkpoints are slashed (see Section 11.3.2 for checkpoint equivocation evidence specification).
 
-- **Region validator collusion:** Majority of region validators conspire to create fake debit events. Mitigation: Main requires quorum signatures on checkpoints; ZK proofs provide trustless verification; users can always withdraw to Main as escape hatch.
+- **Region validator collusion:** Majority of region validators conspire to create fake debit events. Mitigation: Federal Chain requires quorum signatures on checkpoints; ZK proofs provide trustless verification; users can always withdraw to Federal Chain as escape hatch; checkpoint equivocation is slashable with cryptographic evidence.
 
 - **Checkpoint reorg attack:** Region finalizes a checkpoint, then reorgs to remove the debit while destination already credited. Mitigation: Main does not accept checkpoints until region finality is confirmed; ZK proofs bind to specific state transitions.
 

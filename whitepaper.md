@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.26<br>
-<strong>Date:</strong> January 17, 2026<br>
+<strong>Revision:</strong> v1.27<br>
+<strong>Date:</strong> January 20, 2026<br>
 <strong>Status:</strong> Draft (Production Review Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.26):</strong> **IMPLEMENTATION-READY HARDENING:** Added Section 4.1.1 Block Cadence & Asynchronicity clarifying independent Snowman instances with atomic finality at bundle level only. Added explicit "v1 = pure Snow" statement to Section 6.8: Primary Network launches with pure, unmodified Avalanche/Snowman consensus (no CRVS components active in v1). Enhanced Section 13.8 Cryftee Requirement & Node Stack with comprehensive node type matrix, implementation guidance, and module selection for validators. Added Cryftee attestation requirements to Section 14.1 threat model and Section 5.2 validator eligibility. Added mandatory startup failure requirement to Section 13.7: CryftGo MUST fail if Cryftee not running or required modules fail attestation. Added CSS-1 Cryftee requirement note to Section 4.2. These changes eliminate ambiguity and make whitepaper ready for CryftGo implementation. Previous (v1.25): Code Vault dual storage modes. Earlier (v1.24): CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile (~1,310 lines). Earlier (v1.23): P0/P1 gap analysis, encoding fixes.
+<strong>Latest Changes (v1.27):</strong> **SECTION NUMBERING CONSISTENCY:** Fixed all duplicate and misordered section numbers: resolved duplicate 10.9 sections, renumbered Section 11.3 subsections (11.3.1 Slashing Evidence, 11.3.2 Parameter Table), corrected Section 7.3 subsections (7.3.6 Deterministic Scheduling, 7.3.7 Receipts), added missing Section 10 parent header from README, and updated compilation script to include cross-chain README for proper hierarchy. All 16 main sections now properly numbered and sequentially ordered. Previous (v1.26): Implementation-ready hardening with block cadence clarification, v1 consensus specification, and Cryftee requirements. Earlier (v1.25): Code Vault dual storage modes. Earlier (v1.24): CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile.
 </p>
 
 <p align="center"><em>
@@ -176,10 +176,10 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
    | Failure Scenario | Behavior | Recovery |
    |:-----------------|:---------|:---------|
-   | One VM crashes during execution | Entire bundle rejected; proposer slashed; next proposer selected | Next proposer creates recovery bundle with valid state |
+   | One VM crashes during execution | Entire bundle rejected; proposer slashed for invalid bundle (see Section 11.3.2); next proposer selected | Next proposer creates recovery bundle with valid state |
    | One VM times out (>5s execution) | Bundle considered invalid; proposer may not be slashed (timeout may be environmental); next proposer selected | Governance may adjust block gas limits or VM parameters |
-   | One VM produces invalid state transition | Bundle rejected during validation phase; proposer slashed for invalid bundle | Next proposer creates valid bundle |
-   | All three VMs execute successfully but cross-chain invariant violated | Bundle rejected; proposer slashed for invariant violation | Next proposer creates bundle respecting invariants |
+   | One VM produces invalid state transition | Bundle rejected during validation phase; proposer slashed for invalid bundle (see Section 11.3.2) | Next proposer creates valid bundle |
+   | All three VMs execute successfully but cross-chain invariant violated | Bundle rejected; proposer slashed for invariant violation (see Section 11.3.2) | Next proposer creates bundle respecting invariants |
    | Validator set cannot reach quorum on bundle validity | Bundle remains unfinalized; timeout triggers re-proposal | After 3 failed attempts, governance intervention or automatic fallback to empty bundle |
 
    **Critical property:** If ANY VM fails (crash, timeout, invalid transition), the ENTIRE network waits for the next bundle proposal. There is no "partial advancement" where two chains move forward and one stays behind. This ensures atomic commit but means **liveness depends on the health of all three VMs**. If the EVM implementation has a bug that crashes on a specific opcode, Federal and Mirror chains cannot finalize new blocks until the bug is fixed.
@@ -244,7 +244,7 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 #### 4.1.1 Block cadence & asynchronicity
 
-Each chain in the Primary Network (Federal, Mirror, EVM) and each region/state chain runs as an **independent Snowman instance** with its own block production loop, finality cadence, and target block interval.
+Each chain in the Primary Network (Federal, Mirror, EVM) and each region/state chain runs as an **independent Snowman instance** with its own block production loop, finality cadence, and target block interval. **Each chain uses unmodified Snowman consensus; atomic bundle blocks are a coordination layer that synchronizes finality across chains, not a modification to the consensus mechanism itself.**
 
 - **Asynchronous production** -- Chains are **not** required to produce blocks at the same real-time cadence. Federal Chain might target 2-second blocks, Mirror 1-second, EVM 1.5-second, and individual regions 0.3–1 second -- all running in parallel.
 - **Atomic finality only** -- Synchronization occurs only at the **bundle level** for the Primary Network: proposers collect state from all three chains, execute in order, and propose a single bundle vote using the shared Snowman consensus. Finality advances atomically across Federal, Mirror, and EVM only when a bundle is accepted.
@@ -334,7 +334,48 @@ This design preserves the performance isolation and regional low-latency goals w
 
 **Global Balance Ledger (GBL) architecture:**
 
-The GBL tracks **EVM token balances** (ERC-20, ERC-721, etc.) across regions using **Mirror Chain's extended UTXO model**. Native CRYFT also uses standard UTXO on Mirror Chain. The GBL is **managed entirely by Mirror Chain** as a partitioned ledger; EVM Chain and subnets access it via atomic cross-chain messaging:
+The GBL tracks **EVM token balances** (ERC-20, ERC-721, etc.) across regions using **Mirror Chain's extended UTXO model**. Native CRYFT also uses standard UTXO on Mirror Chain. The GBL is **managed entirely by Mirror Chain** as a partitioned ledger; EVM Chain and subnets access it via atomic cross-chain messaging.
+
+**CryftNet supports two distinct portability modes for federation tokens:**
+
+#### 4.1.2 Federation Token Portability Modes
+
+**Mode A: GBL-Authoritative (Recommended for Federation-Backed Assets)**
+
+Mirror Chain GBL stores per-account balances as `(asset_id, region_id, account, amount)` UTXOs. The EVM-side token contract is an ERC-20 façade that routes all balance-changing operations through the GBL precompile. Any local `balances` mapping is a read-only cache for UX/indexing convenience only.
+
+**Use cases:**
+- Stablecoins (USDC, USDT)
+- CRYFT-wrapped assets
+- Federation-verified tokens requiring instant global truth
+- Assets where cross-region settlement must be atomic per-transaction
+
+**Trade-offs:**
+- ✅ **Per-transaction atomicity:** Cross-region transfers settle immediately with Mirror GBL state update
+- ✅ **Instant global truth:** Any node can query canonical balance from Mirror GBL
+- ✅ **Maximum safety:** Conservation invariant enforced per bundle block
+- ⚠️ **Precompile overhead:** Every transfer incurs GBL precompile gas cost (5000 gas)
+- ⚠️ **EVM composability friction:** Contracts must use precompile instead of native Solidity mappings
+
+**Mode B: State-Authoritative with GBL-Allocated Totals (Opt-in for Lower-Cost Assets)**
+
+The State/Region EVM contract maintains authoritative per-account balances (standard ERC-20 `balances` mapping). Mirror Chain GBL stores only **State allocations** as `(asset_id, region_id, allocated_total)`. Each State's sum of account balances must not exceed its GBL allocation. Safety is enforced at checkpoint boundaries, not per-transaction.
+
+**Use cases:**
+- Gaming tokens
+- Loyalty points
+- Regional/local assets with lower security requirements
+- High-frequency trading assets where per-tx precompile cost is prohibitive
+
+**Trade-offs:**
+- ✅ **Standard ERC-20 composability:** Contracts behave like normal Solidity tokens
+- ✅ **Lower per-transfer cost:** No precompile overhead; transfers are local EVM operations
+- ✅ **Higher throughput:** Amortizes cross-region validation to checkpoint intervals
+- ⚠️ **Checkpoint-security model:** Safety depends on checkpoint verification, not per-tx atomicity
+- ⚠️ **Delayed global truth:** "What's my total balance across regions?" requires indexing multiple chains
+- ⚠️ **Requires stronger proofs:** Must verify State totals at checkpoint time (quorum sigs or ZK proofs)
+
+**Mode selection is declared at asset registration time and is immutable.** Wallets and explorers MUST check an asset's portability mode to correctly display balances and security guarantees.
 
 ```text
 GlobalBalanceLedger (Mirror Chain extended UTXO) {
@@ -374,6 +415,248 @@ GlobalBalanceLedger (Mirror Chain extended UTXO) {
 }
 ```
 
+#### 4.1.3 Mode A: GBL-Authoritative Federation Token Standard (Normative Specification)
+
+**A.1 Source of Truth**
+
+For Mode A (GBL-Authoritative) tokens, the authoritative balance for any account on a region is `GBL.queryBalance(asset_id, region_id, account)`. The ERC-20 contract **MUST NOT** make transfer decisions based on any local `balances[account]` mapping. Any local mapping is a UI cache only and MUST be ignored for transfer validation.
+
+**A.2 ERC-20 Function Semantics (Normative)**
+
+```solidity
+// Mode A compliant ERC-20 contract MUST implement:
+
+function balanceOf(address account) external view returns (uint256) {
+    // MUST query GBL precompile, MUST NOT use local storage
+    return GBL.queryBalance(ASSET_ID, REGION_ID, account);
+}
+
+function totalSupply() external view returns (uint256) {
+    // MUST query GBL for asset-wide total
+    return GBL.totalSupply(ASSET_ID);
+}
+
+function transfer(address to, uint256 amount) external returns (bool) {
+    // MUST call GBL precompile; MUST revert if precompile reverts
+    require(GBL.transfer(ASSET_ID, REGION_ID, msg.sender, to, amount), "GBL transfer failed");
+    emit Transfer(msg.sender, to, amount);
+    return true;
+}
+
+function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    // MUST enforce local allowance first (standard ERC-20)
+    uint256 currentAllowance = allowances[from][msg.sender];
+    require(currentAllowance >= amount, "Insufficient allowance");
+    
+    // MUST call GBL precompile; MUST revert if precompile reverts
+    require(GBL.transfer(ASSET_ID, REGION_ID, from, to, amount), "GBL transfer failed");
+    
+    // MUST decrement allowance only if GBL call succeeds
+    // (automatic due to revert-on-failure above)
+    allowances[from][msg.sender] = currentAllowance - amount;
+    
+    emit Transfer(from, to, amount);
+    return true;
+}
+```
+
+**A.3 Approval Handling (Region-Local)**
+
+- `approve()` and `allowance()` are **region-local** and **contract-local** (standard ERC-20 mapping)
+- Approvals **do NOT move with the user across regions automatically**
+- `permit()` (EIP-2612) is allowed but also region-local; domain separator MUST include `chainId` or region context
+
+**A.4 Event Emission Rules (Normative)**
+
+**Invariant FT-GBL-01 (Authoritative State):**
+For any successful transaction that results in an ERC-20 `Transfer(from, to, amount)` event on region R, the post-state MUST satisfy:
+
+```
+GBL.balance(asset, R, from)_after = GBL.balance(asset, R, from)_before − amount
+GBL.balance(asset, R, to)_after = GBL.balance(asset, R, to)_before + amount
+```
+
+This GBL transition MUST be the one executed by the precompile call inside the transaction.
+
+**Invariant FT-GBL-02 (No Phantom Logs):**
+If `GBL.transfer(...)` reverts, the transaction MUST revert and no `Transfer` event is observable.
+
+**A.5 Cross-Region Transfer Events**
+
+For cross-region moves via `transferToRegion()`, **do NOT** emit only a `Transfer` event (confuses indexers). Instead:
+
+```solidity
+event TransferToRegionInitiated(
+    bytes32 indexed transferId,
+    address indexed from,
+    address indexed to,
+    uint256 amount,
+    uint64 fromRegion,
+    uint64 toRegion
+);
+
+event TransferToRegionClaimed(
+    bytes32 indexed transferId,
+    address indexed from,
+    address indexed to,
+    uint256 amount,
+    uint64 fromRegion,
+    uint64 toRegion
+);
+```
+
+**Optional ERC-20 Continuity Pattern (for naive explorers):**
+Define a canonical "in-transit" address (e.g., precompile address 0x0100) and emit:
+- On source region: `Transfer(from, IN_TRANSIT_ADDRESS, amount)`
+- On destination claim: `Transfer(IN_TRANSIT_ADDRESS, to, amount)`
+
+This prevents explorers from thinking supply changed while maintaining event-based accounting.
+
+**A.6 Off-Chain Indexing Guidance**
+
+- Indexers CAN track balances from `Transfer` logs per region (standard ERC-20 indexing)
+- For canonical correctness or log recovery, indexers SHOULD reconcile by querying `GBL.queryBalance(...)`
+- For "global portfolio view," wallets/indexers MUST:
+  1. Call `GBL.getAccountRegions(asset_id, account)` to find regions with balances
+  2. Sum `GBL.queryBalance(asset_id, region, account)` across all regions
+
+#### 4.1.4 Mode B: State-Authoritative with GBL-Allocated Totals (Normative Specification)
+
+**B.1 Conceptual Model**
+
+The State/Region EVM contract is **authoritative** for per-account balances (classic ERC-20 `balances` mapping). Mirror Chain GBL stores only **State allocations**:
+
+```
+GBL_alloc(asset_id, region_id) = total tokens allocated to that region
+```
+
+**Key invariant:**
+```
+sum(balances[account] for all accounts on region) <= GBL_alloc(asset, region)
+```
+
+Equality holds except for burned/escrowed tokens.
+
+**B.2 ERC-20 Function Semantics (Normative)**
+
+```solidity
+// Mode B compliant ERC-20 contract implements STANDARD ERC-20:
+
+mapping(address => uint256) private balances;
+mapping(address => mapping(address => uint256)) private allowances;
+
+function balanceOf(address account) external view returns (uint256) {
+    // Uses local state, NOT GBL precompile
+    return balances[account];
+}
+
+function transfer(address to, uint256 amount) external returns (bool) {
+    // Standard ERC-20 logic
+    require(balances[msg.sender] >= amount, "Insufficient balance");
+    balances[msg.sender] -= amount;
+    balances[to] += amount;
+    emit Transfer(msg.sender, to, amount);
+    return true;
+}
+
+// transferFrom(), approve(), allowance() all standard ERC-20
+```
+
+**B.3 Checkpoint Invariant Enforcement (Normative)**
+
+Each region checkpoint MUST include:
+
+```text
+CheckpointData {
+  region_id: uint64,
+  height: uint64,
+  state_root: bytes32,
+  
+  // Per-asset state summary
+  asset_totals: [
+    {
+      asset_id: address,
+      region_total_supply: uint256,    // sum(balances[account]) for this asset
+      delta_alloc_requests: int256,    // requested change in allocation
+    },
+    ...
+  ],
+  
+  // Cross-region transfer requests
+  cross_region_debits: [...],
+  cross_region_credits: [...],
+  
+  validator_signatures: bytes[],      // Quorum signatures
+}
+```
+
+**Federal Chain verification (at checkpoint acceptance):**
+
+```text
+For each asset in checkpoint.asset_totals:
+  current_alloc = GBL_alloc(asset, region_id)
+  reported_total = asset.region_total_supply
+  
+  VERIFY:
+    1. reported_total <= current_alloc + delta_alloc_requests
+    2. cross_region_debits are properly deducted from current_alloc
+    3. cross_region_credits are properly added to current_alloc
+    4. quorum signatures valid (or ZK proof verifies state transition)
+  
+  IF verification fails:
+    REJECT checkpoint
+    PAUSE bridging for this region/asset pair
+    SLASH validators for invalid checkpoint
+```
+
+**B.4 Proof Requirements**
+
+**v1 (Mainnet):** Quorum validator signatures + deterministic state transition rules
+- Federal Chain trusts region validator quorum attestation
+- Validators sign commitment to `(state_root, asset_totals, cross_region_messages)`
+
+**vNext (Post-Mainnet):** ZK validity proofs
+- Region submits ZK-SNARK proof that:
+  - ERC-20 state transitions preserve balance conservation
+  - Reported `region_total_supply` equals actual sum of balances
+  - Cross-region transfers respected allocation bounds
+- Federal Chain verifies proof on-chain (no trust required)
+
+**B.5 Trade-Offs vs Mode A**
+
+**Advantages:**
+- ✅ Maximum EVM composability (standard Solidity mappings)
+- ✅ No per-transfer precompile cost
+- ✅ Higher throughput (checkpoint amortization)
+
+**Disadvantages:**
+- ⚠️ Checkpoint-security model (not per-tx atomic)
+- ⚠️ Global truth delayed (requires multi-chain indexing)
+- ⚠️ Requires ZK proofs or strong validator quorums for safety
+
+**B.6 Asset Registration and Mode Declaration**
+
+Assets MUST declare portability mode at registration time:
+
+```solidity
+// Federal Chain asset registry
+struct AssetRecord {
+    address asset_id;
+    string name;
+    string symbol;
+    PortabilityMode mode;  // GBL_AUTHORITATIVE or STATE_AUTHORITATIVE
+    uint64[] target_regions;
+    // ... other metadata
+}
+
+enum PortabilityMode {
+    GBL_AUTHORITATIVE,      // Mode A
+    STATE_AUTHORITATIVE     // Mode B
+}
+```
+
+Mode is **immutable** after registration. Changing modes would require governance-approved migration.
+
 **Why GBL lives on Mirror Chain (not EVM Chain or Federal Chain):**
 
 1. **UTXO efficiency:** Mirror Chain's UTXO model naturally supports parallel validation and partitioned balances without account-based contention.
@@ -407,13 +690,15 @@ sequenceDiagram
   Mirror->>Mirror: GBL: create UTXO(asset, B, recipient, amount)
 ```
 
-**EVM Chain contracts accessing Mirror GBL (authoritative model):**
+**EVM Chain contracts accessing Mirror GBL (Mode A Implementation Details):**
 
-**CRITICAL:** Mirror Chain GBL is the **single authoritative source** for partitioned balances. EVM contracts MUST NOT maintain independent balance state for federation-verified tokens. Local `balances` mappings in contracts are **read-only caches** synchronized from Mirror GBL.
+**CRITICAL:** This section applies to **Mode A (GBL-Authoritative) tokens only**. For Mode B, see Section 4.1.4.
+
+For Mode A tokens, Mirror Chain GBL is the **single authoritative source** for partitioned balances. EVM contracts MUST NOT maintain independent balance state for federation-verified tokens. Local `balances` mappings in contracts are **read-only caches** synchronized from Mirror GBL.
 
 **Execution-time truth rule:** During transaction execution, balance reads MUST query Mirror GBL via precompile (authoritative). Local storage cache is updated post-execution for UX convenience but is NOT used for balance decisions. **Cache synchronization guarantee:** Before a transaction executes, validators ensure local cache reflects the latest Mirror GBL state from the current bundle block. Cache drift is impossible because bundle blocks are atomic across all three chains.
 
-**Invariants enforced by validator consensus:**
+**Invariants enforced by validator consensus (Mode A only):**
 1. **Atomic bundle guarantee:** Mirror GBL updates and EVM state transitions occur in the same bundle block. No interleaving.
 2. **Pre-execution sync:** Validators MUST sync cache from Mirror GBL before executing any balance-touching transaction in the bundle.
 3. **Single source of truth:** All balance decisions (transfer validation, allowance checks) use Mirror GBL precompile response, never cached storage.
@@ -597,9 +882,11 @@ contract FederatedERC20 {
 
 **Required pattern for federation-verified tokens:**
 
+**Mode A (GBL-Authoritative) ERC-20 Wrapper Example:**
+
 ```text
-// Federation-verified ERC-20 wrapper contract
-contract FederationToken {
+// Federation-verified ERC-20 wrapper contract (Mode A)
+contract FederationTokenModeA {
   // Local storage is CACHE ONLY - not authoritative
   mapping(address => uint256) public balances;  // synced from Mirror GBL
   
@@ -611,32 +898,73 @@ contract FederationToken {
     // Update local cache for read convenience
     balances[msg.sender] -= amount;
     balances[to] += amount;
+    
+    emit Transfer(msg.sender, to, amount);
   }
   
   function transferToRegion(uint64 destRegion, address to, uint256 amount) external {
     // Cross-region transfer via Mirror GBL
-    MIRROR_GBL_PRECOMPILE.transferToRegion(ASSET_ID, REGION_ID, destRegion, msg.sender, to, amount);
+    bytes32 transferId = MIRROR_GBL_PRECOMPILE.transferToRegion(
+        ASSET_ID, REGION_ID, destRegion, msg.sender, to, amount
+    );
     balances[msg.sender] -= amount;  // debit local cache
+    
+    emit TransferToRegionInitiated(transferId, msg.sender, to, amount, REGION_ID, destRegion);
+    emit Transfer(msg.sender, IN_TRANSIT_ADDRESS, amount);  // Optional: for indexers
   }
   
   function balanceOf(address account) external view returns (uint256) {
-    // Query authoritative source
+    // Query authoritative source (NOT local cache)
     return MIRROR_GBL_PRECOMPILE.queryBalance(ASSET_ID, REGION_ID, account);
   }
 }
 ```
 
+**Mode B (State-Authoritative) Standard ERC-20 Example:**
+
+```solidity
+// Standard ERC-20 with checkpoint-enforced allocation (Mode B)
+contract FederationTokenModeB {
+  // Local storage IS authoritative for per-account balances
+  mapping(address => uint256) private _balances;
+  mapping(address => mapping(address => uint256)) private _allowances;
+  
+  uint256 private _totalSupply;
+  
+  function balanceOf(address account) external view returns (uint256) {
+    // Standard ERC-20: local state is authoritative
+    return _balances[account];
+  }
+  
+  function transfer(address to, uint256 amount) external returns (bool) {
+    // Standard ERC-20 logic (no GBL precompile)
+    require(_balances[msg.sender] >= amount, "Insufficient balance");
+    _balances[msg.sender] -= amount;
+    _balances[to] += amount;
+    emit Transfer(msg.sender, to, amount);
+    return true;
+  }
+  
+  // transferFrom, approve, allowance all standard ERC-20
+  
+  // Cross-region transfers require checkpoint-level coordination
+  // (not shown here; handled by Federal Chain validation at checkpoint time)
+}
+```
+
 **Allowances and approvals (ERC-20 compatibility clarification):**
 
-**For local-region operations**: Standard `approve/allowance/transferFrom` semantics are preserved on-region. Approval mappings (`mapping(address => mapping(address => uint256)) public allowances`) live in contract storage as usual. This ensures existing DeFi contracts (Uniswap, Aave, etc.) work without modification.
+**Mode A (GBL-Authoritative)**: Standard `approve/allowance/transferFrom` semantics are preserved on-region. Approval mappings (`mapping(address => mapping(address => uint256)) public allowances`) live in contract storage as usual. This ensures existing DeFi contracts (Uniswap, Aave, etc.) work without modification. Approvals are **region-local** and do not automatically transfer cross-region.
 
-**For cross-region operations**: Approvals are region-local and do not automatically transfer. Cross-region token movements use direct `transferToRegion()` (sender-initiated) rather than delegated transfers. Future versions may support cross-region approval via Mirror UTXO lock scripts.
+**Mode B (State-Authoritative)**: Standard ERC-20 approvals work exactly as normal. No special handling required.
+
+**For cross-region operations (both modes)**: Approvals are region-local. Cross-region token movements use direct `transferToRegion()` (sender-initiated) rather than delegated transfers. Future versions may support cross-region approval via Mirror UTXO lock scripts or checkpoint-mediated authorization.
 
 **Trade-off**: This maintains full ERC-20 compatibility within a region (recommended) at the cost of region-local approval state. Alternative: Implement approvals as Mirror lock scripts (breaks ERC-20 compatibility but enables cross-region approvals).
 
 **Decision**: CryftNet v1 chooses ERC-20 compatibility to maximize ecosystem adoption.
 
-**Realism tie-in:** Similar to Optimism's canonical bridged tokens (L1 authoritative, L2 cached) or Cosmos ICS-20 (chain-of-origin authoritative).
+**Realism tie-in:** Mode A similar to Optimism's canonical bridged tokens (L1 authoritative, L2 cached). Mode B similar to Cosmos ICS-20 (chain-of-origin authoritative, IBC tracks allocations).
 
 **Non-federation tokens:** Standard ERC-20 contracts without GBL integration maintain local state as usual (not partitioned across regions).
 
@@ -668,6 +996,7 @@ ContractMirrorRecord {
   deployed_regions: uint64[],             // Regions where contract is live
   mirror_status: Map<region_id ->' MirrorStatus>,  // Per-region status
   balance_portability: bool,
+  portability_mode: PortabilityMode,      // GBL_AUTHORITATIVE or STATE_AUTHORITATIVE (if balance_portability=true)
   verification_level: VerificationLevel,  // Unverified, Publisher, Federation
   created_at: uint64,
   last_updated: uint64
@@ -1732,7 +2061,7 @@ CRVS remains the consensus backbone--DAS and ZK-EVMs are complementary technolog
 
 **Phase 0 (Current) – Phase 4 (Mainnet v1):**
 
-**The Primary Network launches with pure, unmodified Avalanche/Snowman consensus (the proven baseline used in AvalancheGo).** No rotor relays, votor aggregation, or other CRVS components are active in v1. All Primary Network chains (Federal, Mirror, EVM) use standard Snowman block production and finality. **Regions may prototype CRVS components on testnet**, but production regions in v1 also use baseline Snowman.
+**The Primary Network launches with pure, unmodified Avalanche/Snowman consensus for each chain individually (the proven baseline used in AvalancheGo).** No rotor relays, votor aggregation, or other CRVS components are active in v1. All Primary Network chains (Federal, Mirror, EVM) use standard Snowman block production and finality; the atomic bundle coordinator that synchronizes their outputs is a separate layer above the consensus mechanism. **Regions may prototype CRVS components on testnet**, but production regions in v1 also use baseline Snowman.
 
 The most practical path to mainnet is to:
 
@@ -2083,7 +2412,7 @@ Acquire_all_locks(claims):
    return true
 ```
 
-#### 7.3.6 Receipts and proofs
+#### 7.3.7 Receipts and proofs
 
 Receipts must prove how a transaction was scheduled and whether it conflicted. For parallel
 transactions, receipts include: - lane (process_id) - lane_index (order within lane) - slot_claims_hash
@@ -2159,308 +2488,6 @@ FID fields (example): - subnet_id, chain_id, VM type - consensus summary and sec
 
 The federation may offer optional certification for custom subnets. Certification is not a gate to
 existence; it is a promise to users and tooling providers. Certified subnets may receive default routing, shared libraries, and aggregated dashboards.
-
----
-
-## 9. Cryft Global Synchronizer (CGS): privacy propagation and federation sync
-
-CGS is a Cryftee-hosted plane for privacy-aware propagation of intents and synchronization across
-regions. It is inspired by canton-style private synchronization in the sense that parties coordinate over
-domains and reveal only what is necessary to authorized participants. CGS is not "magic privacy"; it
-is a structured messaging and keying system that aims to reduce the amount of public metadata
-required for transaction inclusion and cross-chain coordination.
-
-### 9.1 Core design constraints
-
-- Must not break EVM compatibility: legacy transactions remain public and unchanged.
-- Must provide liveness under partial censorship: multiple routes, region fallbacks, and
-anti-correlation strategies.
-- Must limit metadata leakage: minimize public exposure of counterparties, resource IDs, and full
-slot claims.
-- Must support deterministic scheduling: even private intents require commitments that can be
-verified later.
-
-### 9.2 CGS message types (proposal)
-
-CGS defines a small set of message types carried over a privacy-aware gossip layer. Messages are content-addressed where possible, and large payloads may be stored on IPFS with encrypted references.
-
-- **IntentEnvelope:** encrypted transaction intent plus slot_commitment and minimal routing hints.
-- **RevealClaims:** reveals slot_claims to validators (or to an auditor committee) at inclusion time.
-- **KeyRotate:** rotates threshold encryption keys for a privacy pool or region domain.
-- **AvailabilityAttestation:** posts aggregated availability/pinning attestations without revealing private CID details.
-- **SyncRequest / SyncConfirm:** domain synchronization for multi-party workflows.
-- **DisputeBundle:** evidence package for fraud/slashing (signed transcripts, challenge failures, etc.).
-
-### 9.3 Metadata visibility matrix
-
-| Field | Public observers | Region validators | Main validators | Counterparties | Pin auditors |
-|:------|:-----------------|:------------------|:----------------|:---------------|:-------------|
-| Sender address | Legacy: yes; CGS: optional | yes (for inclusion) | only if anchored and required | yes | no |
-| Recipient address | Legacy: yes; CGS: optional | yes (for execution) | only if required | yes | no |
-| Slot claims | Legacy/parallel: yes; CGS intent: commitment only | claims revealed at inclusion or to auditor | commitment only unless dispute | optional | no |
-| Process ID | often yes (may be masked in CGS) | yes | yes (in checkpoints) | yes | no |
-| Resource IDs (object slots) | optional | only if revealed | only if dispute | yes | no |
-| CID of pinned content | public pin job: yes; private pin: commitment only | auditor-only for private pin | aggregate only | optional | auditor yes |
-| Proof responses (pin challenges) | public: yes; private: auditor-posted aggregate | yes | yes (if disputed) | no | yes |
-
-### 9.4 Selective disclosure
-
-Selective disclosure means revealing the minimum needed, at the latest safe time, to the minimum
-required audience. Examples: - A private intent may reveal slot_claims only to region validators at
-inclusion time, while the public chain sees only a commitment. - A private pin job may reveal the CID
-only to selected pin providers and auditors; the chain stores only a commitment and aggregated
-
-scores. Selective disclosure is constrained by verifiability: when disputes arise, evidence may need to
-be revealed to Main or to a court-like committee.
-
-### 9.5 CGS and Smart Slots via slot commitments
-
-**CRITICAL CONSENSUS BOUNDARY:**
-
-CGS is **mempool transport only**. It is NOT consensus-critical. The consensus-critical data (slot_claims) MUST appear in the block in a form every validator can verify without CGS.
-
-**The rule that resolves the contradiction:**
-
-Slot commitments bridge privacy and determinism, but with a clear separation:
-- **slot_commitment** is an anti-equivocation/integrity proof and privacy-preserving placeholder BEFORE inclusion
-- **revealed slot_claims** are the consensus-critical data used for execution
-- **At inclusion time**, validators MUST receive RevealClaims and the block MUST include enough data to verify H(revealed_claims) == slot_commitment
-- **Execution uses revealed claims**, not the commitment
-
-**What this means:**
-- CGS failing should NOT halt the chain
-- CGS degradation means private intents don't propagate well, but consensus continues
-- The block contains either full revealed slot_claims OR a deterministic, verifiable equivalent required for execution
-- Legacy (non-private) transactions bypass CGS entirely and work normally
-
-**Intent submission (privacy-aware path):**
-```text
-1) Client computes slot_claims and slot_commitment = H(canonical(slot_claims))
-2) Client encrypts tx data to pool key K_pool (threshold encryption key)
-3) Client sends IntentEnvelope(process_id, slot_commitment, ciphertext, routing_hint) via CGS
-```
-
-**Inclusion (proposer side):**
-```text
-1) Proposer selects intent by commitment and policy
-2) Proposer requests RevealClaims from sender (or authorized party)
-3) Proposer verifies H(revealed_claims) == slot_commitment
-4) Proposer includes revealed_claims in block (or equivalent verifiable data)
-5) Scheduler runs pre-lock acquisition on revealed_claims
-6) If acquired, execute tx and include receipt linking to commitment
-```
-
-**Block content (consensus-critical):**
-
-**CRITICAL**: On-chain block MUST contain plaintext calldata + revealed_claims (or digest + full claims via IPFS CID if large). **No ciphertext is stored on-chain** for consensus execution. Ciphertext exists only off-chain (mempool/CGS layer).
-
-```text
-Block = {
-  ...,
-  transactions: [
-    // Legacy tx (unchanged)
-    { type: "legacy", from, to, value, data, nonce, ... },
-    
-    // Private intent (revealed at inclusion; NO CIPHERTEXT IN BLOCK)
-    { 
-      type: "cryft_private",
-      slot_commitment: 0x1234...,
-      revealed_claims: [...],       // MUST be present for execution (plaintext)
-      plaintext_calldata: 0x...,    // Decrypted call data for EVM execution
-      proof_of_reveal: signature    // Proves sender authorized reveal
-      // NO ciphertext field - privacy exists in mempool propagation only
-    }
-  ]
-}
-```
-
-**All validators execute using revealed plaintext.** Transactions that cannot be decrypted or lack revealed plaintext are invalid and rejected.
-
-**Privacy model**: CGS provides privacy during mempool propagation (before inclusion). Once a validator includes a tx in a block, the plaintext is revealed to all validators for deterministic execution. Block data is public.
-
-**Verification (every validator, with or without CGS):**
-```text
-1) For each private tx in block:
-   - Verify H(revealed_claims) == slot_commitment
-   - Verify proof_of_reveal signature
-   - Decrypt ciphertext (if validator has key) OR trust revealed_claims
-   - Execute using revealed_claims (deterministic)
-2) All validators reach same state root because revealed_claims are deterministic
-```
-
-**Privacy guarantees:**
-- **Before inclusion:** slot_commitment hides exact access set from public observers
-- **After inclusion:** revealed_claims are in the block (privacy ends at execution)
-- **Who sees what:**
-  - Public observers: see commitment, revealed claims after inclusion
-  - Region validators: see revealed claims at inclusion time (must verify execution)
-  - Sender/recipient: always know full transaction details
-- **Threat model:** CGS provides privacy from casual observers and timing decorrelation, NOT strong anonymity from determined adversaries
-
-### 9.6 Key management for threshold encryption
-
-**CGS key management was previously hand-wavy. Here is the concrete model:**
-
-**Key committee structure:**
-- Each privacy pool has a **key committee** (could be region validators or a designated subset)
-- Committee size: recommended 7-15 members with t-of-n threshold (e.g., 5-of-7, 11-of-15)
-- Committee members run key generation ceremonies using distributed key generation (DKG)
-
-**Key lifecycle:**
-```text
-Phase 1: Setup
-- Committee runs DKG to generate K_pool (threshold encryption key)
-- Each member holds a key share; t shares needed to decrypt
-- Public key K_pool_pub is published on-chain
-
-Phase 2: Active use (epoch duration: N blocks, e.g., N=10,000)
-- Intents encrypted to K_pool_pub
-- Decryption requires t-of-n committee members to cooperate
-- Committee publishes availability attestation every M blocks
-
-Phase 3: Rotation (every N epochs, e.g., every 100,000 blocks)
-- New committee runs DKG for K_pool_new
-- Rotation transaction published on-chain:
-  - old_key_id, new_key_id, new_key_pub, rotation_height
-- After rotation_height, intents use K_pool_new
-- Old key remains available for H blocks for dispute resolution
-
-Phase 4: Compromise response (emergency)
-- If compromise detected: immediate rotation trigger
-- Governance or committee publishes compromise event:
-  - compromised_key_id, compromise_height, severity
-- Optionally invalidate envelopes in pre-compromise window
-- Affected users re-submit with new key
-```
-
-**Key rotation triggers:**
-- **Scheduled:** Every N epochs (e.g., 100,000 blocks = ~2 weeks at 12s blocks)
-- **Committee change:** When validator set changes significantly
-- **Compromise detection:** Immediate rotation if key leakage suspected
-- **Governance:** Emergency rotation via Main governance
-
-**Key compromise response:**
-```text
-Compromise event = {
-  event_type: "KEY_COMPROMISE",
-  pool_id: 42,
-  compromised_key_id: 0x1234...,
-  compromise_height: 8_240_000,  // best-guess compromise time
-  severity: "HIGH" | "MEDIUM" | "LOW",
-  response: {
-    rotate_immediately: true,
-    invalidate_window: [8_230_000, 8_240_112],  // envelopes in this range invalidated
-    resubmit_required: true
-  },
-  governance_approval: signature
-}
-```
-
-**Explicit privacy goals (what CGS actually provides):**
-1. **Hide recipient from public observers until inclusion** (commitment-based routing)
-2. **Decorrelate timing** (batching, cover traffic)
-3. **Reduce metadata surface** (encrypted payloads, selective disclosure)
-4. **Anti-equivocation** (commitment prevents double-spend before reveal)
-
-**Explicit NON-goals (what CGS does NOT provide):**
-1. ❌ Strong anonymity from nation-state adversaries
-2. ❌ Protection against global network observers (timing correlation still possible)
-3. ❌ Protection against key committee collusion (committee sees plaintext)
-4. ❌ Hiding transaction amounts or asset types after inclusion
-
-**Leakage metrics (measurable):**
-- **Timing correlation:** Measure correlation between IntentEnvelope arrival and block inclusion
-- **Metadata surface:** Count of public fields in IntentEnvelope vs. legacy tx
-- **Committee privacy:** Probability that t-of-n committee members collude
-- **Network-level leakage:** Traffic analysis correlation tests
-
-**Failure modes (explicit):**
-- **Key committee offline:** Intents can't be decrypted -> fallback to legacy (non-private) txs
-- **Key committee censorship:** Route intents to different region or Main
-- **Key compromise:** Emergency rotation, invalidate affected window
-- **DKG failure:** Retry with different committee or fallback to simpler setup
-
-### 9.7 Anti-censorship and liveness
-
-CGS uses multi-route gossip and region fallbacks. If Region A appears censored, intents can be
-routed to Region B or to Main, then forwarded. Privacy pools should avoid single points of control:
-threshold keys are managed by committees with rotation (see Section 9.6). Residual risk remains: any privacy system
-can be degraded by global adversaries controlling network paths; CryftNet treats this as measurable
-and provides monitoring via Cryftee modules.
-
-### 9.8 Failure modes and residual risk
-
-- Metadata leakage through timing and traffic analysis (mitigate with batching and cover traffic).
-- Threshold key compromise (mitigate with rotations, HSM/TEE options, and slashing).
-- Denial of service via junk intents (mitigate with fees, rate limits, and capability gating).
-- Complexity risk: CGS must not be consensus-critical without extensive validation.
-- Committee collusion: t-of-n members collude to decrypt all intents (mitigate with audits, rotation, slashing).
-- Network-level attacks: Global observer correlates IntentEnvelope with inclusion (mitigate with cover traffic, batching, decoy intents).
-
-### 9.9 CGS mainnet gating criteria
-
-**CGS remains "non-consensus-critical experimental" until ALL of the following are complete:**
-
-| Deliverable | Purpose | Status |
-|:------------|:--------|:-------|
-| **Formal threat model** | Document adversary capabilities, attack vectors, privacy guarantees, and explicit non-guarantees | ❌ TODO |
-| **Key ceremony specification** | Normative spec for DKG, rotation, compromise response, committee selection | ❌ TODO |
-| **Privacy leakage metrics** | Quantitative tests: timing correlation, metadata surface, traffic analysis resistance | ❌ TODO |
-| **Red-team style tests** | External adversarial testing: traffic analysis + denial of service attacks | ❌ TODO |
-| **Crypto + protocol audit** | External security review of threshold encryption, commitment scheme, and CGS protocol logic | ❌ TODO |
-| **Testnet soak test (>=3 months)** | Real validator incentives, adversarial testing, key rotation under load | ❌ TODO |
-
-**Mainnet deployment strategy:**
-
-**Phase 0 (Current):** CGS design and specification
-- Status: Proposal only
-- Risk: High (unvalidated)
-- Action: Complete formal threat model and key ceremony spec
-
-**Phase 1 (Devnet):** Basic functionality testing
-- Threshold encryption with toy parameters
-- Key rotation under controlled conditions
-- No real economic value at risk
-
-**Phase 2 (Testnet):** Incentivized testing with adversarial scenarios
-- Real validator incentives (testnet tokens)
-- Red-team attacks: traffic analysis, timing correlation, DoS
-- Key compromise drills (deliberate compromise + recovery)
-- Leakage metric collection and analysis
-
-**Phase 3 (Audit + Hardening):** External review and fixes
-- Independent security audit of crypto + protocol
-- Resolve all critical/high findings
-- Publish audit report and threat model
-
-**Phase 4 (Mainnet - EXPERIMENTAL):** Limited deployment
-- CGS available on Main but marked EXPERIMENTAL
-- Clear warnings: "Privacy is best-effort, not guaranteed"
-- Monitoring and telemetry required for all CGS participants
-- Governance escape hatch: can disable CGS if issues detected
-
-**Phase 5 (Mainnet - PRODUCTION):** Only after all gating criteria met
-- Formal threat model published
-- Audit complete with no unresolved high/critical issues
-- >=3 month testnet soak test with adversarial scenarios
-- Leakage metrics below acceptable thresholds
-- Key rotation proven under load
-
-**Fallback plan:**
-- If CGS validation extends beyond launch window, ship mainnet WITHOUT CGS
-- All transactions use legacy (non-private) path
-- CGS can be added post-launch via governance upgrade once validated
-
-**Monitoring requirements (Phase 4+):**
-- **Key committee health:** Availability, rotation success rate, response time
-- **Privacy metrics:** Timing correlation scores, metadata leakage detection
-- **Censorship detection:** Intent routing success rate per region
-- **Attack detection:** Anomalous traffic patterns, DoS attempts
-- **Performance impact:** CGS overhead vs. legacy tx throughput
-
----
-
-## 10. Cross-chain communication and settlement
 
 ### 10.1 Checkpoint format
 
@@ -2733,151 +2760,587 @@ To spend on Region B, Alice must first transfer from another region.
 
 ---
 
+## 9. Cryft Global Synchronizer (CGS): privacy propagation and federation sync
 
-4. **Higher latency for cross-region is expected:** If Alice is in Region B but her balance is on Region A:
-   - She can relay her transaction to Region A (incurs cross-region latency).
-   - Or she transfers balance to Region B first (one-time migration cost, then local speed).
+CGS is a Cryftee-hosted plane for privacy-aware propagation of intents and synchronization across
+regions. It is inspired by canton-style private synchronization in the sense that parties coordinate over
+domains and reveal only what is necessary to authorized participants. CGS is not "magic privacy"; it
+is a structured messaging and keying system that aims to reduce the amount of public metadata
+required for transaction inclusion and cross-chain coordination.
 
-**Contract deployment models:**
+### 9.1 Core design constraints
 
-CryftNet supports multiple deployment models to balance developer convenience with federation coordination. The most user-friendly approach is **region-first deployment with opt-in federation mirroring**.
+- Must not break EVM compatibility: legacy transactions remain public and unchanged.
+- Must provide liveness under partial censorship: multiple routes, region fallbacks, and
+anti-correlation strategies.
+- Must limit metadata leakage: minimize public exposure of counterparties, resource IDs, and full
+slot claims.
+- Must support deterministic scheduling: even private intents require commitments that can be
+verified later.
 
-**Critical: Region ID requirements**
+### 9.2 CGS message types (proposal)
 
-**Primary Network EVM Chain does NOT require region IDs.** The EVM Chain (EVM execution chain within the Primary Network) is the default chain for dApp interactions--users and developers interact with EVM Chain exactly like a standard EVM chain. Region IDs are only required when operating on State/Region chains or requesting cross-region operations.
+CGS defines a small set of message types carried over a privacy-aware gossip layer. Messages are content-addressed where possible, and large payloads may be stored on IPFS with encrypted references.
 
-| Operation | Chain | Region ID Required? |
-|:----------|:------|:--------------------|
-| Deploy contract | Primary Network EVM Chain | **NO** |
-| Call contract | Primary Network EVM Chain | **NO** |
-| Transfer tokens | Primary Network EVM Chain | **NO** |
-| Deploy contract | State/Region chain | YES (implicit from submission endpoint) |
-| Call contract | State/Region chain | YES (implicit from submission endpoint) |
-| Request mirroring to regions | Primary Network EVM Chain | YES (explicit target_regions[]) |
-| Cross-region transfer | Any chain | YES (explicit dest_region) |
+- **IntentEnvelope:** encrypted transaction intent plus slot_commitment and minimal routing hints.
+- **RevealClaims:** reveals slot_claims to validators (or to an auditor committee) at inclusion time.
+- **KeyRotate:** rotates threshold encryption keys for a privacy pool or region domain.
+- **AvailabilityAttestation:** posts aggregated availability/pinning attestations without revealing private CID details.
+- **SyncRequest / SyncConfirm:** domain synchronization for multi-party workflows.
+- **DisputeBundle:** evidence package for fraud/slashing (signed transcripts, challenge failures, etc.).
 
-**Why the Primary Network EVM Chain doesn't need region IDs:**
-- The Primary Network (Federal + Mirror + EVM) is the canonical foundation--it has no "region" because it IS the federation anchor
-- Transactions submitted to EVM Chain execute on EVM Chain; there's no ambiguity
-- This preserves standard EVM UX for EVM Chain interactions
-- Region IDs are only needed when the user wants to interact with a specific State/Region chain OR move assets across regions
+### 9.3 Metadata visibility matrix
 
-**Explicit region ID declaration (for federation operations):**
+| Field | Public observers | Region validators | Main validators | Counterparties | Pin auditors |
+|:------|:-----------------|:------------------|:----------------|:---------------|:-------------|
+| Sender address | Legacy: yes; CGS: optional | yes (for inclusion) | only if anchored and required | yes | no |
+| Recipient address | Legacy: yes; CGS: optional | yes (for execution) | only if required | yes | no |
+| Slot claims | Legacy/parallel: yes; CGS intent: commitment only | claims revealed at inclusion or to auditor | commitment only unless dispute | optional | no |
+| Process ID | often yes (may be masked in CGS) | yes | yes (in checkpoints) | yes | no |
+| Resource IDs (object slots) | optional | only if revealed | only if dispute | yes | no |
+| CID of pinned content | public pin job: yes; private pin: commitment only | auditor-only for private pin | aggregate only | optional | auditor yes |
+| Proof responses (pin challenges) | public: yes; private: auditor-posted aggregate | yes | yes (if disputed) | no | yes |
 
-When users or developers want federation-wide operations, they MUST explicitly declare target region IDs. This ensures:
+### 9.4 Selective disclosure
 
-1. **Proper fee collection:** Main receives gas fees proportional to the number of regions being updated
-2. **Developer control:** Deployers choose exactly which regions they pay for
-3. **No surprise costs:** Users know upfront what they're paying for
-4. **Scalability:** Main doesn't automatically push to all regions
+Selective disclosure means revealing the minimum needed, at the latest safe time, to the minimum
+required audience. Examples: - A private intent may reveal slot_claims only to region validators at
+inclusion time, while the public chain sees only a commitment. - A private pin job may reveal the CID
+only to selected pin providers and auditors; the chain stores only a commitment and aggregated
 
+scores. Selective disclosure is constrained by verifiability: when disputes arise, evidence may need to
+be revealed to Main or to a court-like committee.
+
+### 9.5 CGS and Smart Slots via slot commitments
+
+**CRITICAL CONSENSUS BOUNDARY:**
+
+CGS is **mempool transport only**. It is NOT consensus-critical. The consensus-critical data (slot_claims) MUST appear in the block in a form every validator can verify without CGS.
+
+**The rule that resolves the contradiction:**
+
+Slot commitments bridge privacy and determinism, but with a clear separation:
+- **slot_commitment** is an anti-equivocation/integrity proof and privacy-preserving placeholder BEFORE inclusion
+- **revealed slot_claims** are the consensus-critical data used for execution
+- **At inclusion time**, validators MUST receive RevealClaims and the block MUST include enough data to verify H(revealed_claims) == slot_commitment
+- **Execution uses revealed claims**, not the commitment
+
+**What this means:**
+- CGS failing should NOT halt the chain
+- CGS degradation means private intents don't propagate well, but consensus continues
+- The block contains either full revealed slot_claims OR a deterministic, verifiable equivalent required for execution
+- Legacy (non-private) transactions bypass CGS entirely and work normally
+
+**Intent submission (privacy-aware path):**
 ```text
-Transaction region declaration (federation operations only):
-
-// Deploy or update transaction includes explicit region list
-tx.target_regions = [A, B, C]  // Explicit opt-in regions
-
-Fee calculation:
-  base_fee = local_gas_cost
-  federation_fee = sum(per_region_fee[r] for r in target_regions)
-  total_fee = base_fee + federation_fee
-
-If target_regions is empty or omitted:
-  ->' Transaction is local only (Main or single region)
-  ->' No federation fees charged
-  ->' Contract/balance exists only on execution region
+1) Client computes slot_claims and slot_commitment = H(canonical(slot_claims))
+2) Client encrypts tx data to pool key K_pool (threshold encryption key)
+3) Client sends IntentEnvelope(process_id, slot_commitment, ciphertext, routing_hint) via CGS
 ```
 
-### 10.8 Region-first deployment with federation mirroring
-
-**Core principle:** Developers deploy to their preferred region first. Main automatically detects new contracts via checkpoints and can mirror them to **explicitly declared regions** if the developer opts in and pays the appropriate fees.
-
-**Region ID requirements:**
-
-| Interaction Type | Region ID Required? | Notes |
-|:-----------------|:--------------------|:------|
-| **Main EVM Chain transactions** | **NO** | Main is the default home chain; no region declaration needed |
-| **Main EVM Chain contract deployment** | **NO** | Deploys directly on Main; mirroring requires target_regions[] |
-| **State/Region chain transactions** | YES | Must specify which region to execute on |
-| **Cross-region transfers** | YES | Must specify dest_region explicitly |
-| **Federation mirroring** | YES | Must declare target_regions[] and pay fees |
-
-**Main as the default chain:** Users interacting with Main EVM Chain do not need to specify any region ID. Main is the "home" chain of the federation--transactions submitted to Main execute on Main. Region IDs are only required when:
-1. Deploying or transacting on State/Region chains
-2. Requesting federation mirroring to specific regions
-3. Initiating cross-region asset transfers
-
-**Deployment modes:**
-
-| Mode | Scope | Region Declaration | Fee Structure |
-|:-----|:------|:-------------------|:--------------|
-| **Main-direct** | Main EVM Chain only | None required | Main gas only |
-| **Region-local** | Single region only | Implicit (current region) | Region gas only |
-| **Federation-mirrored** | Declared regions | Explicit target_regions[] | Origin + per-region fee |
-| **Main-first (governance)** | All CSS-1 regions | Explicit or "all CSS-1" | Main + per-region fee |
-
-**Main-direct deployment (no region ID needed):**
-
+**Inclusion (proposer side):**
 ```text
-Developer deploys contract directly on Main EVM Chain:
-
-1) Dev deploys via standard CREATE2 or FederationDeployer on Main
-   - NO region ID required - Main is the default chain
-   - Transaction: deploy(init_code, salt)
-   - Fee: Main gas only
-   
-2) Contract exists on Main EVM Chain
-   - Users interact with contract on Main without specifying region
-   - Standard EVM experience, no federation complexity
-   
-3) Optional: Request mirroring to regions later
-   - Call FederationRegistry.requestMirroring(contract, target_regions[])
-   - Pay federation fees for each target region
-   - Main triggers mirroring via checkpoints
-
-Use case: Main-only contracts, governance, canonical registries
+1) Proposer selects intent by commitment and policy
+2) Proposer requests RevealClaims from sender (or authorized party)
+3) Proposer verifies H(revealed_claims) == slot_commitment
+4) Proposer includes revealed_claims in block (or equivalent verifiable data)
+5) Scheduler runs pre-lock acquisition on revealed_claims
+6) If acquired, execute tx and include receipt linking to commitment
 ```
 
-**Region-local deployment (requires region context):**
+**Block content (consensus-critical):**
+
+**CRITICAL**: On-chain block MUST contain plaintext calldata + revealed_claims (or digest + full claims via IPFS CID if large). **No ciphertext is stored on-chain** for consensus execution. Ciphertext exists only off-chain (mempool/CGS layer).
 
 ```text
-Developer deploys GameContract on Region A:
-
-1) Dev deploys via RegionDeployer on Region A
-   - RegionDeployer.deploy(init_code, salt, options={
-       target_regions: []  // Empty = local only
-     })
-   - Contract deployed at address 0xGame (deterministic via CREATE2)
-   - Fee: Region A gas only
-   
-2) Contract exists ONLY on Region A
-   - balances[Alice] = 100 tokens (on Region A only)
-   - Users in Region A interact normally
-   
-3) Main sees deployment in Region A's checkpoint
-   - Records in registry: {address: 0xGame, home_region: A, target_regions: [A]}
-   - Does NOT deploy to other regions (none declared)
-   
-4) Users in Region B cannot interact with 0xGame
-   - Contract doesn't exist on Region B
-   - Wallet shows: "This contract is only available on Region A"
+Block = {
+  ...,
+  transactions: [
+    // Legacy tx (unchanged)
+    { type: "legacy", from, to, value, data, nonce, ... },
+    
+    // Private intent (revealed at inclusion; NO CIPHERTEXT IN BLOCK)
+    { 
+      type: "cryft_private",
+      slot_commitment: 0x1234...,
+      revealed_claims: [...],       // MUST be present for execution (plaintext)
+      plaintext_calldata: 0x...,    // Decrypted call data for EVM execution
+      proof_of_reveal: signature    // Proves sender authorized reveal
+      // NO ciphertext field - privacy exists in mempool propagation only
+    }
+  ]
+}
 ```
 
-**Federation-mirrored deployment (explicit region opt-in):**
+**All validators execute using revealed plaintext.** Transactions that cannot be decrypted or lack revealed plaintext are invalid and rejected.
 
+**Privacy model**: CGS provides privacy during mempool propagation (before inclusion). Once a validator includes a tx in a block, the plaintext is revealed to all validators for deterministic execution. Block data is public.
+
+**Verification (every validator, with or without CGS):**
 ```text
-Developer wants token available on Regions A, B, C (not D or E):
+1) For each private tx in block:
+   - Verify H(revealed_claims) == slot_commitment
+   - Verify proof_of_reveal signature
+   - Decrypt ciphertext (if validator has key) OR trust revealed_claims
+   - Execute using revealed_claims (deterministic)
+2) All validators reach same state root because revealed_claims are deterministic
+```
 
-1) Dev deploys via RegionDeployer on Region A (their local region)
-   - RegionDeployer.deploy(init_code, salt, options={
-       target_regions: [A, B, C],    // EXPLICIT region list
-       balance_portability: true,
-       home_region: A
-     })
-   - Contract deployed at 0xToken on Region A
+**Privacy guarantees:**
+- **Before inclusion:** slot_commitment hides exact access set from public observers
+- **After inclusion:** revealed_claims are in the block (privacy ends at execution)
+- **Who sees what:**
+  - Public observers: see commitment, revealed claims after inclusion
+  - Region validators: see revealed claims at inclusion time (must verify execution)
+  - Sender/recipient: always know full transaction details
+- **Threat model:** CGS provides privacy from casual observers and timing decorrelation, NOT strong anonymity from determined adversaries
+
+### 9.6 Key management for threshold encryption
+
+**CGS key management was previously hand-wavy. Here is the concrete model:**
+
+**Key committee structure:**
+- Each privacy pool has a **key committee** (could be region validators or a designated subset)
+- Committee size: recommended 7-15 members with t-of-n threshold (e.g., 5-of-7, 11-of-15)
+- Committee members run key generation ceremonies using distributed key generation (DKG)
+
+**Key lifecycle:**
+```text
+Phase 1: Setup
+- Committee runs DKG to generate K_pool (threshold encryption key)
+- Each member holds a key share; t shares needed to decrypt
+- Public key K_pool_pub is published on-chain
+
+Phase 2: Active use (epoch duration: N blocks, e.g., N=10,000)
+- Intents encrypted to K_pool_pub
+- Decryption requires t-of-n committee members to cooperate
+- Committee publishes availability attestation every M blocks
+
+Phase 3: Rotation (every N epochs, e.g., every 100,000 blocks)
+- New committee runs DKG for K_pool_new
+- Rotation transaction published on-chain:
+  - old_key_id, new_key_id, new_key_pub, rotation_height
+- After rotation_height, intents use K_pool_new
+- Old key remains available for H blocks for dispute resolution
+
+Phase 4: Compromise response (emergency)
+- If compromise detected: immediate rotation trigger
+- Governance or committee publishes compromise event:
+  - compromised_key_id, compromise_height, severity
+- Optionally invalidate envelopes in pre-compromise window
+- Affected users re-submit with new key
+```
+
+**Key rotation triggers:**
+- **Scheduled:** Every N epochs (e.g., 100,000 blocks = ~2 weeks at 12s blocks)
+- **Committee change:** When validator set changes significantly
+- **Compromise detection:** Immediate rotation if key leakage suspected
+- **Governance:** Emergency rotation via Main governance
+
+**Key compromise response:**
+```text
+Compromise event = {
+  event_type: "KEY_COMPROMISE",
+  pool_id: 42,
+  compromised_key_id: 0x1234...,
+  compromise_height: 8_240_000,  // best-guess compromise time
+  severity: "HIGH" | "MEDIUM" | "LOW",
+  response: {
+    rotate_immediately: true,
+    invalidate_window: [8_230_000, 8_240_112],  // envelopes in this range invalidated
+    resubmit_required: true
+  },
+  governance_approval: signature
+}
+```
+
+**Explicit privacy goals (what CGS actually provides):**
+1. **Hide recipient from public observers until inclusion** (commitment-based routing)
+2. **Decorrelate timing** (batching, cover traffic)
+3. **Reduce metadata surface** (encrypted payloads, selective disclosure)
+4. **Anti-equivocation** (commitment prevents double-spend before reveal)
+
+**Explicit NON-goals (what CGS does NOT provide):**
+1. ❌ Strong anonymity from nation-state adversaries
+2. ❌ Protection against global network observers (timing correlation still possible)
+3. ❌ Protection against key committee collusion (committee sees plaintext)
+4. ❌ Hiding transaction amounts or asset types after inclusion
+
+**Leakage metrics (measurable):**
+- **Timing correlation:** Measure correlation between IntentEnvelope arrival and block inclusion
+- **Metadata surface:** Count of public fields in IntentEnvelope vs. legacy tx
+- **Committee privacy:** Probability that t-of-n committee members collude
+- **Network-level leakage:** Traffic analysis correlation tests
+
+**Failure modes (explicit):**
+- **Key committee offline:** Intents can't be decrypted -> fallback to legacy (non-private) txs
+- **Key committee censorship:** Route intents to different region or Main
+- **Key compromise:** Emergency rotation, invalidate affected window
+- **DKG failure:** Retry with different committee or fallback to simpler setup
+
+### 9.7 Anti-censorship and liveness
+
+CGS uses multi-route gossip and region fallbacks. If Region A appears censored, intents can be
+routed to Region B or to Primary Network (Main), then forwarded. Privacy pools should avoid single points of control:
+threshold keys are managed by committees with rotation (see Section 9.6). Residual risk remains: any privacy system
+can be degraded by global adversaries controlling network paths; CryftNet treats this as measurable
+and provides monitoring via Cryftee modules.
+
+### 9.7a CGS Decryption & Inclusion Liveness
+
+**Who must be online to reveal plaintext for inclusion?**
+
+CGS uses a **t-of-n threshold encryption** model where ANY t members of the key committee can cooperate to decrypt. Decryption liveness does NOT require all n members.
+
+**Decryption participants (per privacy pool):**
+- **Key committee members**: t-of-n validators/nodes holding key shares
+- **Threshold requirement**: t members must be online and cooperative (e.g., 5-of-7, 7-of-11)
+- **Proposer role**: Does NOT require special committee membership; requests decryption from committee
+
+**Liveness guarantee:**
+```text
+If >= t committee members online and honest:
+  -> Decryption succeeds
+  -> Private intents can be included
+
+If < t committee members online:
+  -> Decryption fails for that privacy pool
+  -> Fallback to legacy (non-private) transactions (see below)
+```
+
+**What happens if the committee is down? How is fallback triggered?**
+
+**Detection (client-side):**
+```text
+Client submits private intent to CGS:
+
+1) Client monitors IntentEnvelope propagation (30 seconds)
+2) Client queries proposer: "Can you decrypt my intent?"
+   - Proposer checks: Can I get t shares from committee?
+   - Response: 
+     - "DECRYPTABLE" (>= t members responsive)
+     - "DEGRADED" (< t members, decryption uncertain)
+     - "UNAVAILABLE" (committee offline, decryption impossible)
+
+3) If response == "UNAVAILABLE" OR intent not included after timeout:
+   - Client triggers LOCAL FALLBACK (automatic in wallet)
+```
+
+**Fallback mechanism (normative):**
+```text
+Wallet behavior when CGS unavailable:
+
+1) Wallet detects committee down:
+   - Query timeout (>30s no decryption confirmation)
+   - OR proposer returns "UNAVAILABLE"
+   - OR IntentEnvelope not gossiped (CGS plane unreachable)
+
+2) Wallet prompts user:
+   "Privacy service unavailable. Submit as standard transaction?"
+   - User selects: "Yes, submit public" OR "Cancel, wait for privacy"
+
+3) If user confirms fallback:
+   - Wallet converts intent to legacy EVM transaction
+   - Same nonce, same calldata (now public)
+   - Submits to standard mempool
+   - Transaction included normally (no CGS dependency)
+
+4) Nonce management:
+   - Intent and fallback tx MUST use same nonce
+   - Whichever is included first invalidates the other
+   - Prevents double-spend (only one can execute)
+```
+
+**Proposer behavior (automatic fallback trigger):**
+```text
+Proposer building block:
+
+1) Proposer selects IntentEnvelopes for inclusion
+2) For each envelope, proposer requests decryption:
+   - Broadcast ShareRequest to committee members
+   - Collect >= t shares (timeout: 5 seconds)
+
+3) Decryption outcomes:
+   
+   CASE A: >= t shares received within timeout
+     -> Decrypt ciphertext
+     -> Verify H(revealed_claims) == slot_commitment
+     -> Include transaction with revealed_claims
+   
+   CASE B: < t shares received (committee degraded)
+     -> Mark envelope as "PENDING_RETRY"
+     -> Skip this intent (do not include in block)
+     -> Client will retry next block or fallback
+   
+   CASE C: Committee completely offline (0 responses)
+     -> Proposer broadcasts "COMMITTEE_DOWN" signal
+     -> Clients automatically fallback to legacy txs
+     -> Block continues with non-private transactions only
+
+4) Block production never halts due to CGS failure
+   - CGS unavailability reduces privacy, not liveness
+```
+
+**Does the proposer need committee cooperation every time, or only for some privacy modes?**
+
+**Privacy mode dependency matrix:**
+
+| Transaction Type | Committee Required? | Notes |
+|:-----------------|:-------------------|:------|
+| **Legacy transaction (public)** | **NO** | Standard EVM tx; no CGS involvement |
+| **Parallel execution (no privacy)** | **NO** | Slot claims public; no encryption |
+| **CGS private intent (encrypted)** | **YES** | Requires t-of-n committee to decrypt |
+| **Selective disclosure (hybrid)** | **PARTIAL** | Some fields encrypted, some public; committee needed only for encrypted fields |
+
+**Implementation detail:**
+```text
+Private intent submission includes privacy_level flag:
+
+privacy_level = "NONE" | "SELECTIVE" | "FULL"
+
+NONE:
+  - No encryption, no committee
+  - Standard parallel execution with public slot claims
+  - Example: Public DeFi transaction using Smart Slots
+
+SELECTIVE:
+  - Encrypt sensitive fields only (e.g., recipient address)
+  - Public fields: sender, slot_commitment, process_id
+  - Committee decrypts only encrypted portions
+  - Reduces committee load vs FULL encryption
+
+FULL:
+  - Entire transaction payload encrypted
+  - Maximum privacy, maximum committee dependency
+  - Highest gas cost (committee incentive fees)
+```
+
+**Committee incentive (required for cooperation):**
+```text
+Private intent fee structure:
+
+base_fee = normal_gas_cost
+committee_fee = per_share_fee * t  // Pay for t decryptions
+
+Total fee = base_fee + committee_fee + priority_tip
+
+Distribution:
+- base_fee -> proposer (normal)
+- committee_fee -> distributed to t committee members who provided shares
+- priority_tip -> proposer (normal)
+
+Economic liveness guarantee:
+- Committee members earn committee_fee for decryption work
+- Higher fees incentivize liveness
+- If committee offline, no fee earned (opportunity cost)
+```
+
+**What is the censorship-resistance story if the committee colludes?**
+
+**Threat: Committee refuses to decrypt specific intents (censorship).**
+
+**Mitigation layers:**
+
+**Layer 1: Multi-pool routing (immediate fallback)**
+```text
+Multiple privacy pools exist per region:
+
+pools = [
+  {pool_id: 1, committee: [V1, V2, V3, V4, V5], region: A},
+  {pool_id: 2, committee: [V6, V7, V8, V9, V10], region: A},
+  {pool_id: 3, committee: [V11, V12, V13, V14, V15], region: B}
+]
+
+If pool 1 committee censors intent:
+  -> Client detects (no decryption after 2 blocks)
+  -> Client re-encrypts intent to pool 2 key
+  -> Submits to pool 2
+  -> Pool 2 committee decrypts and includes
+
+If both pool 1 AND pool 2 censor:
+  -> Client routes to pool 3 (different region)
+  -> Or routes to Primary Network (Main EVM Chain)
+```
+
+**Layer 2: Censorship evidence and slashing**
+```text
+Client proves censorship:
+
+Evidence = {
+  intent_envelope: {
+    slot_commitment: 0x1234...,
+    ciphertext: 0x...,
+    fee: 1000 CRYFT,  // High fee paid
+    timestamp: T
+  },
+  
+  committee_responses: [
+    // All members responsive, but refused to decrypt
+    {member: V1, response: "ACTIVE", but share_provided: false},
+    {member: V2, response: "ACTIVE", but share_provided: false},
+    ...
+  ],
+  
+  proof_of_validity: {
+    // Client proves intent was valid (correct format, sufficient fee)
+    signature: client_sig,
+    revealed_plaintext: 0x...,  // Client reveals plaintext as proof
+    verified: H(revealed_plaintext) == slot_commitment
+  }
+}
+
+If verified by governance or Primary Network validators:
+  -> Committee members slashed (2% stake each)
+  -> Censored transaction included retroactively
+  -> User compensated from slashed funds
+```
+
+**Layer 3: Emergency plaintext submission (ultimate escape hatch)**
+```text
+If ALL privacy pools refuse to decrypt:
+
+Client can submit "EMERGENCY_PLAINTEXT" transaction:
+
+tx = {
+  type: "EMERGENCY_PLAINTEXT",
+  intent_envelope_hash: 0x1234...,  // Reference to censored intent
+  revealed_plaintext: 0x...,        // Full plaintext calldata
+  revealed_claims: [...],           // Full slot claims
+  proof_of_censorship: {
+    attempts: [
+      {pool: 1, timestamp: T1, result: "REFUSED"},
+      {pool: 2, timestamp: T2, result: "REFUSED"},
+      {pool: 3, timestamp: T3, result: "REFUSED"}
+    ],
+    committee_evidence: signatures  // Proof committee was online but refused
+  }
+}
+
+Validation:
+  -> If proof_of_censorship valid, transaction included as public
+  -> User pays normal gas (no privacy)
+  -> Committees may be slashed for proven censorship
+  -> Transaction executes normally (no privacy, but censorship-resistant)
+```
+
+**Layer 4: Committee accountability via reputation**
+```text
+On-chain reputation tracking:
+
+committee_metrics = {
+  decryption_success_rate: 99.5%,   // How often committee decrypts
+  censorship_reports: 0,            // Proven censorship events
+  average_response_time: 2.3s,      // Decryption latency
+  uptime: 99.9%                     // Availability
+}
+
+Consequences of bad reputation:
+  -> Fewer intents routed to that pool (users avoid)
+  -> Lower committee_fee earnings
+  -> Governance can force committee rotation
+  -> Persistent censorship -> ejection from validator set
+```
+
+**Summary: Censorship resistance guarantees**
+
+| Scenario | Resistance Mechanism | Outcome |
+|:---------|:--------------------|:--------|
+| Single committee member offline | t-of-n threshold (requires only t members) | Intent decrypted normally |
+| < t members online (not censorship) | Client fallback to legacy tx | Transaction included as public |
+| Committee censors specific intent | Multi-pool routing + evidence submission | Intent re-routed or committee slashed |
+| All committees collude to censor | Emergency plaintext submission | Transaction included as public; committees slashed |
+| Network-wide censorship (all validators) | Same as any blockchain censorship | No special protection; standard blockchain censorship resistance applies |
+
+**Key principle: CGS provides privacy when available, degrades gracefully to public transactions when unavailable, and never creates a liveness dependency for the chain.**
+
+### 9.8 Failure modes and residual risk
+
+- Metadata leakage through timing and traffic analysis (mitigate with batching and cover traffic).
+- Threshold key compromise (mitigate with rotations, HSM/TEE options, and slashing).
+- Denial of service via junk intents (mitigate with fees, rate limits, and capability gating).
+- Complexity risk: CGS must not be consensus-critical without extensive validation.
+- Committee collusion: t-of-n members collude to decrypt all intents (mitigate with audits, rotation, slashing).
+- Network-level attacks: Global observer correlates IntentEnvelope with inclusion (mitigate with cover traffic, batching, decoy intents).
+
+### 9.9 CGS mainnet gating criteria
+
+**CGS remains "non-consensus-critical experimental" until ALL of the following are complete:**
+
+| Deliverable | Purpose | Status |
+|:------------|:--------|:-------|
+| **Formal threat model** | Document adversary capabilities, attack vectors, privacy guarantees, and explicit non-guarantees | ❌ TODO |
+| **Key ceremony specification** | Normative spec for DKG, rotation, compromise response, committee selection | ❌ TODO |
+| **Privacy leakage metrics** | Quantitative tests: timing correlation, metadata surface, traffic analysis resistance | ❌ TODO |
+| **Red-team style tests** | External adversarial testing: traffic analysis + denial of service attacks | ❌ TODO |
+| **Crypto + protocol audit** | External security review of threshold encryption, commitment scheme, and CGS protocol logic | ❌ TODO |
+| **Testnet soak test (>=3 months)** | Real validator incentives, adversarial testing, key rotation under load | ❌ TODO |
+
+**Mainnet deployment strategy:**
+
+**Phase 0 (Current):** CGS design and specification
+- Status: Proposal only
+- Risk: High (unvalidated)
+- Action: Complete formal threat model and key ceremony spec
+
+**Phase 1 (Devnet):** Basic functionality testing
+- Threshold encryption with toy parameters
+- Key rotation under controlled conditions
+- No real economic value at risk
+
+**Phase 2 (Testnet):** Incentivized testing with adversarial scenarios
+- Real validator incentives (testnet tokens)
+- Red-team attacks: traffic analysis, timing correlation, DoS
+- Key compromise drills (deliberate compromise + recovery)
+- Leakage metric collection and analysis
+
+**Phase 3 (Audit + Hardening):** External review and fixes
+- Independent security audit of crypto + protocol
+- Resolve all critical/high findings
+- Publish audit report and threat model
+
+**Phase 4 (Mainnet - EXPERIMENTAL):** Limited deployment
+- CGS available on Main but marked EXPERIMENTAL
+- Clear warnings: "Privacy is best-effort, not guaranteed"
+- Monitoring and telemetry required for all CGS participants
+- Governance escape hatch: can disable CGS if issues detected
+
+**Phase 5 (Mainnet - PRODUCTION):** Only after all gating criteria met
+- Formal threat model published
+- Audit complete with no unresolved high/critical issues
+- >=3 month testnet soak test with adversarial scenarios
+- Leakage metrics below acceptable thresholds
+- Key rotation proven under load
+
+**Fallback plan:**
+- If CGS validation extends beyond launch window, ship mainnet WITHOUT CGS
+- All transactions use legacy (non-private) path
+- CGS can be added post-launch via governance upgrade once validated
+
+**Monitoring requirements (Phase 4+):**
+- **Key committee health:** Availability, rotation success rate, response time
+- **Privacy metrics:** Timing correlation scores, metadata leakage detection
+- **Censorship detection:** Intent routing success rate per region
+- **Attack detection:** Anomalous traffic patterns, DoS attempts
+- **Performance impact:** CGS overhead vs. legacy tx throughput
 
 
 ---
+
+## 10. Cross-chain communication and settlement
+
+This section is split into multiple files for easier navigation:
+
+- [10.1 Checkpoint format](10-01-checkpoints.md)
+- [10.2 Message passing guarantees](10-02-messaging-replay.md#102-message-passing-guarantees)
+- [10.3 Replay protection and ordering](10-02-messaging-replay.md#103-replay-protection-and-ordering)
+- [10.4 Interaction with CGS](10-02-messaging-replay.md#104-interaction-with-cgs)
+- [10.5 ZK-based cross-chain verification](10-03-zk-verification.md)
+- [10.6 Partitioned balance model](10-04-balance-partitioning.md)
+- [10.7 User mobility and cross-region transfers](10-05-user-mobility.md)
+- [10.8 Balance portability modes](10-04-balance-partitioning.md#108-balance-portability-modes)
+- [10.9 Region-first deployment with federation mirroring](10-07-region-first-deploy.md)
+- [10.10 Developer experience summary](10-09-dev-experience.md)
+
 
    
    Fee breakdown:
@@ -3298,7 +3761,7 @@ the actual deployer (RegionDeployer) is the same, each developer
 gets their own address namespace.
 ```
 
-### 10.9 Balance portability modes
+### 10.8 Balance portability modes
 
 When a contract opts into federation mirroring, it can choose how balances work:
 
@@ -3420,7 +3883,7 @@ contract ReplicatedToken {
 }
 ```
 
-### 10.10 Initial supply and home region
+**Initial supply and home region**
 
 **The home region problem:**
 
@@ -3530,7 +3993,7 @@ Federation Contract Registry entry:
 }
 ```
 
-### 10.11 Developer experience summary
+### 10.10 Developer experience summary
 
 **Simplest path (region-local):**
 
@@ -3730,61 +4193,90 @@ contract FederatedToken {
         REGION_ID = _regionId;
 
 
-        registry = IFederationRegistry(_registry);
-        // NO initial balances set here
-    }
-    
-    // Only callable by authorized minter, only on designated home region
-    function mint(address to, uint256 amount) external {
-        require(msg.sender == registry.authorizedMinter(address(this)));
-        require(REGION_ID == registry.homeRegion(address(this)), 
-                "Mint only allowed on home region");
-        
-        balances[to] += amount;
-        // Emit event for Mirror GBL to record
-        emit Mint(to, amount, REGION_ID);
-    }
-    
-    // Credits from cross-region transfers (called after checkpoint verification)
-    function creditFromTransfer(
-        bytes32 transferId, 
-        address to, 
-        uint256 amount,
-        bytes calldata proof
-    ) external {
-        require(!claimed[transferId], "Already claimed");
-        require(verifyCheckpointProof(proof), "Invalid proof");
-        
-        balances[to] += amount;
-        claimed[transferId] = true;
-        emit CreditFromTransfer(transferId, to, amount);
-    }
+### 10.9 Region-first deployment with federation mirroring
+
+Developers may opt to deploy to a region first, later mirror to Primary Network. The federation
+mirror ensures all contracts eventually appear in the Code Vault on Main, but region-first workflows
+allow staging, local optimizations, or gradual rollouts. When a contract is later mirrored to Main,
+the Canonical CMR from the region is imported into Main's vault, preserving region-specific bytecode
+and linking region-based execution outputs back to Main. Any disputes about region execution can be
+anchored in Main using fraud proofs referencing the CMR in the Code Vault.
+
+#### 10.9.1 Region ID requirement table
+
+| Deployment Mode | Primary Network State | Region chain state | RegionID in CMR | Mirror flow | Mirror trigger |
+|:----------------|:---------------------|:-------------------|:---------------|:------------|:--------------|
+| **Main-direct** | CMR in Main EVM | n/a (no region) | n/a | n/a | n/a |
+| **Region-local** | no CMR initially | CMR in Region EVM | region_id | manual or auto | dev or policy |
+| **Federation-mirrored** | CMR in Main EVM | CMR also in Region EVM | region_id in region's CMR | auto federation | checkpoint + governance |
+
+**Main-direct deployment:**
+```solidity
+// Developer deploys to Main EVM Chain (Primary Network)
+// CMR is created automatically in Main EVM Chain
+CMR {
+  contract_hash: keccak256(bytecode),
+  deployment_height: MainBlock,
+  region_id: null,              // Primary Network deployment
+  vault_cid: ipfs://Qm...,
+  delegation_mode: NATIVE_EVM   // Standard EVM execution on Main
 }
 ```
 
-**Home region concept:**
-
-Each federated token has a designated **home region** where initial minting occurs:
-
-```text
-Token Registry entry:
-{
-  address: 0xUSDC,
-  code_hash: ...,
-  home_region: Main,          // Only Main can mint new supply
-  total_supply: 1_000_000_000,
-  authorized_minter: 0xCircle,
-  deployed_regions: [Main, A, B, C]
+**Region-local deployment:**
+```solidity
+// Developer deploys to Region A EVM Chain
+// Region A creates its own CMR
+CMR_Region {
+  contract_hash: keccak256(bytecode),
+  deployment_height: RegionBlock,
+  region_id: "region_a_42",     // Explicit region ID
+  vault_cid: ipfs://Qm...,
+  delegation_mode: REGION_EVM   // Executes locally in region
 }
 
-Rules:
-- mint() only succeeds on home_region
-- Existing supply moves between regions via transferToRegion()
-- Mirror Chain GBL tracks: sum(balances across all regions) = total_supply
-- Any discrepancy = bug or attack -> bridge pause
+// Later, Region A checkpoint includes CMR reference
+Checkpoint_A {
+  height: RegionBlock,
+  contracts_deployed: [CMR_Region.contract_hash],
+  ...
+}
+
+// Federation mirrors CMR to Main (triggered by checkpoint or governance)
+CMR_Main {
+  contract_hash: keccak256(bytecode),  // Same hash
+  deployment_height: MainBlockMirrored,
+  region_id: "region_a_42",            // References region
+  vault_cid: ipfs://Qm...,             // Same IPFS CID
+  delegation_mode: REGION_DELEGATED,   // Execution in region, but CMR visible on Main
+  origin_checkpoint: Checkpoint_A_hash
+}
 ```
 
-**What about attacker deploying their own token?**
+**Federation-mirrored deployment:**
+```solidity
+// Automatic mirroring: Region submits checkpoint with contract registry update
+// Main validator quorum verifies checkpoint and auto-mirrors new CMRs
+
+Mirroring_Transaction {
+  type: "MIRROR_CONTRACT",
+  source_region: "region_a_42",
+  checkpoint_ref: 0x1234...,
+  contract_hash: 0xabcd...,
+  vault_cid: "ipfs://Qm...",
+  proof: aggregated_sig  // Proves region quorum approved
+}
+
+// Main EVM Chain processes mirroring transaction:
+if verify_checkpoint_proof(proof) and verify_quorum(proof):
+  CMR_Main = create_mirror(
+    contract_hash=0xabcd...,
+    region_id="region_a_42",
+    vault_cid="ipfs://Qm...",
+    delegation_mode=REGION_DELEGATED
+  )
+  emit ContractMirrored(CMR_Main.contract_hash, "region_a_42")
+```
 
 
 
@@ -4015,9 +4507,74 @@ CryftNet mainnet v1 launches with a **fixed monetary policy** (see Appendix 16.8
 - **No emission**: 0 CRYFT/block (no inflation)
 - **Fee distribution**: 50% burned, 30% to validator rewards, 20% to treasury
 - **Minimum stake**: 1,000 CRYFT for Primary Network validators
-- **Slashing rate**: 5% of stake per provable misbehavior
+- **Slashing rate**: 5% of stake per provable misbehavior (see Section 11.3.2 for v1 evidence specification)
 
 This v1 policy provides economic predictability for mainnet launch.
+
+#### 11.3.1 v1 Slashing Evidence Specification (Snowman Consensus)
+
+**Provable Misbehavior Set for v1 (Snowman/Avalanche Consensus):**
+
+Unlike BFT consensus protocols with explicit double-vote detection, Snowman consensus does not produce a simple "conflicting block signature" evidence surface. v1 slashing is limited to behaviors with **cryptographically verifiable on-chain evidence**.
+
+**Slashable in v1:**
+
+1. **Checkpoint Equivocation (5% stake)**
+   - **Evidence**: Two checkpoint signatures from same validator for same height with conflicting state roots.
+   - **Messages**: `CheckpointSignature{height, state_root, merkle_root, validator_pubkey, signature}`
+   - **Verification on Federal Chain**:
+     ```
+     1. Verify both signatures are valid for validator_pubkey
+     2. Verify height is identical
+     3. Verify state_root or merkle_root differ
+     4. Verify validator was in active set at that height
+     ```
+   - **Rationale**: Checkpoints anchor region/subnet state to Federal Chain; conflicting checkpoints enable double-spend attacks on cross-chain transfers.
+
+2. **Invalid Bundle Proposal (3% stake)**
+   - **Evidence**: Bundle proposal with provably invalid state transition (e.g., violated cross-chain invariant, invalid EVM execution).
+   - **Messages**: `BundleProposal{height, federal_block, mirror_block, evm_block, proposer_sig}` + `InvalidStateProof{violated_invariant, merkle_proof}`
+   - **Verification on Federal Chain**:
+     ```
+     1. Verify proposer signature on bundle
+     2. Re-execute state transition deterministically
+     3. Verify invariant violation (e.g., Mirror debit != EVM credit)
+     4. Verify proposer was scheduled for that bundle height
+     ```
+   - **Rationale**: Primary Network atomic bundles require all three VMs to execute validly; proposers who submit invalid bundles are penalized.
+
+3. **Cryftee Attestation Fraud (10% stake)**
+   - **Evidence**: Node submits attestation claiming valid Cryftee modules, but peer verification or governance audit proves attestation is forged or modules are malicious.
+   - **Messages**: `AttestationClaim{node_id, module_hashes[], signature}` + `FraudProof{challenge_response, verification_failure}`
+   - **Verification on Federal Chain**:
+     ```
+     1. Verify attestation signature matches validator's registered key
+     2. Governance committee or quorum of validators submit counter-proof
+     3. Counter-proof shows module hashes do not match canonical registry OR attestation signature is invalid
+     ```
+   - **Rationale**: Cryftee attestation is a security-critical requirement for validators; forging attestation undermines the entire execution integrity model.
+
+**NOT Slashable in v1 (lack of objective proof substrate):**
+
+1. **Snowman Vote Equivocation**: Snowman uses preference signaling, not finalization votes. Validators may legitimately change preferences during the consensus process. No objective "double-vote" surface exists.
+
+2. **Block Withholding**: Validators in Snowman do not have explicit block proposal duties based on deterministic assignment. Withholding cannot be proven without timing assumptions that are not consensus-safe.
+
+3. **Invalid Snowman Block Propagation**: Invalid blocks are rejected by peers during normal consensus operation; propagating an invalid block is not distinguishable from network errors or software bugs. No objective evidence format exists.
+
+4. **Liveness Failures**: Offline validators or delayed block production cannot be slashed because network conditions, hardware failures, and software bugs are indistinguishable from intentional behavior.
+
+**Evidence Submission Flow:**
+
+1. **Observation**: Any network participant observes slashable misbehavior.
+2. **Evidence Construction**: Participant constructs evidence package with required cryptographic proofs.
+3. **On-Chain Submission**: Evidence submitted to Federal Chain via `submitSlashingEvidence(evidence_bytes)` transaction.
+4. **Automated Verification**: Federal Chain VM verifies evidence deterministically using rules above.
+5. **Slashing Execution**: If valid, Federal Chain immediately:
+   - Reduces validator's bonded stake by slashing percentage
+   - Marks validator as "slashed" (may affect future participation)
+   - Burns slashed amount or distributes to treasury per governance policy
+6. **Appeal Process**: Validator may appeal via governance proposal within 30 days; requires supermajority vote to reverse.
 
 **Future Flexibility (Post-Mainnet via Governance):**
 After mainnet stabilizes, governance may propose adjustments including:
@@ -4028,7 +4585,7 @@ After mainnet stabilizes, governance may propose adjustments including:
 
 Any changes require supermajority governance approval on Federal Chain.
 
-#### 11.3.1 Parameter table (example defaults)
+#### 11.3.2 Parameter table (example defaults)
 
 | Parameter | Symbol | Example | Notes |
 |:----------|:-------|:--------|:------|
@@ -4643,9 +5200,9 @@ The partitioned balance model introduces specific threat vectors that must be ad
 
 - **Replay attack on claims:** Attacker replays a valid claim proof to credit balance multiple times on destination region. Mitigation: each transfer_id is marked as consumed after first claim; claimed[transfer_id] = true prevents replay.
 
-- **Forged checkpoint proof:** Attacker forges a Merkle proof of a debit that never happened. Mitigation: proofs are verified against Main-finalized checkpoint roots; ZK validity proofs make forgery computationally infeasible; validators who sign invalid checkpoints are slashed.
+- **Forged checkpoint proof:** Attacker forges a Merkle proof of a debit that never happened. Mitigation: proofs are verified against Federal Chain-finalized checkpoint roots; ZK validity proofs make forgery computationally infeasible; validators who sign invalid checkpoints are slashed (see Section 11.3.2 for checkpoint equivocation evidence specification).
 
-- **Region validator collusion:** Majority of region validators conspire to create fake debit events. Mitigation: Main requires quorum signatures on checkpoints; ZK proofs provide trustless verification; users can always withdraw to Main as escape hatch.
+- **Region validator collusion:** Majority of region validators conspire to create fake debit events. Mitigation: Federal Chain requires quorum signatures on checkpoints; ZK proofs provide trustless verification; users can always withdraw to Federal Chain as escape hatch; checkpoint equivocation is slashable with cryptographic evidence.
 
 - **Checkpoint reorg attack:** Region finalizes a checkpoint, then reorgs to remove the debit while destination already credited. Mitigation: Main does not accept checkpoints until region finality is confirmed; ZK proofs bind to specific state transitions.
 
@@ -5077,7 +5634,9 @@ This is not "giving up." This is **risk management**. You can iterate on CRVS, C
 - **Mirror Chain (Mirror):** The high-throughput native asset transfer chain within the Primary Network. Optimized for CRYFT transfers and native asset issuance using a UTXO model. Default chain for base asset movements.
 - **EVM Chain (EVM Execution):** The account-based smart contract execution chain within the Primary Network. Compatible with Solidity/Vyper tooling--the dApp chain. When we say "EVM chain," we mean the EVM Chain specifically, not the entire Cryft network. Interactions with EVM Chain do not require region ID specification.
 - **Region ID:** Unique identifier for a State/Region chain within the federation. Required for State/Region chain transactions and cross-region operations. NOT required for Primary Network EVM Chain interactions.
-- **Global Balance Ledger (GBL):** The authoritative partitioned ledger for EVM token balances across all regions, managed by Mirror Chain using an extended UTXO model. Each UTXO includes metadata: {asset_id, region_id, account, amount}. Mirror Chain serves as the single source of truth; EVM Chain and subnets access GBL via atomic cross-chain messaging or precompiles. Native CRYFT balances also use Mirror Chain (standard UTXO).
+- **Global Balance Ledger (GBL):** The authoritative partitioned ledger for EVM token balances across all regions, managed by Mirror Chain using an extended UTXO model. Each UTXO includes metadata: {asset_id, region_id, account, amount}. Mirror Chain serves as the single source of truth; EVM Chain and subnets access GBL via atomic cross-chain messaging or precompiles. Native CRYFT balances also use Mirror Chain (standard UTXO). **GBL supports two portability modes:** Mode A (GBL-Authoritative) where GBL stores per-account balances and ERC-20 contracts are facades; Mode B (State-Authoritative) where States maintain per-account balances and GBL tracks only State allocations/totals.
+- **GBL-Authoritative (Portability Mode A):** Federation token portability mode where Mirror Chain GBL stores per-account balances as (asset_id, region_id, account, amount) UTXOs. ERC-20 contracts MUST route all balance operations through GBL precompiles; local balances mappings are read-only caches. Provides per-transaction atomicity and instant global truth. Recommended for stablecoins, CRYFT-wrapped assets, and federation-verified tokens. Trade-off: precompile overhead per transfer (5000 gas) and EVM composability friction.
+- **State-Authoritative with GBL-Allocation (Portability Mode B):** Alternative portability mode where State/Region EVM contracts maintain authoritative per-account balances (standard ERC-20 mappings). Mirror Chain GBL stores only State allocations as (asset_id, region_id, allocated_total). Safety enforced at checkpoint boundaries via quorum signatures or ZK proofs verifying sum(balances) <= allocation. Provides standard ERC-20 composability and lower per-transfer cost. Recommended for gaming tokens, loyalty points, and high-frequency assets. Trade-off: checkpoint-security model, delayed global truth, requires stronger proofs.
 - **Contract Mirror Registry (CMR):** The authoritative data structure on EVM Chain tracking federation contract deployments--target_regions[], deployed_regions[], mirror_status per region; updated via region checkpoints.
 - **State Balance Ledger (SBL):** A State-level ledger tracking City balances within that State; mirrors Mirror Chain's GBL structure at State level; not visible to the Primary Network.
 - **Region chain / State chain:** A low-latency chain serving a latency domain and anchoring to the Primary Network (via Federal Chain checkpoints). Requires region ID for transaction submission.
@@ -5232,6 +5791,8 @@ This section transforms open questions into actionable decision items with clear
 ---
 
 ### 16.3 CRVS Normative Specification v1 (Draft)
+
+**⚠️ IMPORTANT: This appendix specifies CRVS consensus for FUTURE use (testnet-1 and beyond). For v1 mainnet Snowman baseline, see Section 11.3.2 for slashing evidence specification.**
 
 This appendix provides a **draft specification** for CRVS consensus, based on AvalancheGo with rotor optimizations. This is a design document, not yet a production-ready consensus specification. A full normative spec with state machine formalization, test vectors, and slashing evidence verification will be published separately as "CRVS-SPEC.md" before testnet-1.
 

@@ -20,7 +20,7 @@ Federation Contract Registry entry:
 }
 ```
 
-### 10.11 Developer experience summary
+### 10.10 Developer experience summary
 
 **Simplest path (region-local):**
 

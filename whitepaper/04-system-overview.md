@@ -92,10 +92,10 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
    | Failure Scenario | Behavior | Recovery |
    |:-----------------|:---------|:---------|
-   | One VM crashes during execution | Entire bundle rejected; proposer slashed; next proposer selected | Next proposer creates recovery bundle with valid state |
+   | One VM crashes during execution | Entire bundle rejected; proposer slashed for invalid bundle (see Section 11.3.2); next proposer selected | Next proposer creates recovery bundle with valid state |
    | One VM times out (>5s execution) | Bundle considered invalid; proposer may not be slashed (timeout may be environmental); next proposer selected | Governance may adjust block gas limits or VM parameters |
-   | One VM produces invalid state transition | Bundle rejected during validation phase; proposer slashed for invalid bundle | Next proposer creates valid bundle |
-   | All three VMs execute successfully but cross-chain invariant violated | Bundle rejected; proposer slashed for invariant violation | Next proposer creates bundle respecting invariants |
+   | One VM produces invalid state transition | Bundle rejected during validation phase; proposer slashed for invalid bundle (see Section 11.3.2) | Next proposer creates valid bundle |
+   | All three VMs execute successfully but cross-chain invariant violated | Bundle rejected; proposer slashed for invariant violation (see Section 11.3.2) | Next proposer creates bundle respecting invariants |
    | Validator set cannot reach quorum on bundle validity | Bundle remains unfinalized; timeout triggers re-proposal | After 3 failed attempts, governance intervention or automatic fallback to empty bundle |
 
    **Critical property:** If ANY VM fails (crash, timeout, invalid transition), the ENTIRE network waits for the next bundle proposal. There is no "partial advancement" where two chains move forward and one stays behind. This ensures atomic commit but means **liveness depends on the health of all three VMs**. If the EVM implementation has a bug that crashes on a specific opcode, Federal and Mirror chains cannot finalize new blocks until the bug is fixed.
@@ -160,7 +160,7 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 #### 4.1.1 Block cadence & asynchronicity
 
-Each chain in the Primary Network (Federal, Mirror, EVM) and each region/state chain runs as an **independent Snowman instance** with its own block production loop, finality cadence, and target block interval.
+Each chain in the Primary Network (Federal, Mirror, EVM) and each region/state chain runs as an **independent Snowman instance** with its own block production loop, finality cadence, and target block interval. **Each chain uses unmodified Snowman consensus; atomic bundle blocks are a coordination layer that synchronizes finality across chains, not a modification to the consensus mechanism itself.**
 
 - **Asynchronous production** -- Chains are **not** required to produce blocks at the same real-time cadence. Federal Chain might target 2-second blocks, Mirror 1-second, EVM 1.5-second, and individual regions 0.3–1 second -- all running in parallel.
 - **Atomic finality only** -- Synchronization occurs only at the **bundle level** for the Primary Network: proposers collect state from all three chains, execute in order, and propose a single bundle vote using the shared Snowman consensus. Finality advances atomically across Federal, Mirror, and EVM only when a bundle is accepted.
@@ -250,7 +250,48 @@ This design preserves the performance isolation and regional low-latency goals w
 
 **Global Balance Ledger (GBL) architecture:**
 
-The GBL tracks **EVM token balances** (ERC-20, ERC-721, etc.) across regions using **Mirror Chain's extended UTXO model**. Native CRYFT also uses standard UTXO on Mirror Chain. The GBL is **managed entirely by Mirror Chain** as a partitioned ledger; EVM Chain and subnets access it via atomic cross-chain messaging:
+The GBL tracks **EVM token balances** (ERC-20, ERC-721, etc.) across regions using **Mirror Chain's extended UTXO model**. Native CRYFT also uses standard UTXO on Mirror Chain. The GBL is **managed entirely by Mirror Chain** as a partitioned ledger; EVM Chain and subnets access it via atomic cross-chain messaging.
+
+**CryftNet supports two distinct portability modes for federation tokens:**
+
+#### 4.1.2 Federation Token Portability Modes
+
+**Mode A: GBL-Authoritative (Recommended for Federation-Backed Assets)**
+
+Mirror Chain GBL stores per-account balances as `(asset_id, region_id, account, amount)` UTXOs. The EVM-side token contract is an ERC-20 façade that routes all balance-changing operations through the GBL precompile. Any local `balances` mapping is a read-only cache for UX/indexing convenience only.
+
+**Use cases:**
+- Stablecoins (USDC, USDT)
+- CRYFT-wrapped assets
+- Federation-verified tokens requiring instant global truth
+- Assets where cross-region settlement must be atomic per-transaction
+
+**Trade-offs:**
+- ✅ **Per-transaction atomicity:** Cross-region transfers settle immediately with Mirror GBL state update
+- ✅ **Instant global truth:** Any node can query canonical balance from Mirror GBL
+- ✅ **Maximum safety:** Conservation invariant enforced per bundle block
+- ⚠️ **Precompile overhead:** Every transfer incurs GBL precompile gas cost (5000 gas)
+- ⚠️ **EVM composability friction:** Contracts must use precompile instead of native Solidity mappings
+
+**Mode B: State-Authoritative with GBL-Allocated Totals (Opt-in for Lower-Cost Assets)**
+
+The State/Region EVM contract maintains authoritative per-account balances (standard ERC-20 `balances` mapping). Mirror Chain GBL stores only **State allocations** as `(asset_id, region_id, allocated_total)`. Each State's sum of account balances must not exceed its GBL allocation. Safety is enforced at checkpoint boundaries, not per-transaction.
+
+**Use cases:**
+- Gaming tokens
+- Loyalty points
+- Regional/local assets with lower security requirements
+- High-frequency trading assets where per-tx precompile cost is prohibitive
+
+**Trade-offs:**
+- ✅ **Standard ERC-20 composability:** Contracts behave like normal Solidity tokens
+- ✅ **Lower per-transfer cost:** No precompile overhead; transfers are local EVM operations
+- ✅ **Higher throughput:** Amortizes cross-region validation to checkpoint intervals
+- ⚠️ **Checkpoint-security model:** Safety depends on checkpoint verification, not per-tx atomicity
+- ⚠️ **Delayed global truth:** "What's my total balance across regions?" requires indexing multiple chains
+- ⚠️ **Requires stronger proofs:** Must verify State totals at checkpoint time (quorum sigs or ZK proofs)
+
+**Mode selection is declared at asset registration time and is immutable.** Wallets and explorers MUST check an asset's portability mode to correctly display balances and security guarantees.
 
 ```text
 GlobalBalanceLedger (Mirror Chain extended UTXO) {
@@ -290,6 +331,248 @@ GlobalBalanceLedger (Mirror Chain extended UTXO) {
 }
 ```
 
+#### 4.1.3 Mode A: GBL-Authoritative Federation Token Standard (Normative Specification)
+
+**A.1 Source of Truth**
+
+For Mode A (GBL-Authoritative) tokens, the authoritative balance for any account on a region is `GBL.queryBalance(asset_id, region_id, account)`. The ERC-20 contract **MUST NOT** make transfer decisions based on any local `balances[account]` mapping. Any local mapping is a UI cache only and MUST be ignored for transfer validation.
+
+**A.2 ERC-20 Function Semantics (Normative)**
+
+```solidity
+// Mode A compliant ERC-20 contract MUST implement:
+
+function balanceOf(address account) external view returns (uint256) {
+    // MUST query GBL precompile, MUST NOT use local storage
+    return GBL.queryBalance(ASSET_ID, REGION_ID, account);
+}
+
+function totalSupply() external view returns (uint256) {
+    // MUST query GBL for asset-wide total
+    return GBL.totalSupply(ASSET_ID);
+}
+
+function transfer(address to, uint256 amount) external returns (bool) {
+    // MUST call GBL precompile; MUST revert if precompile reverts
+    require(GBL.transfer(ASSET_ID, REGION_ID, msg.sender, to, amount), "GBL transfer failed");
+    emit Transfer(msg.sender, to, amount);
+    return true;
+}
+
+function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    // MUST enforce local allowance first (standard ERC-20)
+    uint256 currentAllowance = allowances[from][msg.sender];
+    require(currentAllowance >= amount, "Insufficient allowance");
+    
+    // MUST call GBL precompile; MUST revert if precompile reverts
+    require(GBL.transfer(ASSET_ID, REGION_ID, from, to, amount), "GBL transfer failed");
+    
+    // MUST decrement allowance only if GBL call succeeds
+    // (automatic due to revert-on-failure above)
+    allowances[from][msg.sender] = currentAllowance - amount;
+    
+    emit Transfer(from, to, amount);
+    return true;
+}
+```
+
+**A.3 Approval Handling (Region-Local)**
+
+- `approve()` and `allowance()` are **region-local** and **contract-local** (standard ERC-20 mapping)
+- Approvals **do NOT move with the user across regions automatically**
+- `permit()` (EIP-2612) is allowed but also region-local; domain separator MUST include `chainId` or region context
+
+**A.4 Event Emission Rules (Normative)**
+
+**Invariant FT-GBL-01 (Authoritative State):**
+For any successful transaction that results in an ERC-20 `Transfer(from, to, amount)` event on region R, the post-state MUST satisfy:
+
+```
+GBL.balance(asset, R, from)_after = GBL.balance(asset, R, from)_before − amount
+GBL.balance(asset, R, to)_after = GBL.balance(asset, R, to)_before + amount
+```
+
+This GBL transition MUST be the one executed by the precompile call inside the transaction.
+
+**Invariant FT-GBL-02 (No Phantom Logs):**
+If `GBL.transfer(...)` reverts, the transaction MUST revert and no `Transfer` event is observable.
+
+**A.5 Cross-Region Transfer Events**
+
+For cross-region moves via `transferToRegion()`, **do NOT** emit only a `Transfer` event (confuses indexers). Instead:
+
+```solidity
+event TransferToRegionInitiated(
+    bytes32 indexed transferId,
+    address indexed from,
+    address indexed to,
+    uint256 amount,
+    uint64 fromRegion,
+    uint64 toRegion
+);
+
+event TransferToRegionClaimed(
+    bytes32 indexed transferId,
+    address indexed from,
+    address indexed to,
+    uint256 amount,
+    uint64 fromRegion,
+    uint64 toRegion
+);
+```
+
+**Optional ERC-20 Continuity Pattern (for naive explorers):**
+Define a canonical "in-transit" address (e.g., precompile address 0x0100) and emit:
+- On source region: `Transfer(from, IN_TRANSIT_ADDRESS, amount)`
+- On destination claim: `Transfer(IN_TRANSIT_ADDRESS, to, amount)`
+
+This prevents explorers from thinking supply changed while maintaining event-based accounting.
+
+**A.6 Off-Chain Indexing Guidance**
+
+- Indexers CAN track balances from `Transfer` logs per region (standard ERC-20 indexing)
+- For canonical correctness or log recovery, indexers SHOULD reconcile by querying `GBL.queryBalance(...)`
+- For "global portfolio view," wallets/indexers MUST:
+  1. Call `GBL.getAccountRegions(asset_id, account)` to find regions with balances
+  2. Sum `GBL.queryBalance(asset_id, region, account)` across all regions
+
+#### 4.1.4 Mode B: State-Authoritative with GBL-Allocated Totals (Normative Specification)
+
+**B.1 Conceptual Model**
+
+The State/Region EVM contract is **authoritative** for per-account balances (classic ERC-20 `balances` mapping). Mirror Chain GBL stores only **State allocations**:
+
+```
+GBL_alloc(asset_id, region_id) = total tokens allocated to that region
+```
+
+**Key invariant:**
+```
+sum(balances[account] for all accounts on region) <= GBL_alloc(asset, region)
+```
+
+Equality holds except for burned/escrowed tokens.
+
+**B.2 ERC-20 Function Semantics (Normative)**
+
+```solidity
+// Mode B compliant ERC-20 contract implements STANDARD ERC-20:
+
+mapping(address => uint256) private balances;
+mapping(address => mapping(address => uint256)) private allowances;
+
+function balanceOf(address account) external view returns (uint256) {
+    // Uses local state, NOT GBL precompile
+    return balances[account];
+}
+
+function transfer(address to, uint256 amount) external returns (bool) {
+    // Standard ERC-20 logic
+    require(balances[msg.sender] >= amount, "Insufficient balance");
+    balances[msg.sender] -= amount;
+    balances[to] += amount;
+    emit Transfer(msg.sender, to, amount);
+    return true;
+}
+
+// transferFrom(), approve(), allowance() all standard ERC-20
+```
+
+**B.3 Checkpoint Invariant Enforcement (Normative)**
+
+Each region checkpoint MUST include:
+
+```text
+CheckpointData {
+  region_id: uint64,
+  height: uint64,
+  state_root: bytes32,
+  
+  // Per-asset state summary
+  asset_totals: [
+    {
+      asset_id: address,
+      region_total_supply: uint256,    // sum(balances[account]) for this asset
+      delta_alloc_requests: int256,    // requested change in allocation
+    },
+    ...
+  ],
+  
+  // Cross-region transfer requests
+  cross_region_debits: [...],
+  cross_region_credits: [...],
+  
+  validator_signatures: bytes[],      // Quorum signatures
+}
+```
+
+**Federal Chain verification (at checkpoint acceptance):**
+
+```text
+For each asset in checkpoint.asset_totals:
+  current_alloc = GBL_alloc(asset, region_id)
+  reported_total = asset.region_total_supply
+  
+  VERIFY:
+    1. reported_total <= current_alloc + delta_alloc_requests
+    2. cross_region_debits are properly deducted from current_alloc
+    3. cross_region_credits are properly added to current_alloc
+    4. quorum signatures valid (or ZK proof verifies state transition)
+  
+  IF verification fails:
+    REJECT checkpoint
+    PAUSE bridging for this region/asset pair
+    SLASH validators for invalid checkpoint
+```
+
+**B.4 Proof Requirements**
+
+**v1 (Mainnet):** Quorum validator signatures + deterministic state transition rules
+- Federal Chain trusts region validator quorum attestation
+- Validators sign commitment to `(state_root, asset_totals, cross_region_messages)`
+
+**vNext (Post-Mainnet):** ZK validity proofs
+- Region submits ZK-SNARK proof that:
+  - ERC-20 state transitions preserve balance conservation
+  - Reported `region_total_supply` equals actual sum of balances
+  - Cross-region transfers respected allocation bounds
+- Federal Chain verifies proof on-chain (no trust required)
+
+**B.5 Trade-Offs vs Mode A**
+
+**Advantages:**
+- ✅ Maximum EVM composability (standard Solidity mappings)
+- ✅ No per-transfer precompile cost
+- ✅ Higher throughput (checkpoint amortization)
+
+**Disadvantages:**
+- ⚠️ Checkpoint-security model (not per-tx atomic)
+- ⚠️ Global truth delayed (requires multi-chain indexing)
+- ⚠️ Requires ZK proofs or strong validator quorums for safety
+
+**B.6 Asset Registration and Mode Declaration**
+
+Assets MUST declare portability mode at registration time:
+
+```solidity
+// Federal Chain asset registry
+struct AssetRecord {
+    address asset_id;
+    string name;
+    string symbol;
+    PortabilityMode mode;  // GBL_AUTHORITATIVE or STATE_AUTHORITATIVE
+    uint64[] target_regions;
+    // ... other metadata
+}
+
+enum PortabilityMode {
+    GBL_AUTHORITATIVE,      // Mode A
+    STATE_AUTHORITATIVE     // Mode B
+}
+```
+
+Mode is **immutable** after registration. Changing modes would require governance-approved migration.
+
 **Why GBL lives on Mirror Chain (not EVM Chain or Federal Chain):**
 
 1. **UTXO efficiency:** Mirror Chain's UTXO model naturally supports parallel validation and partitioned balances without account-based contention.
@@ -323,13 +606,15 @@ sequenceDiagram
   Mirror->>Mirror: GBL: create UTXO(asset, B, recipient, amount)
 ```
 
-**EVM Chain contracts accessing Mirror GBL (authoritative model):**
+**EVM Chain contracts accessing Mirror GBL (Mode A Implementation Details):**
 
-**CRITICAL:** Mirror Chain GBL is the **single authoritative source** for partitioned balances. EVM contracts MUST NOT maintain independent balance state for federation-verified tokens. Local `balances` mappings in contracts are **read-only caches** synchronized from Mirror GBL.
+**CRITICAL:** This section applies to **Mode A (GBL-Authoritative) tokens only**. For Mode B, see Section 4.1.4.
+
+For Mode A tokens, Mirror Chain GBL is the **single authoritative source** for partitioned balances. EVM contracts MUST NOT maintain independent balance state for federation-verified tokens. Local `balances` mappings in contracts are **read-only caches** synchronized from Mirror GBL.
 
 **Execution-time truth rule:** During transaction execution, balance reads MUST query Mirror GBL via precompile (authoritative). Local storage cache is updated post-execution for UX convenience but is NOT used for balance decisions. **Cache synchronization guarantee:** Before a transaction executes, validators ensure local cache reflects the latest Mirror GBL state from the current bundle block. Cache drift is impossible because bundle blocks are atomic across all three chains.
 
-**Invariants enforced by validator consensus:**
+**Invariants enforced by validator consensus (Mode A only):**
 1. **Atomic bundle guarantee:** Mirror GBL updates and EVM state transitions occur in the same bundle block. No interleaving.
 2. **Pre-execution sync:** Validators MUST sync cache from Mirror GBL before executing any balance-touching transaction in the bundle.
 3. **Single source of truth:** All balance decisions (transfer validation, allowance checks) use Mirror GBL precompile response, never cached storage.
@@ -513,9 +798,11 @@ contract FederatedERC20 {
 
 **Required pattern for federation-verified tokens:**
 
+**Mode A (GBL-Authoritative) ERC-20 Wrapper Example:**
+
 ```text
-// Federation-verified ERC-20 wrapper contract
-contract FederationToken {
+// Federation-verified ERC-20 wrapper contract (Mode A)
+contract FederationTokenModeA {
   // Local storage is CACHE ONLY - not authoritative
   mapping(address => uint256) public balances;  // synced from Mirror GBL
   
@@ -527,32 +814,73 @@ contract FederationToken {
     // Update local cache for read convenience
     balances[msg.sender] -= amount;
     balances[to] += amount;
+    
+    emit Transfer(msg.sender, to, amount);
   }
   
   function transferToRegion(uint64 destRegion, address to, uint256 amount) external {
     // Cross-region transfer via Mirror GBL
-    MIRROR_GBL_PRECOMPILE.transferToRegion(ASSET_ID, REGION_ID, destRegion, msg.sender, to, amount);
+    bytes32 transferId = MIRROR_GBL_PRECOMPILE.transferToRegion(
+        ASSET_ID, REGION_ID, destRegion, msg.sender, to, amount
+    );
     balances[msg.sender] -= amount;  // debit local cache
+    
+    emit TransferToRegionInitiated(transferId, msg.sender, to, amount, REGION_ID, destRegion);
+    emit Transfer(msg.sender, IN_TRANSIT_ADDRESS, amount);  // Optional: for indexers
   }
   
   function balanceOf(address account) external view returns (uint256) {
-    // Query authoritative source
+    // Query authoritative source (NOT local cache)
     return MIRROR_GBL_PRECOMPILE.queryBalance(ASSET_ID, REGION_ID, account);
   }
 }
 ```
 
+**Mode B (State-Authoritative) Standard ERC-20 Example:**
+
+```solidity
+// Standard ERC-20 with checkpoint-enforced allocation (Mode B)
+contract FederationTokenModeB {
+  // Local storage IS authoritative for per-account balances
+  mapping(address => uint256) private _balances;
+  mapping(address => mapping(address => uint256)) private _allowances;
+  
+  uint256 private _totalSupply;
+  
+  function balanceOf(address account) external view returns (uint256) {
+    // Standard ERC-20: local state is authoritative
+    return _balances[account];
+  }
+  
+  function transfer(address to, uint256 amount) external returns (bool) {
+    // Standard ERC-20 logic (no GBL precompile)
+    require(_balances[msg.sender] >= amount, "Insufficient balance");
+    _balances[msg.sender] -= amount;
+    _balances[to] += amount;
+    emit Transfer(msg.sender, to, amount);
+    return true;
+  }
+  
+  // transferFrom, approve, allowance all standard ERC-20
+  
+  // Cross-region transfers require checkpoint-level coordination
+  // (not shown here; handled by Federal Chain validation at checkpoint time)
+}
+```
+
 **Allowances and approvals (ERC-20 compatibility clarification):**
 
-**For local-region operations**: Standard `approve/allowance/transferFrom` semantics are preserved on-region. Approval mappings (`mapping(address => mapping(address => uint256)) public allowances`) live in contract storage as usual. This ensures existing DeFi contracts (Uniswap, Aave, etc.) work without modification.
+**Mode A (GBL-Authoritative)**: Standard `approve/allowance/transferFrom` semantics are preserved on-region. Approval mappings (`mapping(address => mapping(address => uint256)) public allowances`) live in contract storage as usual. This ensures existing DeFi contracts (Uniswap, Aave, etc.) work without modification. Approvals are **region-local** and do not automatically transfer cross-region.
 
-**For cross-region operations**: Approvals are region-local and do not automatically transfer. Cross-region token movements use direct `transferToRegion()` (sender-initiated) rather than delegated transfers. Future versions may support cross-region approval via Mirror UTXO lock scripts.
+**Mode B (State-Authoritative)**: Standard ERC-20 approvals work exactly as normal. No special handling required.
+
+**For cross-region operations (both modes)**: Approvals are region-local. Cross-region token movements use direct `transferToRegion()` (sender-initiated) rather than delegated transfers. Future versions may support cross-region approval via Mirror UTXO lock scripts or checkpoint-mediated authorization.
 
 **Trade-off**: This maintains full ERC-20 compatibility within a region (recommended) at the cost of region-local approval state. Alternative: Implement approvals as Mirror lock scripts (breaks ERC-20 compatibility but enables cross-region approvals).
 
 **Decision**: CryftNet v1 chooses ERC-20 compatibility to maximize ecosystem adoption.
 
-**Realism tie-in:** Similar to Optimism's canonical bridged tokens (L1 authoritative, L2 cached) or Cosmos ICS-20 (chain-of-origin authoritative).
+**Realism tie-in:** Mode A similar to Optimism's canonical bridged tokens (L1 authoritative, L2 cached). Mode B similar to Cosmos ICS-20 (chain-of-origin authoritative, IBC tracks allocations).
 
 **Non-federation tokens:** Standard ERC-20 contracts without GBL integration maintain local state as usual (not partitioned across regions).
 
@@ -584,6 +912,7 @@ ContractMirrorRecord {
   deployed_regions: uint64[],             // Regions where contract is live
   mirror_status: Map<region_id ->' MirrorStatus>,  // Per-region status
   balance_portability: bool,
+  portability_mode: PortabilityMode,      // GBL_AUTHORITATIVE or STATE_AUTHORITATIVE (if balance_portability=true)
   verification_level: VerificationLevel,  // Unverified, Publisher, Federation
   created_at: uint64,
   last_updated: uint64
