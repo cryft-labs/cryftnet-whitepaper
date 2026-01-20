@@ -1340,6 +1340,263 @@ This ensures users are never permanently trapped in a City.
 
 This hierarchical model balances federation coherence with local autonomy, enabling CryftNet to scale to thousands of chains without overwhelming Main governance.
 
+#### 4.4.1 City emergency exit and fraud proofs (v1 normative)
+
+**Problem:** If a City chain fails, censors users, or its parent State refuses to process City checkpoints, users must be able to recover their balances without relying on the misbehaving party.
+
+**Solution: Merkle proof-based emergency exit with Federal Chain adjudication.**
+
+**Step 1: City balance commitment (every checkpoint)**
+
+Each City checkpoint includes a **balance Merkle root**:
+
+```text
+CityCheckpoint = {
+  city_id: 1001005,  // Region 1, City 5
+  height: 5_123_456,
+  block_hash: 0x...,
+  state_root: 0x...,
+  balance_merkle_root: 0x...,  // Root of all account balances
+  message_root: 0x...,
+  validator_quorum: { ... },
+  epoch: 1234
+}
+
+Balance Merkle tree construction:
+  - Leaf: keccak256(account || asset_id || balance)
+  - Sorted by account address (ascending)
+  - Standard binary Merkle tree (keccak256 hashing)
+  - balance_merkle_root = root of tree
+
+Example:
+  Leaf_1 = keccak256(0xAlice || USDC || 5000)
+  Leaf_2 = keccak256(0xBob || USDC || 2000)
+  Leaf_3 = keccak256(0xAlice || CRYFT || 1200)
+  ...
+  balance_merkle_root = merkleRoot([Leaf_1, Leaf_2, Leaf_3, ...])
+```
+
+State chain stores: `city_balance_roots[city_id][height] = balance_merkle_root`
+
+**Step 2: User initiates emergency exit**
+
+**Trigger conditions:**
+- City chain offline for > 24 hours
+- City checkpoint not processed by State for > 3 epochs
+- User suspects censorship or balance manipulation
+
+**Exit request to State:**
+
+```solidity
+// State Balance Ledger emergency exit function
+function emergencyExitFromCity(
+    uint64 city_id,
+    uint64 checkpoint_height,
+    address account,
+    bytes32 asset_id,
+    uint256 balance,
+    bytes32[] calldata merkle_proof
+) external {
+    // 1. Verify checkpoint exists and is finalized on State
+    bytes32 balance_root = city_balance_roots[city_id][checkpoint_height];
+    require(balance_root != 0, "Checkpoint not finalized");
+    require(checkpoint_height < block.number - FINALITY_DELAY, "Not finalized yet");
+    
+    // 2. Verify Merkle proof
+    bytes32 leaf = keccak256(abi.encodePacked(account, asset_id, balance));
+    bool valid = MerkleProof.verify(merkle_proof, balance_root, leaf);
+    require(valid, "Invalid Merkle proof");
+    
+    // 3. Verify account matches msg.sender (or authorized delegate)
+    require(account == msg.sender || isAuthorized[account][msg.sender], "Not authorized");
+    
+    // 4. Mark balance as exited (prevent double-claim)
+    bytes32 exit_key = keccak256(abi.encodePacked(city_id, checkpoint_height, account, asset_id));
+    require(!exits[exit_key], "Already exited");
+    exits[exit_key] = true;
+    
+    // 5. Credit balance to State-direct (escalate from City to State)
+    state_balances[asset_id][account] += balance;
+    
+    emit EmergencyExitFromCity(city_id, checkpoint_height, account, asset_id, balance);
+}
+```
+
+**Merkle proof construction (off-chain, performed by user/wallet):**
+
+```javascript
+// User queries City RPC (or State archive if City offline)
+const cityState = await cityRPC.getStateAtHeight(checkpoint_height);
+const allBalances = cityState.getAllAccountBalances();  // List of (account, asset, balance)
+
+// Sort and construct Merkle tree
+const leaves = allBalances
+  .sort((a, b) => a.account.localeCompare(b.account))
+  .map(b => keccak256(encodePacked(b.account, b.asset_id, b.balance)));
+const tree = new MerkleTree(leaves, keccak256);
+
+// Get proof for Alice's USDC balance
+const aliceLeaf = keccak256(encodePacked(alice, USDC, 5000));
+const proof = tree.getProof(aliceLeaf);  // Array of sibling hashes
+
+// Submit to State
+await stateSBL.emergencyExitFromCity(
+  city_id,
+  checkpoint_height,
+  alice,
+  USDC,
+  5000,
+  proof
+);
+```
+
+**Step 3: Appeal to Federal Chain (if State refuses)**
+
+If State chain censors emergency exit or is offline:
+
+```solidity
+// Federal Chain emergency exit (last resort)
+function emergencyExitFromCityToFederal(
+    uint64 city_id,
+    uint64 state_id,
+    uint64 city_checkpoint_height,
+    uint64 state_checkpoint_height,  // State's checkpoint that includes City's balance root
+    address account,
+    bytes32 asset_id,
+    uint256 balance,
+    bytes32[] calldata city_merkle_proof,
+    bytes32[] calldata state_merkle_proof  // Proof that balance_root is in State checkpoint
+) external {
+    // 1. Verify State checkpoint exists on Federal Chain
+    Checkpoint memory stateCP = checkpoints[state_id][state_checkpoint_height];
+    require(stateCP.height > 0, "State checkpoint not found");
+    
+    // 2. Verify State checkpoint includes City's balance root
+    bytes32 city_balance_root = ...; // Extract from state_merkle_proof
+    // (State checkpoint must include City summary; verify via Merkle proof against state_root)
+    
+    // 3. Verify City balance Merkle proof (same as Step 2)
+    bytes32 leaf = keccak256(abi.encodePacked(account, asset_id, balance));
+    bool valid = MerkleProof.verify(city_merkle_proof, city_balance_root, leaf);
+    require(valid, "Invalid City Merkle proof");
+    
+    // 4. Verify 72-hour waiting period (prevents impatient appeals)
+    require(block.timestamp > stateCP.timestamp + 72 hours, "Must wait 72h for State response");
+    
+    // 5. Credit balance to Federal-direct (escalate to Primary Network)
+    federal_balances[asset_id][account] += balance;
+    
+    // 6. Slash State validators (2% stake penalty for censorship)
+    slashStateValidators(state_id, CENSORSHIP_PENALTY);
+    
+    emit EmergencyExitToFederal(city_id, state_id, account, asset_id, balance);
+}
+```
+
+**Step 4: Griefing prevention**
+
+**Attack: User submits fake balance claim with fabricated Merkle proof**
+
+Prevention:
+- Merkle proof verification is cryptographically secure (cannot fake valid proof)
+- balance_merkle_root is committed in finalized City checkpoint (cannot be altered)
+- If City checkpoint is fraudulent (malicious City validators), State detects via fraud proof (separate mechanism)
+
+**Attack: User double-claims (exits same balance twice)**
+
+Prevention:
+- `exits[exit_key]` mapping tracks claimed balances per checkpoint
+- Second claim with same (city_id, checkpoint_height, account, asset_id) reverts
+- User can exit from DIFFERENT checkpoints (e.g., height 100 and height 200) if balance increased
+
+**Attack: Spam emergency exits to DOS State/Federal Chain**
+
+Prevention:
+- Emergency exit requires gas fee (economic cost)
+- Rate limiting: Max 10 exits per block per account
+- Governance can pause emergency exits if abuse detected (requires 67% vote)
+
+**Attack: City validators collude to create fake checkpoint with inflated balances**
+
+Prevention (fraud proof mechanism):
+
+```text
+Fraud proof submission (by honest observer):
+
+1. Observer detects invalid City checkpoint (e.g., total balances exceed deposits)
+2. Observer submits fraud proof to State:
+   - City checkpoint header (balance_merkle_root, quorum, epoch)
+   - Proof of invalid transition (e.g., Alice balance increased without deposit tx)
+   - Merkle proofs for before/after state
+3. State verifies fraud proof:
+   - Re-executes disputed transactions
+   - Compares computed state_root vs. claimed state_root
+   - If mismatch: fraud proven
+4. State rejects City checkpoint, slashes City validators (10% stake)
+5. State initiates emergency City shutdown (all users must exit via last valid checkpoint)
+```
+
+**Fraud proof data structure:**
+
+```solidity
+struct CityFraudProof {
+    uint64 city_id;
+    uint64 disputed_checkpoint_height;
+    bytes32 claimed_balance_root;
+    bytes32 computed_balance_root;  // Re-computed by fraud prover
+    Transaction[] disputed_txs;  // Transactions leading to invalid state
+    bytes32[] state_merkle_proofs;  // Proofs for before/after account states
+    bytes fraud_evidence;  // Additional evidence (e.g., invalid signature, arithmetic overflow)
+}
+
+function submitCityFraudProof(CityFraudProof calldata proof) external {
+    // 1. Verify fraud proof validity
+    bool isValid = verifyCityFraudProof(proof);
+    require(isValid, "Invalid fraud proof");
+    
+    // 2. Slash City validators
+    slashCityValidators(proof.city_id, FRAUD_PENALTY);
+    
+    // 3. Mark checkpoint as fraudulent
+    fraudulent_checkpoints[proof.city_id][proof.disputed_checkpoint_height] = true;
+    
+    // 4. Reward fraud prover (10% of slashed stake)
+    rewardFraudProver(msg.sender, FRAUD_PENALTY * 10 / 100);
+    
+    emit CityFraudProven(proof.city_id, proof.disputed_checkpoint_height);
+}
+```
+
+**Adjudication path summary:**
+
+```text
+Normal operation:
+  City -> State (via checkpoint) -> Federal Chain (summary only)
+
+Emergency exit:
+  Step 1: User -> State (emergencyExitFromCity with Merkle proof)
+  Step 2 (if State offline/censoring): User -> Federal Chain (emergencyExitFromCityToFederal)
+  Step 3 (if City fraudulent): Observer -> State (submitCityFraudProof) -> Federal Chain (slash report)
+
+Timelines:
+  - Normal checkpoint: ~10 minutes (City -> State)
+  - Emergency exit to State: Immediate (if checkpoint exists)
+  - Appeal to Federal: 72-hour waiting period
+  - Fraud proof: Immediate (if evidence valid)
+```
+
+**Economic incentives:**
+
+| Role | Action | Incentive | Penalty |
+|:-----|:-------|:----------|:--------|
+| City validators | Submit honest checkpoints | Block rewards + fees | 10% slash for fraud |
+| State validators | Process City checkpoints | Checkpoint fees | 2% slash for censorship |
+| Users | Emergency exit only when needed | Recover funds | Gas costs (prevents spam) |
+| Fraud provers | Submit valid fraud proofs | 10% of slashed stake | None (invalid proofs rejected) |
+| Federal Chain | Adjudicate appeals | Governance fees | N/A |
+
+**Version marker: (v1) City emergency exit and fraud proof mechanisms are mainnet-required for hierarchical City deployment.**
+
 ### 4.5 Code Vault Storage Modes: On-Chain vs. IPFS-Referenced
 
 The Code Vault on Mirror Chain supports two storage modes for smart contract bytecode: **on-chain storage** (direct inclusion in the UTXO) and **IPFS-referenced storage** (storing a CID that points to pinned content on IPFS). This dual-model approach allows deployers to choose between maximum permanence (on-chain, at higher cost) and cost-efficiency (IPFS, with pinning incentives ensuring availability). Both modes maintain the same security guarantees for code integrity and deterministic deployment, as regions verify against committed hashes regardless of storage location.
@@ -1368,26 +1625,118 @@ Code Vault entries use a specialized UTXO with the following structure (binary-e
 | `amount`              | uint256      | 0 (no monetary value; data storage only).                                   |
 | `lock_script`         | bytes        | Contains mode, hashes, and data/CID; signed by deployer.                    |
 
-The `lock_script` is extended as follows:
+The `lock_script` uses **canonical TLV (Type-Length-Value) encoding** for consensus-critical parsing:
 
-```json
-{
-  "type": "CODE_COMMIT",
-  "storage_mode": "ON_CHAIN" | "IPFS",  // Deployer choice
-  "init_code_hash": "bytes32",          // keccak256(init_code)
-  "runtime_code_hash": "bytes32",       // keccak256(runtime_bytecode)
+**TLV structure (v1 normative):**
+
+```text
+lock_script = TLV_SEQUENCE[
+  TLV(type=0x01, length=1, value=storage_mode),      // 0x00=ON_CHAIN, 0x01=IPFS
+  TLV(type=0x02, length=32, value=init_code_hash),   // keccak256(init_code)
+  TLV(type=0x03, length=32, value=runtime_code_hash), // keccak256(runtime_bytecode)
   
-  // Mode-specific fields (mutually exclusive)
-  "init_code_blob": "bytes"?,           // Full init_code if ON_CHAIN
-  "runtime_bytecode": "bytes"?,         // Full runtime bytecode if ON_CHAIN
-  "init_code_cid": "string"?,           // IPFS CID if IPFS
-  "runtime_bytecode_cid": "string"?,    // IPFS CID if IPFS
+  // Conditional fields based on storage_mode:
+  IF storage_mode == ON_CHAIN:
+    TLV(type=0x10, length=N, value=init_code_blob),       // Full init bytecode
+    TLV(type=0x11, length=M, value=runtime_bytecode),     // Full runtime bytecode
+  ELSE IF storage_mode == IPFS:
+    TLV(type=0x20, length=L, value=init_code_cid),        // IPFS CID (UTF-8)
+    TLV(type=0x21, length=K, value=runtime_bytecode_cid), // IPFS CID (UTF-8)
+    TLV(type=0x22, length=8, value=pin_duration_epochs),  // Optional uint64
+    TLV(type=0x23, length=32, value=pin_budget),          // Optional uint256
   
-  "pin_duration_epochs": "uint64"?,     // Optional for IPFS: epochs for pinning job
-  "pin_budget": "uint256"?,             // Optional for IPFS: CRYFT budget for pinning
-  "nonce": "uint64",                    // Replay protection
-  "sig": "bytes"                        // Deployer signature over lock_script hash
-}
+  TLV(type=0xFE, length=8, value=nonce),            // uint64 replay protection
+  TLV(type=0xFF, length=65, value=signature)        // ECDSA sig over TLV hash
+]
+
+TLV encoding rules:
+- Each entry: [1 byte type] [4 bytes length (big-endian)] [N bytes value]
+- Total lock_script hash = keccak256(all TLV entries before signature)
+- Signature field (type=0xFF) covers hash of all preceding TLV entries
+- Unknown type codes with high bit set (0x80-0xFD) are skipped (forward compatibility)
+- Unknown type codes with high bit clear (0x00-0x7F) cause validation failure
+```
+
+**Example: ON_CHAIN mode TLV encoding (pseudocode)**
+
+```python
+lock_script_tlv = b''
+
+# TLV(0x01, 1, 0x00)  # storage_mode = ON_CHAIN
+lock_script_tlv += bytes([0x01]) + (1).to_bytes(4, 'big') + bytes([0x00])
+
+# TLV(0x02, 32, init_code_hash)
+lock_script_tlv += bytes([0x02]) + (32).to_bytes(4, 'big') + init_code_hash
+
+# TLV(0x03, 32, runtime_code_hash)
+lock_script_tlv += bytes([0x03]) + (32).to_bytes(4, 'big') + runtime_code_hash
+
+# TLV(0x10, len(init_code), init_code_blob)
+lock_script_tlv += bytes([0x10]) + len(init_code).to_bytes(4, 'big') + init_code
+
+# TLV(0x11, len(runtime_bytecode), runtime_bytecode)
+lock_script_tlv += bytes([0x11]) + len(runtime_bytecode).to_bytes(4, 'big') + runtime_bytecode
+
+# TLV(0xFE, 8, nonce)
+lock_script_tlv += bytes([0xFE]) + (8).to_bytes(4, 'big') + nonce.to_bytes(8, 'big')
+
+# Hash all TLV entries before signature
+script_commitment = keccak256(lock_script_tlv)
+signature = sign(script_commitment, deployer_private_key)
+
+# TLV(0xFF, 65, signature)
+lock_script_tlv += bytes([0xFF]) + (65).to_bytes(4, 'big') + signature
+```
+
+**Why TLV over JSON:**
+
+1. **Deterministic serialization:** TLV has canonical byte ordering; JSON has ambiguous whitespace, key ordering, and number encoding. Consensus-critical structures must hash identically across all implementations.
+2. **No parser ambiguity:** JSON parsers differ on edge cases (Unicode normalization, number precision, escape sequences). TLV is byte-exact.
+3. **Compact:** TLV saves ~30% space vs. JSON for binary data (no base64 encoding overhead).
+4. **Forward compatibility:** Unknown TLV types with high bit set can be safely skipped, allowing protocol upgrades without hard forks.
+5. **Auditable:** TLV structure is verifiable with simple byte inspection; JSON requires full parser implementation.
+
+**Validation algorithm:**
+
+```python
+def validate_code_vault_lock_script(lock_script_bytes):
+    tlv_entries = parse_tlv_sequence(lock_script_bytes)
+    
+    # 1. Extract required fields
+    storage_mode = tlv_entries.get(0x01)
+    init_hash = tlv_entries.get(0x02)
+    runtime_hash = tlv_entries.get(0x03)
+    nonce = tlv_entries.get(0xFE)
+    signature = tlv_entries.get(0xFF)
+    
+    assert storage_mode in [0x00, 0x01], "Invalid storage mode"
+    assert len(init_hash) == 32, "Invalid init_code_hash length"
+    assert len(runtime_hash) == 32, "Invalid runtime_code_hash length"
+    
+    # 2. Verify mode-specific fields
+    if storage_mode == 0x00:  # ON_CHAIN
+        init_blob = tlv_entries.get(0x10)
+        runtime_blob = tlv_entries.get(0x11)
+        assert keccak256(init_blob) == init_hash, "init_code hash mismatch"
+        assert keccak256(runtime_blob) == runtime_hash, "runtime_code hash mismatch"
+    else:  # IPFS
+        init_cid = tlv_entries.get(0x20).decode('utf-8')
+        runtime_cid = tlv_entries.get(0x21).decode('utf-8')
+        assert is_valid_cid(init_cid), "Invalid init_code CID"
+        assert is_valid_cid(runtime_cid), "Invalid runtime_code CID"
+    
+    # 3. Verify signature over commitment (all TLV entries except 0xFF)
+    commitment = keccak256(lock_script_bytes_without_signature_tlv)
+    deployer_address = ecrecover(commitment, signature)
+    assert deployer_address == utxo.account, "Signature mismatch"
+    
+    # 4. Verify nonce (replay protection)
+    assert nonce == get_account_nonce(deployer_address), "Invalid nonce"
+    
+    return True
+```
+
+**(v1)** TLV encoding is the normative format for all Code Vault lock scripts on mainnet. JSON examples in this document are provided for human readability only; implementations MUST use TLV
 ```
 
 - **Size Limits**: On-chain blobs have governance-configurable size limits per UTXO to prevent chain bloat; oversized deposits revert. IPFS has no inherent limit (scalable). **EVM Compatibility Constraint**: Regardless of storage mode, the runtime bytecode MUST NOT exceed the maximum contract bytecode size enforced by the target regional or Federal EVM chains (typically 24KB per EIP-170, though regions may configure different limits). Code Vault deposits with runtime_bytecode exceeding the destination chain's limit will be rejected during deployment, even if the Code Vault UTXO was successfully created. Deployers should verify target chain limits before depositing.

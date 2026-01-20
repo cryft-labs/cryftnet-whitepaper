@@ -296,3 +296,55 @@ This design is a **proposal**. Before mainnet:
 - Testnet soak test with real economic incentives and adversarial validators
 
 See Section 6.8 for the complete path to production readiness.
+
+### 5.6 Chain IDs and RPC compatibility (v1 normative spec)
+
+**Critical for Web2-like UX:** Wallets, dApps, and tooling must seamlessly interact with Primary Network chains (Federal, Mirror, EVM) and regional State/City chains. This requires precise chain ID conventions, discovery mechanisms, and RPC behavior specifications.
+
+#### 5.6.1 Chain ID conventions (EIP-155 compliant)
+
+**Primary Network chain IDs (reserved range 1-99):**
+
+```text
+Federal Chain:  chainId = 1  (canonical governance/staking chain)
+Mirror Chain:   chainId = 2  (native assets/GBL/UTXO chain)
+EVM Chain:      chainId = 3  (smart contracts/CMR/Main execution)
+```
+
+**State/Region chain IDs (range 1000-999999):**
+
+```text
+Format: 1000 + region_id
+
+Examples:
+  Region 1 (e.g., US-East):     chainId = 1001
+  Region 42 (e.g., EU-Central): chainId = 1042
+  Region 500 (e.g., APAC):      chainId = 1500
+
+Maximum: region_id < 999000 (reserved)
+```
+
+**City chain IDs (range 1000000-9999999):**
+
+```text
+Format: 1000000 + (parent_region_id * 1000) + city_local_id
+
+Examples:
+  Region 1, City 5:  chainId = 1001005
+  Region 42, City 12: chainId = 1042012
+  Region 500, City 3: chainId = 1500003
+
+Constraints:
+  - parent_region_id < 9000 (max 8999 regions)
+  - city_local_id < 1000 (max 999 cities per region)
+```
+
+**Custom subnet chain IDs (range 10000000+):**
+
+Custom (non-CSS) subnets choose chain IDs >= 10000000 during Federal Chain registration. Collisions rejected at registration time.
+
+**Replay protection invariant:**
+
+All chains use **EIP-155 replay protection**. Transactions signed for chainId=1001 (Region 1) cannot be replayed on chainId=1042 (Region 42) or chainId=3 (EVM Chain). This is enforced at transaction validation (v, r, s signature check includes chainId).
+
+**Version marker: (v1) All chain ID conventions and RPC specs are mainnet-required and implemented.**

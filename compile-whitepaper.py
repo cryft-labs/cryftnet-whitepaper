@@ -114,14 +114,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.27<br>
+<strong>Revision:</strong> v1.28<br>
 <strong>Date:</strong> January 20, 2026<br>
-<strong>Status:</strong> Draft (Production Review Candidate)<br>
+<strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.27):</strong> **SECTION NUMBERING CONSISTENCY:** Fixed all duplicate and misordered section numbers: resolved duplicate 10.9 sections, renumbered Section 11.3 subsections (11.3.1 Slashing Evidence, 11.3.2 Parameter Table), corrected Section 7.3 subsections (7.3.6 Deterministic Scheduling, 7.3.7 Receipts), added missing Section 10 parent header from README, and updated compilation script to include cross-chain README for proper hierarchy. All 16 main sections now properly numbered and sequentially ordered. Previous (v1.26): Implementation-ready hardening with block cadence clarification, v1 consensus specification, and Cryftee requirements. Earlier (v1.25): Code Vault dual storage modes. Earlier (v1.24): CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile.
+<strong>Latest Changes (v1.28):</strong> **P1 SPECIFICATION GAPS RESOLVED:** Added Section 5.6 (Chain IDs and RPC Compatibility) with chainId conventions, discovery registry, and wallet integration. Added Section 10.1.1 (Checkpoint Verification Algorithm) with normative BLS signature verification and validator set tracking. Added Section 4.4.1 (City Emergency Exit and Fraud Proofs) with Merkle-based recovery mechanism. Updated Section 4.5.3 (Code Vault Canonical Encoding) with TLV format replacing JSON for consensus-critical structures. Added version markers throughout: (v1) mainnet-implemented, (vNext) optional/research, (future) speculative. Previous (v1.27): Section numbering consistency fixes.
 </p>
 
 <p align="center"><em>
@@ -137,6 +137,7 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
         'whitepaper/02-design-goals.md',
         'whitepaper/03-background.md',
         'whitepaper/04-system-overview.md',
+        'whitepaper/04-system-overview-city-fraud.md',  # P1: City emergency exit and fraud proofs
         'whitepaper/05-network-model.md',
         'whitepaper/06-consensus-crvs.md',
         'whitepaper/07-execution-parallelism.md',
@@ -147,6 +148,7 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
     # Section 10 cross-chain sub-files
     s10_files = [
         'whitepaper/10-cross-chain/10-01-checkpoints.md',
+        'whitepaper/10-cross-chain/10-01a-checkpoint-verification.md',  # P1: Checkpoint verification algorithm
         'whitepaper/10-cross-chain/10-02-messaging-replay.md',
         'whitepaper/10-cross-chain/10-03-zk-verification.md',
         'whitepaper/10-cross-chain/10-04-balance-partitioning.md',

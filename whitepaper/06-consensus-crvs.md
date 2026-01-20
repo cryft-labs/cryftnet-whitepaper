@@ -64,6 +64,8 @@ DAS Verification (simplified):
 
 DAS is not mandatory for CSS-1 compliance but is recommended for high-throughput regions and for any chain seeking trustless light client support.
 
+**(vNext)** Data Availability Sampling is optional in v1; regions may integrate DAS proofs for enhanced light client support and higher throughput. Production integration expected in vNext releases (2027+).
+
 ### 6.7 ZK-EVM integration for validity proofs
 
 Zero-knowledge Ethereum Virtual Machines (ZK-EVMs) enable cryptographic proof-based validation of transaction batches. Instead of re-executing transactions, validators can verify a succinct proof that execution was performed correctly. This dramatically reduces computational load and enables trustless cross-chain verification.
@@ -98,6 +100,8 @@ ZK-EVMs have reached production-quality performance, with ongoing safety hardeni
 1. **Phase 1 (2026):** Optional ZK proofs for checkpoint verification; regions may provide proofs for faster Main acceptance.
 2. **Phase 2 (2027-2028):** ZK-EVM provers integrated into Cryftee modules; CSS-1 regions encouraged to produce validity proofs.
 3. **Phase 3 (2028-2030):** ZK proofs become the default verification method; quorum signatures retained as fallback and for governance.
+
+**(vNext)** ZK-EVM validity proofs are optional in v1; regions use BLS quorum signatures for checkpoint verification. ZK proof support will be progressively integrated in vNext releases (2027-2030 timeline).
 
 ```text
 Checkpoint with ZK validity proof:

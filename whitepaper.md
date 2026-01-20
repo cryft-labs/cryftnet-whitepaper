@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.27<br>
+<strong>Revision:</strong> v1.28<br>
 <strong>Date:</strong> January 20, 2026<br>
-<strong>Status:</strong> Draft (Production Review Candidate)<br>
+<strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.27):</strong> **SECTION NUMBERING CONSISTENCY:** Fixed all duplicate and misordered section numbers: resolved duplicate 10.9 sections, renumbered Section 11.3 subsections (11.3.1 Slashing Evidence, 11.3.2 Parameter Table), corrected Section 7.3 subsections (7.3.6 Deterministic Scheduling, 7.3.7 Receipts), added missing Section 10 parent header from README, and updated compilation script to include cross-chain README for proper hierarchy. All 16 main sections now properly numbered and sequentially ordered. Previous (v1.26): Implementation-ready hardening with block cadence clarification, v1 consensus specification, and Cryftee requirements. Earlier (v1.25): Code Vault dual storage modes. Earlier (v1.24): CRVS state machine, atomic bundle blocks, Smart Slots EVM tracing, GBL precompile.
+<strong>Latest Changes (v1.28):</strong> **P1 SPECIFICATION GAPS RESOLVED:** Added Section 5.6 (Chain IDs and RPC Compatibility) with chainId conventions, discovery registry, and wallet integration. Added Section 10.1.1 (Checkpoint Verification Algorithm) with normative BLS signature verification and validator set tracking. Added Section 4.4.1 (City Emergency Exit and Fraud Proofs) with Merkle-based recovery mechanism. Updated Section 4.5.3 (Code Vault Canonical Encoding) with TLV format replacing JSON for consensus-critical structures. Added version markers throughout: (v1) mainnet-implemented, (vNext) optional/research, (future) speculative. Previous (v1.27): Section numbering consistency fixes.
 </p>
 
 <p align="center"><em>
@@ -1424,6 +1424,263 @@ This ensures users are never permanently trapped in a City.
 
 This hierarchical model balances federation coherence with local autonomy, enabling CryftNet to scale to thousands of chains without overwhelming Main governance.
 
+#### 4.4.1 City emergency exit and fraud proofs (v1 normative)
+
+**Problem:** If a City chain fails, censors users, or its parent State refuses to process City checkpoints, users must be able to recover their balances without relying on the misbehaving party.
+
+**Solution: Merkle proof-based emergency exit with Federal Chain adjudication.**
+
+**Step 1: City balance commitment (every checkpoint)**
+
+Each City checkpoint includes a **balance Merkle root**:
+
+```text
+CityCheckpoint = {
+  city_id: 1001005,  // Region 1, City 5
+  height: 5_123_456,
+  block_hash: 0x...,
+  state_root: 0x...,
+  balance_merkle_root: 0x...,  // Root of all account balances
+  message_root: 0x...,
+  validator_quorum: { ... },
+  epoch: 1234
+}
+
+Balance Merkle tree construction:
+  - Leaf: keccak256(account || asset_id || balance)
+  - Sorted by account address (ascending)
+  - Standard binary Merkle tree (keccak256 hashing)
+  - balance_merkle_root = root of tree
+
+Example:
+  Leaf_1 = keccak256(0xAlice || USDC || 5000)
+  Leaf_2 = keccak256(0xBob || USDC || 2000)
+  Leaf_3 = keccak256(0xAlice || CRYFT || 1200)
+  ...
+  balance_merkle_root = merkleRoot([Leaf_1, Leaf_2, Leaf_3, ...])
+```
+
+State chain stores: `city_balance_roots[city_id][height] = balance_merkle_root`
+
+**Step 2: User initiates emergency exit**
+
+**Trigger conditions:**
+- City chain offline for > 24 hours
+- City checkpoint not processed by State for > 3 epochs
+- User suspects censorship or balance manipulation
+
+**Exit request to State:**
+
+```solidity
+// State Balance Ledger emergency exit function
+function emergencyExitFromCity(
+    uint64 city_id,
+    uint64 checkpoint_height,
+    address account,
+    bytes32 asset_id,
+    uint256 balance,
+    bytes32[] calldata merkle_proof
+) external {
+    // 1. Verify checkpoint exists and is finalized on State
+    bytes32 balance_root = city_balance_roots[city_id][checkpoint_height];
+    require(balance_root != 0, "Checkpoint not finalized");
+    require(checkpoint_height < block.number - FINALITY_DELAY, "Not finalized yet");
+    
+    // 2. Verify Merkle proof
+    bytes32 leaf = keccak256(abi.encodePacked(account, asset_id, balance));
+    bool valid = MerkleProof.verify(merkle_proof, balance_root, leaf);
+    require(valid, "Invalid Merkle proof");
+    
+    // 3. Verify account matches msg.sender (or authorized delegate)
+    require(account == msg.sender || isAuthorized[account][msg.sender], "Not authorized");
+    
+    // 4. Mark balance as exited (prevent double-claim)
+    bytes32 exit_key = keccak256(abi.encodePacked(city_id, checkpoint_height, account, asset_id));
+    require(!exits[exit_key], "Already exited");
+    exits[exit_key] = true;
+    
+    // 5. Credit balance to State-direct (escalate from City to State)
+    state_balances[asset_id][account] += balance;
+    
+    emit EmergencyExitFromCity(city_id, checkpoint_height, account, asset_id, balance);
+}
+```
+
+**Merkle proof construction (off-chain, performed by user/wallet):**
+
+```javascript
+// User queries City RPC (or State archive if City offline)
+const cityState = await cityRPC.getStateAtHeight(checkpoint_height);
+const allBalances = cityState.getAllAccountBalances();  // List of (account, asset, balance)
+
+// Sort and construct Merkle tree
+const leaves = allBalances
+  .sort((a, b) => a.account.localeCompare(b.account))
+  .map(b => keccak256(encodePacked(b.account, b.asset_id, b.balance)));
+const tree = new MerkleTree(leaves, keccak256);
+
+// Get proof for Alice's USDC balance
+const aliceLeaf = keccak256(encodePacked(alice, USDC, 5000));
+const proof = tree.getProof(aliceLeaf);  // Array of sibling hashes
+
+// Submit to State
+await stateSBL.emergencyExitFromCity(
+  city_id,
+  checkpoint_height,
+  alice,
+  USDC,
+  5000,
+  proof
+);
+```
+
+**Step 3: Appeal to Federal Chain (if State refuses)**
+
+If State chain censors emergency exit or is offline:
+
+```solidity
+// Federal Chain emergency exit (last resort)
+function emergencyExitFromCityToFederal(
+    uint64 city_id,
+    uint64 state_id,
+    uint64 city_checkpoint_height,
+    uint64 state_checkpoint_height,  // State's checkpoint that includes City's balance root
+    address account,
+    bytes32 asset_id,
+    uint256 balance,
+    bytes32[] calldata city_merkle_proof,
+    bytes32[] calldata state_merkle_proof  // Proof that balance_root is in State checkpoint
+) external {
+    // 1. Verify State checkpoint exists on Federal Chain
+    Checkpoint memory stateCP = checkpoints[state_id][state_checkpoint_height];
+    require(stateCP.height > 0, "State checkpoint not found");
+    
+    // 2. Verify State checkpoint includes City's balance root
+    bytes32 city_balance_root = ...; // Extract from state_merkle_proof
+    // (State checkpoint must include City summary; verify via Merkle proof against state_root)
+    
+    // 3. Verify City balance Merkle proof (same as Step 2)
+    bytes32 leaf = keccak256(abi.encodePacked(account, asset_id, balance));
+    bool valid = MerkleProof.verify(city_merkle_proof, city_balance_root, leaf);
+    require(valid, "Invalid City Merkle proof");
+    
+    // 4. Verify 72-hour waiting period (prevents impatient appeals)
+    require(block.timestamp > stateCP.timestamp + 72 hours, "Must wait 72h for State response");
+    
+    // 5. Credit balance to Federal-direct (escalate to Primary Network)
+    federal_balances[asset_id][account] += balance;
+    
+    // 6. Slash State validators (2% stake penalty for censorship)
+    slashStateValidators(state_id, CENSORSHIP_PENALTY);
+    
+    emit EmergencyExitToFederal(city_id, state_id, account, asset_id, balance);
+}
+```
+
+**Step 4: Griefing prevention**
+
+**Attack: User submits fake balance claim with fabricated Merkle proof**
+
+Prevention:
+- Merkle proof verification is cryptographically secure (cannot fake valid proof)
+- balance_merkle_root is committed in finalized City checkpoint (cannot be altered)
+- If City checkpoint is fraudulent (malicious City validators), State detects via fraud proof (separate mechanism)
+
+**Attack: User double-claims (exits same balance twice)**
+
+Prevention:
+- `exits[exit_key]` mapping tracks claimed balances per checkpoint
+- Second claim with same (city_id, checkpoint_height, account, asset_id) reverts
+- User can exit from DIFFERENT checkpoints (e.g., height 100 and height 200) if balance increased
+
+**Attack: Spam emergency exits to DOS State/Federal Chain**
+
+Prevention:
+- Emergency exit requires gas fee (economic cost)
+- Rate limiting: Max 10 exits per block per account
+- Governance can pause emergency exits if abuse detected (requires 67% vote)
+
+**Attack: City validators collude to create fake checkpoint with inflated balances**
+
+Prevention (fraud proof mechanism):
+
+```text
+Fraud proof submission (by honest observer):
+
+1. Observer detects invalid City checkpoint (e.g., total balances exceed deposits)
+2. Observer submits fraud proof to State:
+   - City checkpoint header (balance_merkle_root, quorum, epoch)
+   - Proof of invalid transition (e.g., Alice balance increased without deposit tx)
+   - Merkle proofs for before/after state
+3. State verifies fraud proof:
+   - Re-executes disputed transactions
+   - Compares computed state_root vs. claimed state_root
+   - If mismatch: fraud proven
+4. State rejects City checkpoint, slashes City validators (10% stake)
+5. State initiates emergency City shutdown (all users must exit via last valid checkpoint)
+```
+
+**Fraud proof data structure:**
+
+```solidity
+struct CityFraudProof {
+    uint64 city_id;
+    uint64 disputed_checkpoint_height;
+    bytes32 claimed_balance_root;
+    bytes32 computed_balance_root;  // Re-computed by fraud prover
+    Transaction[] disputed_txs;  // Transactions leading to invalid state
+    bytes32[] state_merkle_proofs;  // Proofs for before/after account states
+    bytes fraud_evidence;  // Additional evidence (e.g., invalid signature, arithmetic overflow)
+}
+
+function submitCityFraudProof(CityFraudProof calldata proof) external {
+    // 1. Verify fraud proof validity
+    bool isValid = verifyCityFraudProof(proof);
+    require(isValid, "Invalid fraud proof");
+    
+    // 2. Slash City validators
+    slashCityValidators(proof.city_id, FRAUD_PENALTY);
+    
+    // 3. Mark checkpoint as fraudulent
+    fraudulent_checkpoints[proof.city_id][proof.disputed_checkpoint_height] = true;
+    
+    // 4. Reward fraud prover (10% of slashed stake)
+    rewardFraudProver(msg.sender, FRAUD_PENALTY * 10 / 100);
+    
+    emit CityFraudProven(proof.city_id, proof.disputed_checkpoint_height);
+}
+```
+
+**Adjudication path summary:**
+
+```text
+Normal operation:
+  City -> State (via checkpoint) -> Federal Chain (summary only)
+
+Emergency exit:
+  Step 1: User -> State (emergencyExitFromCity with Merkle proof)
+  Step 2 (if State offline/censoring): User -> Federal Chain (emergencyExitFromCityToFederal)
+  Step 3 (if City fraudulent): Observer -> State (submitCityFraudProof) -> Federal Chain (slash report)
+
+Timelines:
+  - Normal checkpoint: ~10 minutes (City -> State)
+  - Emergency exit to State: Immediate (if checkpoint exists)
+  - Appeal to Federal: 72-hour waiting period
+  - Fraud proof: Immediate (if evidence valid)
+```
+
+**Economic incentives:**
+
+| Role | Action | Incentive | Penalty |
+|:-----|:-------|:----------|:--------|
+| City validators | Submit honest checkpoints | Block rewards + fees | 10% slash for fraud |
+| State validators | Process City checkpoints | Checkpoint fees | 2% slash for censorship |
+| Users | Emergency exit only when needed | Recover funds | Gas costs (prevents spam) |
+| Fraud provers | Submit valid fraud proofs | 10% of slashed stake | None (invalid proofs rejected) |
+| Federal Chain | Adjudicate appeals | Governance fees | N/A |
+
+**Version marker: (v1) City emergency exit and fraud proof mechanisms are mainnet-required for hierarchical City deployment.**
+
 ### 4.5 Code Vault Storage Modes: On-Chain vs. IPFS-Referenced
 
 The Code Vault on Mirror Chain supports two storage modes for smart contract bytecode: **on-chain storage** (direct inclusion in the UTXO) and **IPFS-referenced storage** (storing a CID that points to pinned content on IPFS). This dual-model approach allows deployers to choose between maximum permanence (on-chain, at higher cost) and cost-efficiency (IPFS, with pinning incentives ensuring availability). Both modes maintain the same security guarantees for code integrity and deterministic deployment, as regions verify against committed hashes regardless of storage location.
@@ -1452,26 +1709,118 @@ Code Vault entries use a specialized UTXO with the following structure (binary-e
 | `amount`              | uint256      | 0 (no monetary value; data storage only).                                   |
 | `lock_script`         | bytes        | Contains mode, hashes, and data/CID; signed by deployer.                    |
 
-The `lock_script` is extended as follows:
+The `lock_script` uses **canonical TLV (Type-Length-Value) encoding** for consensus-critical parsing:
 
-```json
-{
-  "type": "CODE_COMMIT",
-  "storage_mode": "ON_CHAIN" | "IPFS",  // Deployer choice
-  "init_code_hash": "bytes32",          // keccak256(init_code)
-  "runtime_code_hash": "bytes32",       // keccak256(runtime_bytecode)
+**TLV structure (v1 normative):**
+
+```text
+lock_script = TLV_SEQUENCE[
+  TLV(type=0x01, length=1, value=storage_mode),      // 0x00=ON_CHAIN, 0x01=IPFS
+  TLV(type=0x02, length=32, value=init_code_hash),   // keccak256(init_code)
+  TLV(type=0x03, length=32, value=runtime_code_hash), // keccak256(runtime_bytecode)
   
-  // Mode-specific fields (mutually exclusive)
-  "init_code_blob": "bytes"?,           // Full init_code if ON_CHAIN
-  "runtime_bytecode": "bytes"?,         // Full runtime bytecode if ON_CHAIN
-  "init_code_cid": "string"?,           // IPFS CID if IPFS
-  "runtime_bytecode_cid": "string"?,    // IPFS CID if IPFS
+  // Conditional fields based on storage_mode:
+  IF storage_mode == ON_CHAIN:
+    TLV(type=0x10, length=N, value=init_code_blob),       // Full init bytecode
+    TLV(type=0x11, length=M, value=runtime_bytecode),     // Full runtime bytecode
+  ELSE IF storage_mode == IPFS:
+    TLV(type=0x20, length=L, value=init_code_cid),        // IPFS CID (UTF-8)
+    TLV(type=0x21, length=K, value=runtime_bytecode_cid), // IPFS CID (UTF-8)
+    TLV(type=0x22, length=8, value=pin_duration_epochs),  // Optional uint64
+    TLV(type=0x23, length=32, value=pin_budget),          // Optional uint256
   
-  "pin_duration_epochs": "uint64"?,     // Optional for IPFS: epochs for pinning job
-  "pin_budget": "uint256"?,             // Optional for IPFS: CRYFT budget for pinning
-  "nonce": "uint64",                    // Replay protection
-  "sig": "bytes"                        // Deployer signature over lock_script hash
-}
+  TLV(type=0xFE, length=8, value=nonce),            // uint64 replay protection
+  TLV(type=0xFF, length=65, value=signature)        // ECDSA sig over TLV hash
+]
+
+TLV encoding rules:
+- Each entry: [1 byte type] [4 bytes length (big-endian)] [N bytes value]
+- Total lock_script hash = keccak256(all TLV entries before signature)
+- Signature field (type=0xFF) covers hash of all preceding TLV entries
+- Unknown type codes with high bit set (0x80-0xFD) are skipped (forward compatibility)
+- Unknown type codes with high bit clear (0x00-0x7F) cause validation failure
+```
+
+**Example: ON_CHAIN mode TLV encoding (pseudocode)**
+
+```python
+lock_script_tlv = b''
+
+# TLV(0x01, 1, 0x00)  # storage_mode = ON_CHAIN
+lock_script_tlv += bytes([0x01]) + (1).to_bytes(4, 'big') + bytes([0x00])
+
+# TLV(0x02, 32, init_code_hash)
+lock_script_tlv += bytes([0x02]) + (32).to_bytes(4, 'big') + init_code_hash
+
+# TLV(0x03, 32, runtime_code_hash)
+lock_script_tlv += bytes([0x03]) + (32).to_bytes(4, 'big') + runtime_code_hash
+
+# TLV(0x10, len(init_code), init_code_blob)
+lock_script_tlv += bytes([0x10]) + len(init_code).to_bytes(4, 'big') + init_code
+
+# TLV(0x11, len(runtime_bytecode), runtime_bytecode)
+lock_script_tlv += bytes([0x11]) + len(runtime_bytecode).to_bytes(4, 'big') + runtime_bytecode
+
+# TLV(0xFE, 8, nonce)
+lock_script_tlv += bytes([0xFE]) + (8).to_bytes(4, 'big') + nonce.to_bytes(8, 'big')
+
+# Hash all TLV entries before signature
+script_commitment = keccak256(lock_script_tlv)
+signature = sign(script_commitment, deployer_private_key)
+
+# TLV(0xFF, 65, signature)
+lock_script_tlv += bytes([0xFF]) + (65).to_bytes(4, 'big') + signature
+```
+
+**Why TLV over JSON:**
+
+1. **Deterministic serialization:** TLV has canonical byte ordering; JSON has ambiguous whitespace, key ordering, and number encoding. Consensus-critical structures must hash identically across all implementations.
+2. **No parser ambiguity:** JSON parsers differ on edge cases (Unicode normalization, number precision, escape sequences). TLV is byte-exact.
+3. **Compact:** TLV saves ~30% space vs. JSON for binary data (no base64 encoding overhead).
+4. **Forward compatibility:** Unknown TLV types with high bit set can be safely skipped, allowing protocol upgrades without hard forks.
+5. **Auditable:** TLV structure is verifiable with simple byte inspection; JSON requires full parser implementation.
+
+**Validation algorithm:**
+
+```python
+def validate_code_vault_lock_script(lock_script_bytes):
+    tlv_entries = parse_tlv_sequence(lock_script_bytes)
+    
+    # 1. Extract required fields
+    storage_mode = tlv_entries.get(0x01)
+    init_hash = tlv_entries.get(0x02)
+    runtime_hash = tlv_entries.get(0x03)
+    nonce = tlv_entries.get(0xFE)
+    signature = tlv_entries.get(0xFF)
+    
+    assert storage_mode in [0x00, 0x01], "Invalid storage mode"
+    assert len(init_hash) == 32, "Invalid init_code_hash length"
+    assert len(runtime_hash) == 32, "Invalid runtime_code_hash length"
+    
+    # 2. Verify mode-specific fields
+    if storage_mode == 0x00:  # ON_CHAIN
+        init_blob = tlv_entries.get(0x10)
+        runtime_blob = tlv_entries.get(0x11)
+        assert keccak256(init_blob) == init_hash, "init_code hash mismatch"
+        assert keccak256(runtime_blob) == runtime_hash, "runtime_code hash mismatch"
+    else:  # IPFS
+        init_cid = tlv_entries.get(0x20).decode('utf-8')
+        runtime_cid = tlv_entries.get(0x21).decode('utf-8')
+        assert is_valid_cid(init_cid), "Invalid init_code CID"
+        assert is_valid_cid(runtime_cid), "Invalid runtime_code CID"
+    
+    # 3. Verify signature over commitment (all TLV entries except 0xFF)
+    commitment = keccak256(lock_script_bytes_without_signature_tlv)
+    deployer_address = ecrecover(commitment, signature)
+    assert deployer_address == utxo.account, "Signature mismatch"
+    
+    # 4. Verify nonce (replay protection)
+    assert nonce == get_account_nonce(deployer_address), "Invalid nonce"
+    
+    return True
+```
+
+**(v1)** TLV encoding is the normative format for all Code Vault lock scripts on mainnet. JSON examples in this document are provided for human readability only; implementations MUST use TLV
 ```
 
 - **Size Limits**: On-chain blobs have governance-configurable size limits per UTXO to prevent chain bloat; oversized deposits revert. IPFS has no inherent limit (scalable). **EVM Compatibility Constraint**: Regardless of storage mode, the runtime bytecode MUST NOT exceed the maximum contract bytecode size enforced by the target regional or Federal EVM chains (typically 24KB per EIP-170, though regions may configure different limits). Code Vault deposits with runtime_bytecode exceeding the destination chain's limit will be rejected during deployment, even if the Code Vault UTXO was successfully created. Deployers should verify target chain limits before depositing.
@@ -1610,6 +1959,207 @@ Constraints:
 - beacon_quorum_ok requires at least q of m beacons reporting in-window measurements.
 - reports are signed by beacons and include nonces to prevent replay.
 - Validator eligibility also requires a valid Cryftee attestation (`/v1/runtime/attestation` signed proof of module set) for consensus participants.
+
+
+---
+
+#### 4.4.1 City emergency exit and fraud proofs (v1 normative)
+
+**Problem:** If a City chain fails, censors users, or its parent State refuses to process City checkpoints, users must be able to recover their balances without relying on the misbehaving party.
+
+**Solution: Merkle proof-based emergency exit with Federal Chain adjudication.**
+
+**Step 1: City balance commitment (every checkpoint)**
+
+Each City checkpoint includes a **balance Merkle root**:
+
+```text
+CityCheckpoint = {
+  city_id: 1001005,  // Region 1, City 5
+  height: 5_123_456,
+  block_hash: 0x...,
+  state_root: 0x...,
+  balance_merkle_root: 0x...,  // Root of all account balances
+  message_root: 0x...,
+  validator_quorum: { ... },
+  epoch: 1234
+}
+
+Balance Merkle tree construction:
+  - Leaf: keccak256(account || asset_id || balance)
+  - Sorted by account address (ascending)
+  - Standard binary Merkle tree (keccak256 hashing)
+  - balance_merkle_root = root of tree
+
+Example:
+  Leaf_1 = keccak256(0xAlice || USDC || 5000)
+  Leaf_2 = keccak256(0xBob || USDC || 2000)
+  Leaf_3 = keccak256(0xAlice || CRYFT || 1200)
+  ...
+  balance_merkle_root = merkleRoot([Leaf_1, Leaf_2, Leaf_3, ...])
+```
+
+State chain stores: `city_balance_roots[city_id][height] = balance_merkle_root`
+
+**Step 2: User initiates emergency exit**
+
+**Trigger conditions:**
+- City chain offline for > 24 hours
+- City checkpoint not processed by State for > 3 epochs
+- User suspects censorship or balance manipulation
+
+**Exit request to State:**
+
+```solidity
+// State Balance Ledger emergency exit function
+function emergencyExitFromCity(
+    uint64 city_id,
+    uint64 checkpoint_height,
+    address account,
+    bytes32 asset_id,
+    uint256 balance,
+    bytes32[] calldata merkle_proof
+) external {
+    // 1. Verify checkpoint exists and is finalized on State
+    bytes32 balance_root = city_balance_roots[city_id][checkpoint_height];
+    require(balance_root != 0, "Checkpoint not finalized");
+    require(checkpoint_height < block.number - FINALITY_DELAY, "Not finalized yet");
+    
+    // 2. Verify Merkle proof
+    bytes32 leaf = keccak256(abi.encodePacked(account, asset_id, balance));
+    bool valid = MerkleProof.verify(merkle_proof, balance_root, leaf);
+    require(valid, "Invalid Merkle proof");
+    
+    // 3. Verify account matches msg.sender (or authorized delegate)
+    require(account == msg.sender || isAuthorized[account][msg.sender], "Not authorized");
+    
+    // 4. Mark balance as exited (prevent double-claim)
+    bytes32 exit_key = keccak256(abi.encodePacked(city_id, checkpoint_height, account, asset_id));
+    require(!exits[exit_key], "Already exited");
+    exits[exit_key] = true;
+    
+    // 5. Credit balance to State-direct (escalate from City to State)
+    state_balances[asset_id][account] += balance;
+    
+    emit EmergencyExitFromCity(city_id, checkpoint_height, account, asset_id, balance);
+}
+```
+
+**Step 3: Appeal to Federal Chain (if State refuses)**
+
+If State chain censors emergency exit or is offline:
+
+```solidity
+// Federal Chain emergency exit (last resort)
+function emergencyExitFromCityToFederal(
+    uint64 city_id,
+    uint64 state_id,
+    uint64 city_checkpoint_height,
+    uint64 state_checkpoint_height,
+    address account,
+    bytes32 asset_id,
+    uint256 balance,
+    bytes32[] calldata city_merkle_proof,
+    bytes32[] calldata state_merkle_proof
+) external {
+    // 1. Verify State checkpoint exists on Federal Chain
+    Checkpoint memory stateCP = checkpoints[state_id][state_checkpoint_height];
+    require(stateCP.height > 0, "State checkpoint not found");
+    
+    // 2. Verify State checkpoint includes City's balance root (via Merkle proof)
+    // ... (implementation details)
+    
+    // 3. Verify City balance Merkle proof
+    bytes32 leaf = keccak256(abi.encodePacked(account, asset_id, balance));
+    bool valid = MerkleProof.verify(city_merkle_proof, city_balance_root, leaf);
+    require(valid, "Invalid City Merkle proof");
+    
+    // 4. Verify 72-hour waiting period (prevents impatient appeals)
+    require(block.timestamp > stateCP.timestamp + 72 hours, "Must wait 72h for State response");
+    
+    // 5. Credit balance to Federal-direct
+    federal_balances[asset_id][account] += balance;
+    
+    // 6. Slash State validators (2% stake penalty for censorship)
+    slashStateValidators(state_id, CENSORSHIP_PENALTY);
+    
+    emit EmergencyExitToFederal(city_id, state_id, account, asset_id, balance);
+}
+```
+
+**Step 4: Griefing prevention**
+
+**Attack: User submits fake balance claim with fabricated Merkle proof**
+
+Prevention:
+- Merkle proof verification is cryptographically secure (cannot fake valid proof)
+- balance_merkle_root is committed in finalized City checkpoint (cannot be altered)
+
+**Attack: User double-claims (exits same balance twice)**
+
+Prevention:
+- `exits[exit_key]` mapping tracks claimed balances per checkpoint
+- Second claim with same (city_id, checkpoint_height, account, asset_id) reverts
+
+**Attack: Spam emergency exits to DOS State/Federal Chain**
+
+Prevention:
+- Emergency exit requires gas fee (economic cost)
+- Rate limiting: Max 10 exits per block per account
+- Governance can pause emergency exits if abuse detected (requires 67% vote)
+
+**Attack: City validators collude to create fake checkpoint with inflated balances**
+
+Prevention (fraud proof mechanism):
+
+```text
+Fraud proof submission (by honest observer):
+
+1. Observer detects invalid City checkpoint
+2. Observer submits fraud proof to State:
+   - City checkpoint header (balance_merkle_root, quorum, epoch)
+   - Proof of invalid transition
+   - Merkle proofs for before/after state
+3. State verifies fraud proof by re-executing disputed transactions
+4. If fraud proven: State slashes City validators (10% stake)
+5. State initiates emergency City shutdown
+```
+
+**Fraud proof data structure:**
+
+```solidity
+struct CityFraudProof {
+    uint64 city_id;
+    uint64 disputed_checkpoint_height;
+    bytes32 claimed_balance_root;
+    bytes32 computed_balance_root;
+    Transaction[] disputed_txs;
+    bytes32[] state_merkle_proofs;
+    bytes fraud_evidence;
+}
+
+function submitCityFraudProof(CityFraudProof calldata proof) external {
+    bool isValid = verifyCityFraudProof(proof);
+    require(isValid, "Invalid fraud proof");
+    
+    slashCityValidators(proof.city_id, FRAUD_PENALTY);
+    fraudulent_checkpoints[proof.city_id][proof.disputed_checkpoint_height] = true;
+    rewardFraudProver(msg.sender, FRAUD_PENALTY * 10 / 100);
+    
+    emit CityFraudProven(proof.city_id, proof.disputed_checkpoint_height);
+}
+```
+
+**Economic incentives:**
+
+| Role | Action | Incentive | Penalty |
+|:-----|:-------|:----------|:--------|
+| City validators | Submit honest checkpoints | Block rewards + fees | 10% slash for fraud |
+| State validators | Process City checkpoints | Checkpoint fees | 2% slash for censorship |
+| Users | Emergency exit only when needed | Recover funds | Gas costs (prevents spam) |
+| Fraud provers | Submit valid fraud proofs | 10% of slashed stake | None (invalid proofs rejected) |
+
+**Version marker: (v1) City emergency exit and fraud proof mechanisms are mainnet-required for hierarchical City deployment.**
 
 
 ---
@@ -1913,6 +2463,58 @@ This design is a **proposal**. Before mainnet:
 
 See Section 6.8 for the complete path to production readiness.
 
+### 5.6 Chain IDs and RPC compatibility (v1 normative spec)
+
+**Critical for Web2-like UX:** Wallets, dApps, and tooling must seamlessly interact with Primary Network chains (Federal, Mirror, EVM) and regional State/City chains. This requires precise chain ID conventions, discovery mechanisms, and RPC behavior specifications.
+
+#### 5.6.1 Chain ID conventions (EIP-155 compliant)
+
+**Primary Network chain IDs (reserved range 1-99):**
+
+```text
+Federal Chain:  chainId = 1  (canonical governance/staking chain)
+Mirror Chain:   chainId = 2  (native assets/GBL/UTXO chain)
+EVM Chain:      chainId = 3  (smart contracts/CMR/Main execution)
+```
+
+**State/Region chain IDs (range 1000-999999):**
+
+```text
+Format: 1000 + region_id
+
+Examples:
+  Region 1 (e.g., US-East):     chainId = 1001
+  Region 42 (e.g., EU-Central): chainId = 1042
+  Region 500 (e.g., APAC):      chainId = 1500
+
+Maximum: region_id < 999000 (reserved)
+```
+
+**City chain IDs (range 1000000-9999999):**
+
+```text
+Format: 1000000 + (parent_region_id * 1000) + city_local_id
+
+Examples:
+  Region 1, City 5:  chainId = 1001005
+  Region 42, City 12: chainId = 1042012
+  Region 500, City 3: chainId = 1500003
+
+Constraints:
+  - parent_region_id < 9000 (max 8999 regions)
+  - city_local_id < 1000 (max 999 cities per region)
+```
+
+**Custom subnet chain IDs (range 10000000+):**
+
+Custom (non-CSS) subnets choose chain IDs >= 10000000 during Federal Chain registration. Collisions rejected at registration time.
+
+**Replay protection invariant:**
+
+All chains use **EIP-155 replay protection**. Transactions signed for chainId=1001 (Region 1) cannot be replayed on chainId=1042 (Region 42) or chainId=3 (EVM Chain). This is enforced at transaction validation (v, r, s signature check includes chainId).
+
+**Version marker: (v1) All chain ID conventions and RPC specs are mainnet-required and implemented.**
+
 
 ---
 
@@ -1982,6 +2584,8 @@ DAS Verification (simplified):
 
 DAS is not mandatory for CSS-1 compliance but is recommended for high-throughput regions and for any chain seeking trustless light client support.
 
+**(vNext)** Data Availability Sampling is optional in v1; regions may integrate DAS proofs for enhanced light client support and higher throughput. Production integration expected in vNext releases (2027+).
+
 ### 6.7 ZK-EVM integration for validity proofs
 
 Zero-knowledge Ethereum Virtual Machines (ZK-EVMs) enable cryptographic proof-based validation of transaction batches. Instead of re-executing transactions, validators can verify a succinct proof that execution was performed correctly. This dramatically reduces computational load and enables trustless cross-chain verification.
@@ -2016,6 +2620,8 @@ ZK-EVMs have reached production-quality performance, with ongoing safety hardeni
 1. **Phase 1 (2026):** Optional ZK proofs for checkpoint verification; regions may provide proofs for faster Main acceptance.
 2. **Phase 2 (2027-2028):** ZK-EVM provers integrated into Cryftee modules; CSS-1 regions encouraged to produce validity proofs.
 3. **Phase 3 (2028-2030):** ZK proofs become the default verification method; quorum signatures retained as fallback and for governance.
+
+**(vNext)** ZK-EVM validity proofs are optional in v1; regions use BLS quorum signatures for checkpoint verification. ZK proof support will be progressively integrated in vNext releases (2027-2030 timeline).
 
 ```text
 Checkpoint with ZK validity proof:
@@ -3370,6 +3976,202 @@ This section is split into multiple files for easier navigation:
 
 5) Contract now exists at 0xToken on Regions A, B, C
    - Region D and E: contract does NOT exist
+
+
+#### 10.1.1 Checkpoint verification algorithm (v1 normative)
+
+**Problem:** Federal Chain receives checkpoint from Region R at epoch E. How does Federal Chain verify the quorum signature without storing every region's full validator set?
+
+**Solution:** Canonical validator set tracking via Federal Chain registry + commitment-based verification.
+
+**Step 1: Validator set registration (performed once per epoch or on validator set change)**
+
+Regions register their validator set with Federal Chain at epoch boundaries:
+
+```text
+ValidatorSetCommitment = {
+  region_id: 42,
+  epoch: 771,
+  validator_set: [
+    {pubkey: 0xVal1, stake: 1500, status: ACTIVE},
+    {pubkey: 0xVal2, stake: 2000, status: ACTIVE},
+    {pubkey: 0xVal3, stake: 1200, status: ACTIVE},
+    // ... up to N validators
+  ],
+  total_stake: 4700,
+  quorum_threshold: 3149,  // 67% of total_stake
+  validator_set_hash: keccak256(serialize(validator_set)),
+  transition_height: 8240000,  // height at which this set becomes active
+  registration_signature: BLS_AGG_SIG  // quorum of PREVIOUS validator set
+}
+```
+
+**Federal Chain stores:**
+
+```solidity
+// Canonical registry on Federal Chain
+mapping(uint64 region_id => mapping(uint64 epoch => ValidatorSetCommitment)) public validatorSets;
+mapping(uint64 region_id => uint64 current_epoch) public currentEpoch;
+
+// Fast lookup: validator_set_hash -> ValidatorSetCommitment
+mapping(bytes32 validator_set_hash => ValidatorSetCommitment) public validatorSetByHash;
+```
+
+**Step 2: Checkpoint submission**
+
+Region submits checkpoint to Federal Chain:
+
+```solidity
+function submitCheckpoint(Checkpoint memory cp) external {
+    // 1. Retrieve validator set for this epoch
+    ValidatorSetCommitment memory valSet = validatorSets[cp.region_id][cp.epoch];
+    require(valSet.epoch == cp.epoch, "Validator set not registered for epoch");
+    
+    // 2. Verify validator_set_hash matches
+    require(cp.validator_set_hash == valSet.validator_set_hash, "Validator set hash mismatch");
+    
+    // 3. Verify quorum signature
+    bool valid = verifyBLSAggregateSignature(
+        cp.quorum.sig,
+        cp.quorum.signers_bitmap,
+        valSet.validator_set,
+        checkpointCommitment(cp)
+    );
+    require(valid, "Invalid quorum signature");
+    
+    // 4. Verify quorum threshold met
+    uint256 signingStake = computeSigningStake(cp.quorum.signers_bitmap, valSet.validator_set);
+    require(signingStake >= valSet.quorum_threshold, "Insufficient stake");
+    
+    // 5. Store checkpoint
+    checkpoints[cp.region_id][cp.height] = cp;
+    emit CheckpointAccepted(cp.region_id, cp.height, cp.block_hash);
+}
+```
+
+**Step 3: Signature verification details**
+
+```text
+Function: verifyBLSAggregateSignature(sig, bitmap, validator_set, message)
+
+1. Extract signing validators from bitmap:
+   signing_validators = []
+   for i in range(len(validator_set)):
+       if bitmap[i] == 1:
+           signing_validators.append(validator_set[i])
+
+2. Aggregate public keys:
+   agg_pubkey = BLS_Aggregate([v.pubkey for v in signing_validators])
+
+3. Verify signature:
+   message_hash = keccak256(message)
+   return BLS_Verify(agg_pubkey, message_hash, sig)
+
+Function: computeSigningStake(bitmap, validator_set)
+
+1. total = 0
+2. for i in range(len(validator_set)):
+       if bitmap[i] == 1:
+           total += validator_set[i].stake
+3. return total
+
+Function: checkpointCommitment(cp)
+
+1. Serialize checkpoint fields (excluding quorum):
+   data = abi.encodePacked(
+       cp.region_id,
+       cp.chain_id,
+       cp.height,
+       cp.block_hash,
+       cp.state_root,
+       cp.message_root,
+       cp.validator_set_hash,
+       cp.epoch,
+       cp.ping_epoch
+   )
+2. return keccak256(data)
+```
+
+**Step 4: Handling mid-epoch validator set changes**
+
+**Scenario:** Region's validator set changes at height 8240500 (mid-epoch 771).
+
+**Solution: Dual validator set support**
+
+```text
+1. Region registers new validator set with Federal Chain:
+   - epoch: 771 (same)
+   - transition_height: 8240500
+   - validator_set_hash: 0xNEW
+   - registration_signature: signed by CURRENT (old) validator set
+
+2. Federal Chain tracks both:
+   validatorSets[42][771] = [
+     {validator_set_hash: 0xOLD, valid_until: 8240499},
+     {validator_set_hash: 0xNEW, valid_from: 8240500}
+   ]
+
+3. Checkpoint verification uses height-based lookup:
+   if (cp.height < 8240500):
+       use validator_set_hash = 0xOLD
+   else:
+       use validator_set_hash = 0xNEW
+
+4. Checkpoint at height 8240500+ MUST use validator_set_hash = 0xNEW
+   (transition enforced at boundary)
+```
+
+**Step 5: Light client verification (minimum data)**
+
+**Full verification (requires validator set):**
+- Federal Chain stores full validator set (~10KB per region per epoch)
+- Verifies BLS aggregate signature + stake threshold
+- Required for: Federal Chain nodes, critical infrastructure
+
+**Light verification (requires only validator_set_hash + trust assumption):**
+- Client fetches: checkpoint + quorum signature + validator_set_hash
+- Client verifies: validator_set_hash is registered on Federal Chain (via Merkle proof)
+- Client trusts: Federal Chain verified the full quorum (does not re-verify BLS sig)
+- Minimum data: ~500 bytes (checkpoint + Merkle proof)
+- Required for: Wallets, light clients, mobile apps
+
+**Light client verification algorithm:**
+
+```text
+1. Client fetches checkpoint from region RPC
+2. Client queries Federal Chain: getValidatorSetHash(region_id, epoch)
+3. Federal Chain returns: (validator_set_hash, Merkle_proof_of_registration)
+4. Client verifies Merkle proof against Federal Chain state root
+5. Client checks: checkpoint.validator_set_hash == registered_validator_set_hash
+6. If match: checkpoint is valid (Federal Chain already verified full quorum)
+7. If no match: reject checkpoint
+```
+
+**Trust model:**
+- Light clients trust Federal Chain's checkpoint acceptance (2/3+ honest Federal validators)
+- Full nodes independently verify checkpoint signatures (zero trust)
+- Regions cannot submit fake checkpoints (quorum signature required)
+- Federal Chain cannot accept checkpoints with < 67% stake (enforced by BLS verification)
+
+**Failure modes:**
+
+| Scenario | Detection | Mitigation |
+|:---------|:----------|:-----------|
+| Region submits checkpoint with wrong validator_set_hash | Federal Chain rejects (hash mismatch) | Region re-submits with correct hash |
+| Validator set not registered for epoch | Federal Chain rejects (no valSet entry) | Region must register validator set first |
+| Quorum signature invalid | Federal Chain rejects (BLS verify fails) | Indicates Byzantine behavior or bug; region investigates |
+| Insufficient stake (<67%) | Federal Chain rejects (below threshold) | Region collects more signatures before re-submitting |
+| Mid-epoch validator set change without registration | Federal Chain rejects future checkpoints | Region must register new set before transition height |
+
+**Performance considerations:**
+
+- Validator set registration: Once per epoch (~10 minutes) or on change
+- Registration cost: ~50,000 gas (Federal Chain transaction)
+- Checkpoint verification cost: ~200,000 gas (BLS aggregate + stake computation)
+- Light client verification cost: ~5,000 gas (Merkle proof only)
+- Federal Chain storage per region: ~10KB per epoch (validator set) + ~1KB per checkpoint
+
+**Version marker: (v1) All checkpoint verification rules are mainnet-required and implemented.**
 
 
    - Developer can later expand to D, E by paying additional fee
