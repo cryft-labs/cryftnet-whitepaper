@@ -6547,6 +6547,20 @@ This section transforms open questions into actionable decision items with clear
 
 ---
 
+#### 16.2.8 v1.28 P1 specification review questions
+
+**Note:** The following decision items are deferred for future review after v1.28 P1 specification gaps were addressed. These are NOT blockers for v1.28 release but should be validated during testnet-1 and production audit phases.
+
+| # | Decision | Type | Owner | Milestone | Acceptance Test | Status |
+|:--|:---------|:-----|:------|:----------|:----------------|:-------|
+| **D-28** | Chain ID numbering scale validation | `spec` + `simulation` | dev + ops | testnet-1 | States 1000-999999 and Cities 1000000-9999999 ranges support expected network growth (10K States, 100K Cities); no chainId collision risks; wallet/tooling compatibility confirmed | TODO |
+| **D-29** | Checkpoint verification BLS flow clarity | `spec` + `research` | dev + research | testnet-1 | BLS aggregate signature verification algorithm clear to implementers; reference implementation passes test vectors; no ambiguity in validator set tracking or bitmap interpretation | TODO |
+| **D-30** | City emergency exit timing parameters | `governance` + `simulation` | tokenomics + governance | testnet-1 | 72h Federal appeal window balances safety vs. UX; user recovery success rate >95%; censorship detection rate >99%; griefing attack cost >$X; false positive rate <0.1% | TODO |
+| **D-31** | Code Vault TLV encoding future-proofing | `spec` + `research` | dev | testnet-1 | TLV type code assignment (0x01-0xFF) supports future extensions; unknown type skip-rules work correctly; no backward compatibility breaks; parser implementations identical across Rust/Go/TypeScript | TODO |
+| **D-32** | Version marker consistency validation | `spec` + `ops` | dev + ops | testnet-1 | (v1)/(vNext)/(future) distinctions clear throughout whitepaper; no features incorrectly marked as v1 that are actually aspirational; testnet-1 feature set matches v1 markers; documentation updated | TODO |
+
+---
+
 #### 16.2.7 Decision process workflow
 
 **For each decision:**
