@@ -114,14 +114,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.28<br>
+<strong>Revision:</strong> v1.29<br>
 <strong>Date:</strong> January 20, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.28):</strong> **P1 SPECIFICATION GAPS RESOLVED:** Added Section 5.6 (Chain IDs and RPC Compatibility) with chainId conventions, discovery registry, and wallet integration. Added Section 10.1.1 (Checkpoint Verification Algorithm) with normative BLS signature verification and validator set tracking. Added Section 4.4.1 (City Emergency Exit and Fraud Proofs) with Merkle-based recovery mechanism. Updated Section 4.5.3 (Code Vault Canonical Encoding) with TLV format replacing JSON for consensus-critical structures. Added version markers throughout: (v1) mainnet-implemented, (vNext) optional/research, (future) speculative. Previous (v1.27): Section numbering consistency fixes.
+<strong>Latest Changes (v1.29):</strong> **INVESTOR/AUDITOR CONFIDENCE ADDITIONS:** Added Section 12.4 Bootstrapping & Decentralization (4-phase transition Days 0-365 with on-chain time-locks, Cryft Labs special powers sunset by Day 365, enforcement contracts prevent perpetual bootstrap, Decentralization Dashboard for transparency). Added Section 11.5 Zero-Emission Economics (100M CRYFT genesis validator bootstrap Days 0-180, realistic fee projections $2.2k/day Month 1, State subsidy pools, emergency treasury stipends with 90-day auto-sunset, DAO flexibility to introduce emission if needed). Added Section 5.7 Operational SLO Monitoring (CSS-1 required metrics p50/p95/p99, 20-50 ping beacons, tiered penalties Tier 1-3, recovery process, public dashboard status.cryftnet.io). Transforms \"Web2 feel\" into enforceable protocol guarantees. Addresses \"benevolent dictatorship\" concerns and \"who pays for security\" question. Total: ~1,950 lines. Previous (v1.28): P1 specification gaps.
 </p>
 
 <p align="center"><em>

@@ -348,3 +348,357 @@ Custom (non-CSS) subnets choose chain IDs >= 10000000 during Federal Chain regis
 All chains use **EIP-155 replay protection**. Transactions signed for chainId=1001 (Region 1) cannot be replayed on chainId=1042 (Region 42) or chainId=3 (EVM Chain). This is enforced at transaction validation (v, r, s signature check includes chainId).
 
 **Version marker: (v1) All chain ID conventions and RPC specs are mainnet-required and implemented.**
+
+### 5.7 Operational SLOs and monitoring (CSS-1 enforcement mechanisms)
+
+**Critical for "Web2 feel" claim:** Latency targets and health scores are only meaningful if they're **measurable, enforced, and have consequences**.
+
+This section transforms operational metrics from aspirational to protocol-enforced via CSS-1 compliance requirements.
+
+#### 5.7.1 CSS-1 required metrics (normative specification)
+
+All CSS-1 compliant State chains MUST expose the following metrics via standardized endpoints:
+
+**1. Latency metrics (measured via ping beacons and client telemetry):**
+
+| Metric | Measurement Method | SLO Target | Reporting Frequency |
+|:-------|:------------------|:-----------|:--------------------|
+| **p50 block latency** | Time from tx submission to block inclusion | <500ms | Every epoch (~10 min) |
+| **p95 block latency** | 95th percentile latency | <2000ms | Every epoch |
+| **p99 block latency** | 99th percentile latency | <5000ms | Every epoch |
+| **Inter-validator RTT** | Round-trip time between validator pairs | <100ms for 67% of pairs | Continuous (5min windows) |
+| **RPC response time** | eth_sendRawTransaction to receipt | p95 <3000ms | Every epoch |
+
+**2. Availability metrics:**
+
+| Metric | Measurement Method | SLO Target | Reporting Frequency |
+|:-------|:------------------|:-----------|:--------------------|
+| **Validator uptime** | Missed block proposals + checkpoint signatures | >95% per validator | Every epoch |
+| **RPC endpoint availability** | HTTP 200 responses to health checks | >99.5% uptime | Every 5 minutes |
+| **Checkpoint submission success rate** | Successful Federal Chain checkpoint acceptance | >99% of attempts | Every checkpoint |
+| **Peer connectivity** | Reachable validator peers | >80% of validator set | Continuous |
+
+**3. Throughput metrics:**
+
+| Metric | Measurement Method | SLO Target | Reporting Frequency |
+|:-------|:------------------|:-----------|:--------------------|
+| **Transactions per second (TPS)** | Committed txs / time window | >100 TPS sustained | Every epoch |
+| **Gas throughput** | Gas used per block | >30M gas/block (EVM equivalent) | Every epoch |
+| **Cross-region message processing** | Messages accepted from other regions | >95% acceptance rate | Every checkpoint |
+
+**4. Jitter and stability metrics:**
+
+| Metric | Measurement Method | SLO Target | Reporting Frequency |
+|:-------|:------------------|:-----------|:--------------------|
+| **Block time variance** | Std dev of block times | <200ms from target | Every 100 blocks |
+| **Missed blocks** | Proposed blocks not finalized | <1% of blocks | Every epoch |
+| **Fork rate** | Conflicting blocks at same height | <0.01% | Every epoch |
+
+#### 5.7.2 Measurement infrastructure (how metrics are collected)
+
+**Ping Beacon Network (Federal Chain operated):**
+
+`	ext
+Architecture:
+- 20-50 geographically distributed beacon nodes
+- Each beacon pings all CSS-1 validators every 30 seconds
+- Beacons report RTT measurements to Federal Chain (on-chain registry)
+- Median of 3-5 beacons used to avoid single-beacon bias
+
+Beacon selection:
+- Operated by diverse entities (Cryft Labs, infrastructure providers, DAO-funded)
+- Geographic distribution: NA (5), EU (5), APAC (5), SA (2), Africa (2), Oceania (1)
+- Beacon operators bonded (slashed for false reporting)
+
+Data structure (on-chain):
+PingReport {
+  beacon_id: 0xBeacon,
+  region_id: 1042,
+  validator_pubkey: 0xValidator,
+  epoch: 12345,
+  rtt_samples: [42ms, 45ms, 44ms, 43ms, 41ms],  // 5 samples over epoch
+  median_rtt: 43ms,
+  p95_rtt: 45ms,
+  packet_loss: 0.0,
+  timestamp: 1737331200,
+  beacon_sig: Sign(...)
+}
+`
+
+**Client Telemetry (opt-in, privacy-preserving):**
+
+`	ext
+Wallets and dApp frontends can opt-in to report anonymized latency metrics:
+
+TelemetryReport {
+  region_id: 1042,
+  client_type: "metamask" | "custom",
+  sample_count: 100,  // aggregated over 1 hour
+  p50_latency: 420ms,
+  p95_latency: 1800ms,
+  p99_latency: 4200ms,
+  error_rate: 0.02,   // 2% of requests failed
+  anonymized_id: hash(user_id + salt),  // cannot track individual users
+  timestamp: ...
+}
+
+Reported to: Public dashboard (aggregated), Federal Chain (digest only)
+Privacy: No PII, IP addresses, or transaction details
+`
+
+**Validator Self-Reporting (required for CSS-1):**
+
+`	ext
+Validators MUST publish health metrics to Federal Chain every epoch:
+
+ValidatorHealthReport {
+  validator_pubkey: 0xValidator,
+  region_id: 1042,
+  epoch: 12345,
+  
+  // Block production
+  blocks_proposed: 142,
+  blocks_finalized: 140,
+  blocks_missed: 2,
+  
+  // Consensus participation
+  checkpoint_signatures_submitted: 144,
+  checkpoint_signatures_expected: 144,
+  
+  // Peer connectivity
+  connected_peers: 18,
+  expected_peers: 20,
+  
+  // Resource usage (optional, for capacity planning)
+  avg_cpu_usage: 0.45,
+  avg_memory_gb: 28.2,
+  disk_iops: 5000,
+  
+  validator_sig: Sign(...)
+}
+
+Verification: Federal Chain compares self-report to beacon data (detect lying)
+`
+
+#### 5.7.3 SLO violation consequences (enforceable penalties)
+
+**Problem:** Metrics without consequences are ignored.
+
+**Solution: Tiered penalty system based on severity and duration**
+
+**Tier 1: Performance Degradation (p95 latency >2s for 3+ consecutive epochs)**
+
+**Consequences:**
+- **Routing deprioritization**: RPC load balancers automatically reduce traffic to slow regions (70%  50%  30%)
+- **User warnings**: Wallets display "Region 1042 is experiencing high latency" banner
+- **Validator alerts**: Discord/Telegram alerts to region operators ("Fix within 24h or face Tier 2")
+- **No slashing**: Temporary performance issues don't lose stake
+
+**Mechanism:**
+`solidity
+// Federal Chain SLO Monitor
+if (p95_latency[region_id][last_3_epochs] > 2000ms) {
+    regionHealth[region_id] = DEGRADED;
+    emit PerformanceDegraded(region_id, p95_latency[region_id]);
+    
+    // RPC providers listen to this event and adjust routing weights
+}
+`
+
+**Tier 2: Sustained SLO Violation (p95 >2s for 10+ consecutive epochs OR uptime <90%)**
+
+**Consequences:**
+- **Reward haircut**: Validator rewards reduced by 25% during violation period
+- **Checkpoint fee increase**: Region pays 2x normal checkpoint submission fee (incentive to fix)
+- **Public dashboard warning**: Region marked "Not recommended" on official network status page
+- **DAO notification**: Automated governance proposal created ("Should Region 1042 be suspended?")
+
+**Mechanism:**
+`solidity
+if (sustained_violation_count[region_id] >= 10) {
+    // Apply reward haircut
+    validatorRewardMultiplier[region_id] = 0.75;  // 25% reduction
+    checkpointFeeMultiplier[region_id] = 2.0;     // 2x fees
+    
+    // Create DAO proposal for suspension vote
+    createGovernanceProposal(
+        title: "Suspend Region 1042 for sustained SLO violations?",
+        description: "p95 latency >2s for 10 epochs...",
+        vote_duration: 7 days
+    );
+    
+    emit SustainedViolation(region_id, violation_count);
+}
+`
+
+**Tier 3: Critical Failure (uptime <50% OR 24h outage OR fraud detected)**
+
+**Consequences:**
+- **Temporary suspension**: Region cannot submit checkpoints (blocks cross-region transfers)
+- **Validator slashing**: 2% stake slash for all region validators
+- **Emergency DAO vote**: 72h fast-track vote to decide permanent removal or recovery plan
+- **User fund protection**: Emergency exit mechanism activated (see Section 4.4.1 City fraud proofs)
+
+**Mechanism:**
+`solidity
+if (uptime[region_id][last_epoch] < 0.5 || outage_duration > 24 hours) {
+    // Immediate suspension
+    regionStatus[region_id] = SUSPENDED;
+    
+    // Slash all validators
+    for (validator in regionValidators[region_id]) {
+        slashValidator(validator, SLASHING_RATE_SLO_CRITICAL); // 2%
+    }
+    
+    // Emergency DAO vote (72h timeline)
+    createEmergencyProposal(
+        title: "Region 1042 critical failure - recover or remove?",
+        options: ["Grant 7-day recovery period", "Permanent removal", "Emergency coordinator takeover"],
+        fast_track: true,
+        vote_duration: 72 hours
+    );
+    
+    emit CriticalFailure(region_id, reason);
+}
+`
+
+#### 5.7.4 Recovery and rehabilitation process
+
+**Problem:** Penalized regions need a path to restore good standing.
+
+**Solution: Staged recovery with proof-of-improvement**
+
+**Stage 1: Diagnosis (0-48 hours)**
+- Region operators identify root cause (hardware, network, software bug, attack)
+- Submit incident report to DAO forum (public transparency)
+- Cryft Labs or community volunteers offer technical assistance (if requested)
+
+**Stage 2: Fix and validation (48h-7 days)**
+- Implement fixes (upgrade hardware, optimize software, change validators)
+- Run 24h "recovery period" with monitoring (no penalties, but no rewards either)
+- Beacon network validates improvement (3 consecutive epochs with p95 <1.5s)
+
+**Stage 3: Probation (7-30 days)**
+- Region restored to full status (checkpoints accepted, routing restored)
+- Reward haircut reduced gradually (75%  85%  95%  100% over 30 days)
+- Enhanced monitoring (5min reporting windows instead of 10min)
+- Second violation within probation  immediate Tier 3 (no second chance)
+
+**Stage 4: Full restoration (Day 30+)**
+- All penalties removed
+- Normal SLO monitoring resumes
+- Incident post-mortem published to DAO (learning for other regions)
+
+**Code enforcement:**
+`solidity
+function requestRecovery(uint64 region_id, string calldata incident_report) external {
+    require(msg.sender == regionOperator[region_id], "Unauthorized");
+    require(regionStatus[region_id] == SUSPENDED || regionHealth[region_id] == DEGRADED, "Not in violation");
+    
+    // Enter recovery period (24h validation)
+    regionStatus[region_id] = RECOVERING;
+    recoveryStartTime[region_id] = block.timestamp;
+    
+    emit RecoveryRequested(region_id, incident_report);
+}
+
+function validateRecovery(uint64 region_id) external {
+    require(regionStatus[region_id] == RECOVERING, "Not in recovery");
+    require(block.timestamp >= recoveryStartTime[region_id] + 24 hours, "Recovery period not complete");
+    
+    // Check if SLOs met during recovery period
+    bool slos_met = (
+        p95_latency[region_id][last_3_epochs] < 1500ms &&
+        uptime[region_id][last_3_epochs] > 0.95
+    );
+    
+    if (slos_met) {
+        regionStatus[region_id] = PROBATION;
+        probationStartTime[region_id] = block.timestamp;
+        validatorRewardMultiplier[region_id] = 0.75;  // Start at 75%, increases over 30 days
+        emit RecoverySuccessful(region_id);
+    } else {
+        // Recovery failed, back to suspended
+        regionStatus[region_id] = SUSPENDED;
+        emit RecoveryFailed(region_id);
+    }
+}
+`
+
+#### 5.7.5 Public SLO dashboard (transparency and accountability)
+
+**Real-time monitoring interface:**
+
+`	ext
+URL: https://status.cryftnet.io
+
+Features:
+- Live p50/p95/p99 latency for all CSS-1 regions (updated every 10min)
+- Validator uptime % (color-coded: green >95%, yellow 90-95%, red <90%)
+- Region health status (HEALTHY, DEGRADED, RECOVERING, SUSPENDED)
+- Historical performance charts (7-day, 30-day, 90-day views)
+- Incident timeline (past violations, recovery events, DAO votes)
+- Comparison table (sort regions by latency, uptime, TPS)
+
+User benefits:
+- Developers: Choose best region for their dApp deployment
+- End users: Wallets auto-route to highest-performance regions
+- Validators: Benchmark their performance against peers
+- Investors/auditors: Verify network is delivering on "Web2 feel" promise
+
+Data sources:
+- Federal Chain on-chain SLO registry (authoritative)
+- Beacon network measurements (real-time)
+- Client telemetry aggregates (community-reported)
+- Validator self-reports (cross-validated)
+`
+
+**Dashboard API (for wallet/tooling integration):**
+
+`	ypescript
+// Example: MetaMask queries best region for user location
+GET /api/v1/regions/recommend?lat=40.7128&lon=-74.0060&min_uptime=0.95
+
+Response:
+{
+  "recommended_regions": [
+    {
+      "region_id": 1001,
+      "name": "US-East",
+      "chainId": 1001,
+      "estimated_rtt_ms": 45,
+      "p95_latency_ms": 1200,
+      "uptime_7d": 0.998,
+      "health_status": "HEALTHY",
+      "rpc_endpoints": ["https://rpc-us-east.cryftnet.io", ...]
+    },
+    {
+      "region_id": 1002,
+      "name": "US-Central",
+      "estimated_rtt_ms": 62,
+      "p95_latency_ms": 1450,
+      "uptime_7d": 0.995,
+      "health_status": "HEALTHY",
+      ...
+    }
+  ],
+  "fallback_region": {
+    "region_id": 3,  // EVM Chain (always available)
+    "name": "Primary Network EVM",
+    "estimated_rtt_ms": 120,
+    ...
+  }
+}
+`
+
+**Enforcement summary:**
+
+| Violation Type | Detection | Consequence | Recovery Time |
+|:---------------|:----------|:------------|:--------------|
+| Transient slowdown (<3 epochs) | Beacon network | Routing deprioritization, user warnings | Automatic (once p95 <2s) |
+| Sustained degradation (10+ epochs) | Beacon + validator reports | 25% reward haircut, 2x checkpoint fees, DAO alert | 7-30 days (probation) |
+| Critical failure (24h outage) | Missed checkpoints | 2% validator slash, suspension, emergency DAO vote | 7+ days (incident review) |
+| Fraud (fake metrics) | Cross-validation (beacon vs. self-report) | 10% validator slash, immediate removal, funds clawback | Permanent ban |
+
+**Key insight:** This transforms "Web2 feel" from marketing into **enforceable protocol-level guarantees with real consequences**, making CryftNet's latency claims auditable and trustworthy.
+

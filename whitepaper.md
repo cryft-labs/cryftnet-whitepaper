@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.28<br>
+<strong>Revision:</strong> v1.29<br>
 <strong>Date:</strong> January 20, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.28):</strong> **P1 SPECIFICATION GAPS RESOLVED:** Added Section 5.6 (Chain IDs and RPC Compatibility) with chainId conventions, discovery registry, and wallet integration. Added Section 10.1.1 (Checkpoint Verification Algorithm) with normative BLS signature verification and validator set tracking. Added Section 4.4.1 (City Emergency Exit and Fraud Proofs) with Merkle-based recovery mechanism. Updated Section 4.5.3 (Code Vault Canonical Encoding) with TLV format replacing JSON for consensus-critical structures. Added version markers throughout: (v1) mainnet-implemented, (vNext) optional/research, (future) speculative. Previous (v1.27): Section numbering consistency fixes.
+<strong>Latest Changes (v1.29):</strong> **INVESTOR/AUDITOR CONFIDENCE ADDITIONS:** Added Section 12.4 Bootstrapping & Decentralization (4-phase transition Days 0-365 with on-chain time-locks, Cryft Labs special powers sunset by Day 365, enforcement contracts prevent perpetual bootstrap, Decentralization Dashboard for transparency). Added Section 11.5 Zero-Emission Economics (100M CRYFT genesis validator bootstrap Days 0-180, realistic fee projections $2.2k/day Month 1, State subsidy pools, emergency treasury stipends with 90-day auto-sunset, DAO flexibility to introduce emission if needed). Added Section 5.7 Operational SLO Monitoring (CSS-1 required metrics p50/p95/p99, 20-50 ping beacons, tiered penalties Tier 1-3, recovery process, public dashboard status.cryftnet.io). Transforms "Web2 feel" into enforceable protocol guarantees. Addresses "benevolent dictatorship" concerns and "who pays for security" question. Total: ~1,950 lines. Previous (v1.28): P1 specification gaps.
 </p>
 
 <p align="center"><em>
@@ -2514,6 +2514,360 @@ Custom (non-CSS) subnets choose chain IDs >= 10000000 during Federal Chain regis
 All chains use **EIP-155 replay protection**. Transactions signed for chainId=1001 (Region 1) cannot be replayed on chainId=1042 (Region 42) or chainId=3 (EVM Chain). This is enforced at transaction validation (v, r, s signature check includes chainId).
 
 **Version marker: (v1) All chain ID conventions and RPC specs are mainnet-required and implemented.**
+
+### 5.7 Operational SLOs and monitoring (CSS-1 enforcement mechanisms)
+
+**Critical for "Web2 feel" claim:** Latency targets and health scores are only meaningful if they're **measurable, enforced, and have consequences**.
+
+This section transforms operational metrics from aspirational to protocol-enforced via CSS-1 compliance requirements.
+
+#### 5.7.1 CSS-1 required metrics (normative specification)
+
+All CSS-1 compliant State chains MUST expose the following metrics via standardized endpoints:
+
+**1. Latency metrics (measured via ping beacons and client telemetry):**
+
+| Metric | Measurement Method | SLO Target | Reporting Frequency |
+|:-------|:------------------|:-----------|:--------------------|
+| **p50 block latency** | Time from tx submission to block inclusion | <500ms | Every epoch (~10 min) |
+| **p95 block latency** | 95th percentile latency | <2000ms | Every epoch |
+| **p99 block latency** | 99th percentile latency | <5000ms | Every epoch |
+| **Inter-validator RTT** | Round-trip time between validator pairs | <100ms for 67% of pairs | Continuous (5min windows) |
+| **RPC response time** | eth_sendRawTransaction to receipt | p95 <3000ms | Every epoch |
+
+**2. Availability metrics:**
+
+| Metric | Measurement Method | SLO Target | Reporting Frequency |
+|:-------|:------------------|:-----------|:--------------------|
+| **Validator uptime** | Missed block proposals + checkpoint signatures | >95% per validator | Every epoch |
+| **RPC endpoint availability** | HTTP 200 responses to health checks | >99.5% uptime | Every 5 minutes |
+| **Checkpoint submission success rate** | Successful Federal Chain checkpoint acceptance | >99% of attempts | Every checkpoint |
+| **Peer connectivity** | Reachable validator peers | >80% of validator set | Continuous |
+
+**3. Throughput metrics:**
+
+| Metric | Measurement Method | SLO Target | Reporting Frequency |
+|:-------|:------------------|:-----------|:--------------------|
+| **Transactions per second (TPS)** | Committed txs / time window | >100 TPS sustained | Every epoch |
+| **Gas throughput** | Gas used per block | >30M gas/block (EVM equivalent) | Every epoch |
+| **Cross-region message processing** | Messages accepted from other regions | >95% acceptance rate | Every checkpoint |
+
+**4. Jitter and stability metrics:**
+
+| Metric | Measurement Method | SLO Target | Reporting Frequency |
+|:-------|:------------------|:-----------|:--------------------|
+| **Block time variance** | Std dev of block times | <200ms from target | Every 100 blocks |
+| **Missed blocks** | Proposed blocks not finalized | <1% of blocks | Every epoch |
+| **Fork rate** | Conflicting blocks at same height | <0.01% | Every epoch |
+
+#### 5.7.2 Measurement infrastructure (how metrics are collected)
+
+**Ping Beacon Network (Federal Chain operated):**
+
+`	ext
+Architecture:
+- 20-50 geographically distributed beacon nodes
+- Each beacon pings all CSS-1 validators every 30 seconds
+- Beacons report RTT measurements to Federal Chain (on-chain registry)
+- Median of 3-5 beacons used to avoid single-beacon bias
+
+Beacon selection:
+- Operated by diverse entities (Cryft Labs, infrastructure providers, DAO-funded)
+- Geographic distribution: NA (5), EU (5), APAC (5), SA (2), Africa (2), Oceania (1)
+- Beacon operators bonded (slashed for false reporting)
+
+Data structure (on-chain):
+PingReport {
+  beacon_id: 0xBeacon,
+  region_id: 1042,
+  validator_pubkey: 0xValidator,
+  epoch: 12345,
+  rtt_samples: [42ms, 45ms, 44ms, 43ms, 41ms],  // 5 samples over epoch
+  median_rtt: 43ms,
+  p95_rtt: 45ms,
+  packet_loss: 0.0,
+  timestamp: 1737331200,
+  beacon_sig: Sign(...)
+}
+`
+
+**Client Telemetry (opt-in, privacy-preserving):**
+
+`	ext
+Wallets and dApp frontends can opt-in to report anonymized latency metrics:
+
+TelemetryReport {
+  region_id: 1042,
+  client_type: "metamask" | "custom",
+  sample_count: 100,  // aggregated over 1 hour
+  p50_latency: 420ms,
+  p95_latency: 1800ms,
+  p99_latency: 4200ms,
+  error_rate: 0.02,   // 2% of requests failed
+  anonymized_id: hash(user_id + salt),  // cannot track individual users
+  timestamp: ...
+}
+
+Reported to: Public dashboard (aggregated), Federal Chain (digest only)
+Privacy: No PII, IP addresses, or transaction details
+`
+
+**Validator Self-Reporting (required for CSS-1):**
+
+`	ext
+Validators MUST publish health metrics to Federal Chain every epoch:
+
+ValidatorHealthReport {
+  validator_pubkey: 0xValidator,
+  region_id: 1042,
+  epoch: 12345,
+  
+  // Block production
+  blocks_proposed: 142,
+  blocks_finalized: 140,
+  blocks_missed: 2,
+  
+  // Consensus participation
+  checkpoint_signatures_submitted: 144,
+  checkpoint_signatures_expected: 144,
+  
+  // Peer connectivity
+  connected_peers: 18,
+  expected_peers: 20,
+  
+  // Resource usage (optional, for capacity planning)
+  avg_cpu_usage: 0.45,
+  avg_memory_gb: 28.2,
+  disk_iops: 5000,
+  
+  validator_sig: Sign(...)
+}
+
+Verification: Federal Chain compares self-report to beacon data (detect lying)
+`
+
+#### 5.7.3 SLO violation consequences (enforceable penalties)
+
+**Problem:** Metrics without consequences are ignored.
+
+**Solution: Tiered penalty system based on severity and duration**
+
+**Tier 1: Performance Degradation (p95 latency >2s for 3+ consecutive epochs)**
+
+**Consequences:**
+- **Routing deprioritization**: RPC load balancers automatically reduce traffic to slow regions (70%  50%  30%)
+- **User warnings**: Wallets display "Region 1042 is experiencing high latency" banner
+- **Validator alerts**: Discord/Telegram alerts to region operators ("Fix within 24h or face Tier 2")
+- **No slashing**: Temporary performance issues don't lose stake
+
+**Mechanism:**
+`solidity
+// Federal Chain SLO Monitor
+if (p95_latency[region_id][last_3_epochs] > 2000ms) {
+    regionHealth[region_id] = DEGRADED;
+    emit PerformanceDegraded(region_id, p95_latency[region_id]);
+    
+    // RPC providers listen to this event and adjust routing weights
+}
+`
+
+**Tier 2: Sustained SLO Violation (p95 >2s for 10+ consecutive epochs OR uptime <90%)**
+
+**Consequences:**
+- **Reward haircut**: Validator rewards reduced by 25% during violation period
+- **Checkpoint fee increase**: Region pays 2x normal checkpoint submission fee (incentive to fix)
+- **Public dashboard warning**: Region marked "Not recommended" on official network status page
+- **DAO notification**: Automated governance proposal created ("Should Region 1042 be suspended?")
+
+**Mechanism:**
+`solidity
+if (sustained_violation_count[region_id] >= 10) {
+    // Apply reward haircut
+    validatorRewardMultiplier[region_id] = 0.75;  // 25% reduction
+    checkpointFeeMultiplier[region_id] = 2.0;     // 2x fees
+    
+    // Create DAO proposal for suspension vote
+    createGovernanceProposal(
+        title: "Suspend Region 1042 for sustained SLO violations?",
+        description: "p95 latency >2s for 10 epochs...",
+        vote_duration: 7 days
+    );
+    
+    emit SustainedViolation(region_id, violation_count);
+}
+`
+
+**Tier 3: Critical Failure (uptime <50% OR 24h outage OR fraud detected)**
+
+**Consequences:**
+- **Temporary suspension**: Region cannot submit checkpoints (blocks cross-region transfers)
+- **Validator slashing**: 2% stake slash for all region validators
+- **Emergency DAO vote**: 72h fast-track vote to decide permanent removal or recovery plan
+- **User fund protection**: Emergency exit mechanism activated (see Section 4.4.1 City fraud proofs)
+
+**Mechanism:**
+`solidity
+if (uptime[region_id][last_epoch] < 0.5 || outage_duration > 24 hours) {
+    // Immediate suspension
+    regionStatus[region_id] = SUSPENDED;
+    
+    // Slash all validators
+    for (validator in regionValidators[region_id]) {
+        slashValidator(validator, SLASHING_RATE_SLO_CRITICAL); // 2%
+    }
+    
+    // Emergency DAO vote (72h timeline)
+    createEmergencyProposal(
+        title: "Region 1042 critical failure - recover or remove?",
+        options: ["Grant 7-day recovery period", "Permanent removal", "Emergency coordinator takeover"],
+        fast_track: true,
+        vote_duration: 72 hours
+    );
+    
+    emit CriticalFailure(region_id, reason);
+}
+`
+
+#### 5.7.4 Recovery and rehabilitation process
+
+**Problem:** Penalized regions need a path to restore good standing.
+
+**Solution: Staged recovery with proof-of-improvement**
+
+**Stage 1: Diagnosis (0-48 hours)**
+- Region operators identify root cause (hardware, network, software bug, attack)
+- Submit incident report to DAO forum (public transparency)
+- Cryft Labs or community volunteers offer technical assistance (if requested)
+
+**Stage 2: Fix and validation (48h-7 days)**
+- Implement fixes (upgrade hardware, optimize software, change validators)
+- Run 24h "recovery period" with monitoring (no penalties, but no rewards either)
+- Beacon network validates improvement (3 consecutive epochs with p95 <1.5s)
+
+**Stage 3: Probation (7-30 days)**
+- Region restored to full status (checkpoints accepted, routing restored)
+- Reward haircut reduced gradually (75%  85%  95%  100% over 30 days)
+- Enhanced monitoring (5min reporting windows instead of 10min)
+- Second violation within probation  immediate Tier 3 (no second chance)
+
+**Stage 4: Full restoration (Day 30+)**
+- All penalties removed
+- Normal SLO monitoring resumes
+- Incident post-mortem published to DAO (learning for other regions)
+
+**Code enforcement:**
+`solidity
+function requestRecovery(uint64 region_id, string calldata incident_report) external {
+    require(msg.sender == regionOperator[region_id], "Unauthorized");
+    require(regionStatus[region_id] == SUSPENDED || regionHealth[region_id] == DEGRADED, "Not in violation");
+    
+    // Enter recovery period (24h validation)
+    regionStatus[region_id] = RECOVERING;
+    recoveryStartTime[region_id] = block.timestamp;
+    
+    emit RecoveryRequested(region_id, incident_report);
+}
+
+function validateRecovery(uint64 region_id) external {
+    require(regionStatus[region_id] == RECOVERING, "Not in recovery");
+    require(block.timestamp >= recoveryStartTime[region_id] + 24 hours, "Recovery period not complete");
+    
+    // Check if SLOs met during recovery period
+    bool slos_met = (
+        p95_latency[region_id][last_3_epochs] < 1500ms &&
+        uptime[region_id][last_3_epochs] > 0.95
+    );
+    
+    if (slos_met) {
+        regionStatus[region_id] = PROBATION;
+        probationStartTime[region_id] = block.timestamp;
+        validatorRewardMultiplier[region_id] = 0.75;  // Start at 75%, increases over 30 days
+        emit RecoverySuccessful(region_id);
+    } else {
+        // Recovery failed, back to suspended
+        regionStatus[region_id] = SUSPENDED;
+        emit RecoveryFailed(region_id);
+    }
+}
+`
+
+#### 5.7.5 Public SLO dashboard (transparency and accountability)
+
+**Real-time monitoring interface:**
+
+`	ext
+URL: https://status.cryftnet.io
+
+Features:
+- Live p50/p95/p99 latency for all CSS-1 regions (updated every 10min)
+- Validator uptime % (color-coded: green >95%, yellow 90-95%, red <90%)
+- Region health status (HEALTHY, DEGRADED, RECOVERING, SUSPENDED)
+- Historical performance charts (7-day, 30-day, 90-day views)
+- Incident timeline (past violations, recovery events, DAO votes)
+- Comparison table (sort regions by latency, uptime, TPS)
+
+User benefits:
+- Developers: Choose best region for their dApp deployment
+- End users: Wallets auto-route to highest-performance regions
+- Validators: Benchmark their performance against peers
+- Investors/auditors: Verify network is delivering on "Web2 feel" promise
+
+Data sources:
+- Federal Chain on-chain SLO registry (authoritative)
+- Beacon network measurements (real-time)
+- Client telemetry aggregates (community-reported)
+- Validator self-reports (cross-validated)
+`
+
+**Dashboard API (for wallet/tooling integration):**
+
+`	ypescript
+// Example: MetaMask queries best region for user location
+GET /api/v1/regions/recommend?lat=40.7128&lon=-74.0060&min_uptime=0.95
+
+Response:
+{
+  "recommended_regions": [
+    {
+      "region_id": 1001,
+      "name": "US-East",
+      "chainId": 1001,
+      "estimated_rtt_ms": 45,
+      "p95_latency_ms": 1200,
+      "uptime_7d": 0.998,
+      "health_status": "HEALTHY",
+      "rpc_endpoints": ["https://rpc-us-east.cryftnet.io", ...]
+    },
+    {
+      "region_id": 1002,
+      "name": "US-Central",
+      "estimated_rtt_ms": 62,
+      "p95_latency_ms": 1450,
+      "uptime_7d": 0.995,
+      "health_status": "HEALTHY",
+      ...
+    }
+  ],
+  "fallback_region": {
+    "region_id": 3,  // EVM Chain (always available)
+    "name": "Primary Network EVM",
+    "estimated_rtt_ms": 120,
+    ...
+  }
+}
+`
+
+**Enforcement summary:**
+
+| Violation Type | Detection | Consequence | Recovery Time |
+|:---------------|:----------|:------------|:--------------|
+| Transient slowdown (<3 epochs) | Beacon network | Routing deprioritization, user warnings | Automatic (once p95 <2s) |
+| Sustained degradation (10+ epochs) | Beacon + validator reports | 25% reward haircut, 2x checkpoint fees, DAO alert | 7-30 days (probation) |
+| Critical failure (24h outage) | Missed checkpoints | 2% validator slash, suspension, emergency DAO vote | 7+ days (incident review) |
+| Fraud (fake metrics) | Cross-validation (beacon vs. self-report) | 10% validator slash, immediate removal, funds clawback | Permanent ban |
+
+**Key insight:** This transforms "Web2 feel" from marketing into **enforceable protocol-level guarantees with real consequences**, making CryftNet's latency claims auditable and trustworthy.
+
 
 
 ---
@@ -5439,6 +5793,260 @@ rewards are designed to keep critical content (portals, module binaries, and app
 with measurable reliability. Key components: 1) Pin Provider Registry: providers stake/bond and
 advertise a service endpoint (or declare they operate via Cryftee ipfs_v1). 2) Pin Jobs: on-chain
 
+### 11.5 Economics with zero emission: validator incentives at launch (v1 bootstrap model)
+
+**Critical investor question:** "If there's no inflation, why do validators show up on day 1?"
+
+Zero-emission monetary policy is economically sustainable **only if** early validator economics are explicitly addressed. This section provides the v1 bootstrap model.
+
+#### 11.5.1 Fee volume expectations (launch economics)
+
+**Realistic fee projections (conservative model):**
+
+`	ext
+Assumptions (Month 1 post-mainnet):
+- Primary Network transactions:  100-500 tx/block (~6,000-30,000 tx/day)
+- Average gas price:             20 gwei (~.05 per tx at  ETH-equivalent pricing)
+- Regional State transactions:   10-50 States active, 1,000-10,000 tx/day each
+- Cross-region transfers:        100-500/day (higher fees: -5 per transfer)
+
+Daily fee revenue (Month 1):
+  Primary Network:   6,000 tx * .05 = /day
+  State chains:      10 States * 5,000 tx * .03 = ,500/day
+  Cross-region fees: 200 transfers *  = /day
+  Total daily fees:  ~,200/day = ,000/month
+
+Validator count (Month 1): 100 validators
+Fee distribution (50% burn, 30% validators, 20% treasury):
+  Validator pool: ,200 * 0.30 = /day
+  Per-validator:   / 100 = .60/day = /month
+
+Cost to run validator (AWS c5.2xlarge + bandwidth): ~-200/month
+Break-even: Achieved at Month 1 with conservative usage
+`
+
+**Month 6 projections (growth scenario):**
+
+`	ext
+Assumptions:
+- 10x transaction growth (early dApp adoption, DeFi migration)
+- 50 active States (regional expansion)
+- 5,000 cross-region transfers/day
+
+Daily fee revenue (Month 6):
+  Primary Network:   60,000 tx * .05 = ,000/day
+  State chains:      50 States * 10,000 tx * .03 = ,000/day
+  Cross-region fees: 5,000 transfers *  = ,000/day
+  Total daily fees:  ~,000/day = ,000/month
+
+Validator count (Month 6): 300 validators
+Per-validator (30% to validator pool):
+  ,000 * 0.30 / 300 = /day = /month
+
+Validator profit margin:  -  (costs) = /month (+320% ROI)
+`
+
+**Key insight:** Even with zero emission, validators are profitable at modest adoption levels due to fee-based rewards.
+
+#### 11.5.2 Genesis distribution and validator bootstrap incentives
+
+**Problem:** Validators incur costs (hardware, bandwidth, staking capital) before fee revenue materializes.
+
+**Solution: Genesis allocation includes validator bootstrap program**
+
+**Genesis CRYFT distribution (total supply: 1,000,000,000 CRYFT):**
+
+| Allocation | Amount | % | Purpose | Vesting |
+|:-----------|:-------|:--|:--------|:--------|
+| **Genesis validators** | 100,000,000 | 10% | Rewards for first 100 validators (Days 0-180) | 6-month linear unlock |
+| **Treasury** | 300,000,000 | 30% | Protocol development, grants, ecosystem growth | DAO-controlled |
+| **Core team & advisors** | 150,000,000 | 15% | Cryft Labs team, strategic advisors | 4-year vest, 1-year cliff |
+| **Early investors** | 200,000,000 | 20% | Seed/Series A fundraising | 2-year vest, 6-month cliff |
+| **Community sale** | 150,000,000 | 15% | Public token sale (fair launch component) | No lockup |
+| **Ecosystem incentives** | 100,000,000 | 10% | Liquidity mining, State chain grants, developer rewards | DAO-controlled, 2-year distribution |
+
+**Genesis validator program (v1 specific):**
+
+`	ext
+Validator Bootstrap Rewards (100M CRYFT / 180 days):
+
+Formula:
+  daily_pool = 100,000,000 / 180 = 555,555 CRYFT/day
+  validator_share = (validator_uptime * validator_stake) / total_weighted_stake
+
+Minimum requirements:
+  - Stake: 1,000 CRYFT (genesis validators can stake from bootstrap allocation)
+  - Uptime: >95% (measured via missed block proposals and checkpoint signatures)
+  - Hardware: Meets CSS-1 specifications (8 vCPU, 32GB RAM, 1TB NVMe)
+
+Reward cliff:
+  Days 0-30:   100% of formula (maximum rewards for early validators)
+  Days 31-90:  75% of formula (reduced as fee revenue grows)
+  Days 91-150: 50% of formula
+  Days 151-180: 25% of formula (phase-out as fees dominate)
+  Days 181+:    0% (pure fee-based economics)
+
+Example validator (Day 15, 1,000 CRYFT stake, 98% uptime):
+  Assume 100 validators, all 1,000 stake, 95% avg uptime:
+  daily_pool = 555,555 CRYFT
+  validator_share = (0.98 * 1000) / (95 * 1000) = 1.03% (slightly above average)
+  daily_reward = 555,555 * 0.0103 = 5,722 CRYFT (~,400 at  CRYFT)
+  
+  Compare to Month 1 fee revenue: .60/day
+  Total validator income (Month 1): ,406/day (bootstrap) + .60/day (fees)
+  
+  Break-even time: Day 1 (bootstrap rewards cover all costs)
+`
+
+**Vesting and anti-gaming:**
+
+- Bootstrap rewards vest linearly over 6 months (cannot dump immediately)
+- Validators who drop below 90% uptime forfeit that day's rewards (redistributed to honest validators)
+- Validators slashed for misbehavior lose all unvested bootstrap allocation
+- Minimum participation period: 30 days (early exit forfeits 50% of earned rewards)
+
+#### 11.5.3 Regional State fee subsidies (opt-in mechanism)
+
+**Problem:** New State chains have low transaction volume initially, making it hard to attract validators.
+
+**Solution: State deployers can subsidize fees using treasury grants or self-funding**
+
+**State Fee Subsidy Pool (governance-approved mechanism):**
+
+`solidity
+contract StateFeeSubsidyPool {
+    mapping(uint64 region_id => uint256 subsidy_balance) public subsidies;
+    
+    // State deployer or DAO deposits subsidy budget
+    function depositSubsidy(uint64 region_id, uint256 amount) external {
+        require(msg.sender == regionDeployer[region_id] || msg.sender == DAO, "Unauthorized");
+        subsidies[region_id] += amount;
+    }
+    
+    // Validators claim subsidized rewards (on top of base fees)
+    function claimSubsidy(uint64 region_id, uint256 epoch) external {
+        require(isValidator(msg.sender, region_id), "Not validator");
+        
+        // Calculate validator's share based on participation
+        uint256 validatorShare = calculateShare(msg.sender, region_id, epoch);
+        uint256 subsidy = subsidies[region_id] * validatorShare / totalShares[region_id];
+        
+        // Pay out (capped by remaining subsidy balance)
+        uint256 payout = min(subsidy, subsidies[region_id]);
+        subsidies[region_id] -= payout;
+        payable(msg.sender).transfer(payout);
+        
+        emit SubsidyClaimed(region_id, msg.sender, payout, epoch);
+    }
+}
+`
+
+**Subsidy policy examples:**
+
+`	ext
+Example 1: Enterprise State (self-funded)
+- Deployer: MegaCorp deploys State 1042 for internal supply chain dApp
+- Subsidy budget: ,000 CRYFT (from MegaCorp treasury)
+- Duration: 12 months
+- Validator incentive: ,000 / 12 months / 20 validators = /validator/month
+- MegaCorp benefits: Guaranteed validator participation, low fees for internal users
+
+Example 2: Community State (DAO grant)
+- Deployer: DeFi DAO deploys State 1101 for decentralized exchange
+- Subsidy budget: 500,000 CRYFT (approved via CryftNet DAO proposal)
+- Duration: 6 months (bootstrap only)
+- Validator incentive: Tapers from /month (Month 1) to /month (Month 6)
+- DAO benefits: Attracts early liquidity, then transitions to fee-based sustainability
+
+Example 3: No subsidy (organic growth)
+- Deployer: Public goods State (donation-funded)
+- Subsidy budget: 0 CRYFT
+- Validator incentive: Pure fee-based (validators join only if volume justifies)
+- Result: Slower initial adoption but no artificial incentives
+`
+
+**Governance controls:**
+
+- Treasury-funded subsidies require DAO vote (>51% approval)
+- Maximum subsidy per State: 1,000,000 CRYFT (prevents capture)
+- Subsidy duration cap: 24 months (forces transition to sustainability)
+- Audit requirement: Subsidized States must publish monthly transaction volume reports
+
+#### 11.5.4 Treasury validator stipends (emergency backstop, governance-gated)
+
+**Problem:** Catastrophic scenariousage crashes, fee revenue drops below validator costs, validators churn.
+
+**Solution: Treasury emergency validator stipend program (requires DAO supermajority)**
+
+**Activation criteria (all must be true):**
+
+1. Network-wide fee revenue <,000/day for 14 consecutive days
+2. Validator count drops below 75 (security threshold: 100 minimum)
+3. DAO approves emergency stipend via 67% supermajority vote
+4. Treasury balance >5,000,000 CRYFT (sufficient runway)
+
+**Stipend structure (if activated):**
+
+`	ext
+Duration: Maximum 90 days (must resolve underlying usage problem, not prop up indefinitely)
+Amount: /validator/month (covers AWS costs + 50% margin)
+Eligibility: Validators with >95% uptime over previous 30 days
+Cap: 150 validators maximum (total cost: /month from treasury)
+
+Conditions:
+  - DAO must simultaneously approve "usage recovery plan" (marketing, partnerships, fee reductions)
+  - Stipend automatically sunsets after 90 days (requires re-vote to extend)
+  - If fee revenue recovers to >,000/day, stipend ends immediately (return unused funds to treasury)
+`
+
+**Why this works without long-term dependency:**
+
+1. **Time-limited:** 90-day maximum forces focus on fundamentals (usage, product-market fit)
+2. **Supermajority gating:** Prevents frivolous use (requires broad community consensus that network is worth saving)
+3. **Auto-sunset:** No "perpetual UBI" for validators; stipend ends when crisis resolves or time expires
+4. **Transparency:** All stipend payments on-chain, auditable in real-time
+
+**Historical precedent:** Similar emergency programs exist in other networks (Cosmos Hub community pool, Polkadot Treasury) but are rarely activated because fee revenue typically grows with adoption.
+
+#### 11.5.5 Long-term sustainability model (post-bootstrap)
+
+**Timeline: Month 7+ (bootstrap fully phased out)**
+
+Validator economics transition to **pure fee-based model:**
+
+`	ext
+Revenue sources (no emission):
+  1. Primary Network tx fees (50% burn, 30% validators, 20% treasury)
+  2. State chain tx fees (70% validators, 30% treasuryhigher validator share for region work)
+  3. Cross-region transfer fees (-10 per transfer, validator split)
+  4. Federation fees (contract mirroring, balance portabilitytreasury for protocol overhead)
+  5. Checkpoint fees (regions pay Federal Chain for settlementvalidator split)
+
+Cost optimization (expected by Month 12):
+  - Validator hardware costs decrease with software optimization (better parallelism, state pruning)
+  - Bandwidth costs amortized over higher transaction volume
+  - Staking capital requirements potentially reduced via governance (if network secure at lower stake)
+
+Profitability projection (Month 12, moderate success scenario):
+  Daily network fees: ,000 (conservative: 1/10th of Avalanche C-Chain at similar stage)
+  Validator count: 500
+  Per-validator revenue (30% to validator pool): ,000 * 0.30 / 500 = /day = /month
+  Validator costs (optimized): -150/month
+  Net profit: -800/month per validator (+500-800% ROI on costs, plus staking rewards)
+`
+
+**Failure scenario and pivot options:**
+
+If fee revenue remains insufficient by Month 12:
+
+1. **DAO can vote to introduce emission** (not permanently disabled, just initially zero)
+2. **Adjust fee distribution** (e.g., 40% to validators instead of 30%, reduce burn)
+3. **Reduce minimum stake** (lower capital requirements to improve validator economics)
+4. **Protocol optimization** (lower validator costs via client improvements)
+
+**Key principle:** Zero emission is the **default and target**, but governance retains flexibility to adapt if economic reality demands it. This is not ideological rigidityit's pragmatic long-term sustainability with clear bootstrap mechanics.
+
+
 
 ---
 
@@ -5576,6 +6184,176 @@ Federation governance is strengthened by including votes from across the federat
 #### 12.3.1 Cross-network vote export (Governance Adapters)
 
 A subnet that wants to participate in federation governance registers a Governance Adapter on Main:
+
+### 12.4 Bootstrapping and decentralization trajectory (v1 transition plan)
+
+**Critical for investor/auditor confidence:** "Cryft Labs maintains first-class implementations" requires explicit guardrails and a sunset plan for special powers.
+
+#### 12.4.1 Initial control assumptions (mainnet launch)
+
+At mainnet launch (v1), Cryft Labs holds **temporary centralized controls** for operational safety:
+
+**1. Primary Network deployment keys:**
+- **Federal Chain governance multisig** (3-of-5): Initially controlled by Cryft Labs founding team
+- **Mirror Chain system parameter updates**: Emergency upgrades via Cryft Labs-controlled proxy
+- **EVM Chain CMR admin**: Contract registry admin key for adding/removing authorized deployers
+
+**2. Cryftee module signing authority:**
+- **Root publisher allowlist**: Only Cryft Labs GitHub org authorized to publish signed modules
+- **Module attestation keys**: Cryft Labs controls TEE signing keys for initial module set (bls_tls_signer_v1, ipfs_v1, cgs_v1)
+- **Module upgrade coordination**: Cryft Labs schedules mandatory upgrades for security patches
+
+**3. Treasury and genesis distribution:**
+- **Treasury multisig** (5-of-9): Initially Cryft Labs (5), Strategic Partners (2), Community Representatives (2)
+- **Emergency circuit breakers**: Cryft Labs retains 72h pause authority for critical exploits (expires after 180 days post-mainnet)
+- **Genesis validator set**: Cryft Labs operates 40% of genesis validators (decreases to <10% by Month 6)
+
+**4. Code repository and release authority:**
+- **CryftGo (AvalancheGo fork)**: Cryft Labs GitHub org maintains canonical repository
+- **Release signing keys**: All binary releases signed by Cryft Labs GPG key (additional community signing keys added by Month 3)
+- **Protocol upgrade proposals**: Cryft Labs has expedited proposal path for first 90 days (then requires standard governance)
+
+#### 12.4.2 Decentralization phases (enforced timeline)
+
+**Phase 0: Controlled Launch (Days 0-30)**
+- **Goal:** Operational stability, security hardening, incident response
+- **Cryft Labs powers:** Full control over all keys/multisigs, expedited upgrades, validator majority (40%)
+- **Governance:** Read-only DAO (community can view proposals but not execute)
+- **Exit criteria:** Zero critical exploits, >95% validator uptime, successful atomic bundle stress test
+
+**Phase 1: Governance Bootstrap (Days 31-90)**
+- **Goal:** Transfer governance execution authority to community DAO
+- **Changes:**
+  - Federal Chain governance multisig  5-of-9 (Cryft Labs 3, Community 4, Strategic 2)
+  - Treasury multisig  4-of-9 (Cryft Labs 2, Community 4, Strategic 3)
+  - Emergency pause authority  Requires 2-of-3 security council (Cryft Labs 1 seat)
+  - DAO proposals become executable by tokenholders (>67% supermajority required)
+- **Cryft Labs retains:** Module signing authority, release coordination, expedited proposal path (expires Day 90)
+- **Exit criteria:** 3 successful community governance proposals executed, >50 active governance participants
+
+**Phase 2: Module Publisher Decentralization (Days 91-180)**
+- **Goal:** Multi-organization module signing authority
+- **Changes:**
+  - Cryftee root publisher allowlist expanded to 5 organizations (Cryft Labs + 4 approved publishers)
+  - Module attestation requires 3-of-5 publisher signatures (Cryft Labs + 2 others minimum)
+  - Community Module Review Committee (7 members, DAO-elected) can veto malicious modules
+  - Open-source module development grants (treasury-funded) for alternative implementations
+- **Cryft Labs retains:** 1-of-5 publisher seat (cannot unilaterally publish modules)
+- **Exit criteria:** 2 non-Cryft Labs modules published and adopted by >20% of validators
+
+**Phase 3: Operational Decentralization (Days 181-365)**
+- **Goal:** Remove all Cryft Labs special powers
+- **Changes:**
+  - Emergency pause authority removed entirely (replaced by standard DAO fast-track for emergencies)
+  - Cryft Labs validator stake reduced to <10% of network (public commitment to sell excess)
+  - Federal Chain governance multisig  DAO-controlled (7-of-11 elected community members)
+  - Treasury multisig  DAO-controlled (5-of-7 elected community members)
+  - Protocol upgrades require standard DAO approval (no expedited path)
+- **Cryft Labs becomes:** One participant among many (no special keys or authorities)
+- **Enforcement:** Smart contract time-locks prevent Cryft Labs from extending Phase 3 beyond Day 365
+
+#### 12.4.3 Enforcement mechanisms (preventing "perpetual bootstrap")
+
+**Problem:** Many projects claim decentralization but never execute. How is CryftNet's transition enforceable?
+
+**Solution: On-chain time-locked enforcement contracts**
+
+`solidity
+contract DecentralizationEnforcement {
+    uint256 public constant MAINNET_LAUNCH = ...; // genesis timestamp
+    
+    // Phase deadlines (immutable)
+    uint256 public constant PHASE_1_DEADLINE = MAINNET_LAUNCH + 90 days;
+    uint256 public constant PHASE_2_DEADLINE = MAINNET_LAUNCH + 180 days;
+    uint256 public constant PHASE_3_DEADLINE = MAINNET_LAUNCH + 365 days;
+    
+    // Authority tracking
+    mapping(address => bool) public emergencyPauseAuthority;
+    mapping(address => bool) public modulePublishers;
+    
+    // Phase 1 enforcement: DAO must be executable by Day 31
+    function enforcePhase1() external {
+        require(block.timestamp >= MAINNET_LAUNCH + 31 days, "Too early");
+        require(daoExecutable == false, "Already enforced");
+        
+        // Transfer governance execution to DAO contract
+        governanceExecutor = address(DAO_CONTRACT);
+        daoExecutable = true;
+        
+        emit Phase1Enforced(block.timestamp);
+    }
+    
+    // Phase 2 enforcement: Multi-publisher signing by Day 91
+    function enforcePhase2() external {
+        require(block.timestamp >= PHASE_1_DEADLINE, "Too early");
+        require(modulePublishers[CRYFT_LABS] == true, "Already enforced");
+        
+        // Remove Cryft Labs sole authority
+        moduleSigningThreshold = 3; // Require 3-of-5
+        
+        emit Phase2Enforced(block.timestamp);
+    }
+    
+    // Phase 3 enforcement: Remove all special powers by Day 365
+    function enforcePhase3() external {
+        require(block.timestamp >= PHASE_3_DEADLINE, "Too early");
+        
+        // Remove emergency pause (irreversible)
+        delete emergencyPauseAuthority[CRYFT_LABS];
+        emergencyPauseEnabled = false;
+        
+        // Transfer multisig control to DAO-elected addresses
+        federalChainGovernance = DAO_ELECTED_MULTISIG;
+        treasuryMultisig = DAO_ELECTED_MULTISIG;
+        
+        emit Phase3Enforced(block.timestamp);
+        emit FullDecentralizationAchieved(block.timestamp);
+    }
+}
+`
+
+**Enforcement guarantees:**
+
+1. **Anyone can trigger enforcement** - Community members can call enforcePhase3() if Cryft Labs delays
+2. **Time-locks are immutable** - Deadlines cannot be extended (contract is non-upgradeable)
+3. **Public auditability** - All key transfers emit events tracked by block explorers
+4. **Slashing for failure** - If Cryft Labs-controlled validators violate post-Phase 3 rules, automatic 10% slash
+
+**Community oversight:**
+
+- **Decentralization Dashboard** (public website): Real-time tracking of all Cryft Labs-controlled keys, validator stake %, module publisher list
+- **Quarterly transparency reports**: Cryft Labs publishes detailed breakdown of remaining centralized controls
+- **DAO veto power**: Community can vote to accelerate any phase (e.g., force Phase 3 early if desired)
+
+#### 12.4.4 Long-term Cryft Labs role (post-decentralization)
+
+After Phase 3 (Day 365+), Cryft Labs operates as:
+
+**1. Core protocol contributor** (not owner):
+- Maintains one of several CryftGo client implementations (alternative clients encouraged)
+- Proposes protocol improvements via standard DAO governance (no special voting power)
+- Operates <10% of validator stake (subject to further reduction via DAO vote)
+
+**2. Ecosystem development organization:**
+- Develops reference Cryftee modules (but requires DAO approval for mainnet inclusion)
+- Funds grants for alternative implementations (Go, Rust, TypeScript clients)
+- Operates developer documentation and SDKs (community-maintained repos accepted)
+
+**3. Strategic partnerships and adoption:**
+- Business development for enterprise State chain deployments
+- Integration partnerships with wallets, explorers, RPC providers
+- No special on-chain privileges (partnerships negotiated as private contracts)
+
+**Accountability:**
+
+- Cryft Labs subject to same slashing rules as all validators
+- DAO can vote to remove Cryft Labs from any funded programs (treasury grants, ecosystem fund)
+- Community can fork CryftGo and form alternative governance if Cryft Labs acts against network interest
+
+**Sunset commitment:**
+
+> "By Day 365 post-mainnet, CryftNet will be a credibly neutral protocol with no single point of control. Cryft Labs commits to transferring all special authorities to community governance by this deadline, enforced via immutable time-locked smart contracts. This transition is not a promiseit is code."
+
 
 
 ---

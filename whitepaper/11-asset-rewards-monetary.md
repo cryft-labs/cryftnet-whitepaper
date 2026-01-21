@@ -290,3 +290,257 @@ CryftNet treats IPFS availability as a rewarded service rather than a background
 rewards are designed to keep critical content (portals, module binaries, and app assets) available
 with measurable reliability. Key components: 1) Pin Provider Registry: providers stake/bond and
 advertise a service endpoint (or declare they operate via Cryftee ipfs_v1). 2) Pin Jobs: on-chain
+
+### 11.5 Economics with zero emission: validator incentives at launch (v1 bootstrap model)
+
+**Critical investor question:** "If there's no inflation, why do validators show up on day 1?"
+
+Zero-emission monetary policy is economically sustainable **only if** early validator economics are explicitly addressed. This section provides the v1 bootstrap model.
+
+#### 11.5.1 Fee volume expectations (launch economics)
+
+**Realistic fee projections (conservative model):**
+
+`	ext
+Assumptions (Month 1 post-mainnet):
+- Primary Network transactions:  100-500 tx/block (~6,000-30,000 tx/day)
+- Average gas price:             20 gwei (~.05 per tx at  ETH-equivalent pricing)
+- Regional State transactions:   10-50 States active, 1,000-10,000 tx/day each
+- Cross-region transfers:        100-500/day (higher fees: -5 per transfer)
+
+Daily fee revenue (Month 1):
+  Primary Network:   6,000 tx * .05 = /day
+  State chains:      10 States * 5,000 tx * .03 = ,500/day
+  Cross-region fees: 200 transfers *  = /day
+  Total daily fees:  ~,200/day = ,000/month
+
+Validator count (Month 1): 100 validators
+Fee distribution (50% burn, 30% validators, 20% treasury):
+  Validator pool: ,200 * 0.30 = /day
+  Per-validator:   / 100 = .60/day = /month
+
+Cost to run validator (AWS c5.2xlarge + bandwidth): ~-200/month
+Break-even: Achieved at Month 1 with conservative usage
+`
+
+**Month 6 projections (growth scenario):**
+
+`	ext
+Assumptions:
+- 10x transaction growth (early dApp adoption, DeFi migration)
+- 50 active States (regional expansion)
+- 5,000 cross-region transfers/day
+
+Daily fee revenue (Month 6):
+  Primary Network:   60,000 tx * .05 = ,000/day
+  State chains:      50 States * 10,000 tx * .03 = ,000/day
+  Cross-region fees: 5,000 transfers *  = ,000/day
+  Total daily fees:  ~,000/day = ,000/month
+
+Validator count (Month 6): 300 validators
+Per-validator (30% to validator pool):
+  ,000 * 0.30 / 300 = /day = /month
+
+Validator profit margin:  -  (costs) = /month (+320% ROI)
+`
+
+**Key insight:** Even with zero emission, validators are profitable at modest adoption levels due to fee-based rewards.
+
+#### 11.5.2 Genesis distribution and validator bootstrap incentives
+
+**Problem:** Validators incur costs (hardware, bandwidth, staking capital) before fee revenue materializes.
+
+**Solution: Genesis allocation includes validator bootstrap program**
+
+**Genesis CRYFT distribution (total supply: 1,000,000,000 CRYFT):**
+
+| Allocation | Amount | % | Purpose | Vesting |
+|:-----------|:-------|:--|:--------|:--------|
+| **Genesis validators** | 100,000,000 | 10% | Rewards for first 100 validators (Days 0-180) | 6-month linear unlock |
+| **Treasury** | 300,000,000 | 30% | Protocol development, grants, ecosystem growth | DAO-controlled |
+| **Core team & advisors** | 150,000,000 | 15% | Cryft Labs team, strategic advisors | 4-year vest, 1-year cliff |
+| **Early investors** | 200,000,000 | 20% | Seed/Series A fundraising | 2-year vest, 6-month cliff |
+| **Community sale** | 150,000,000 | 15% | Public token sale (fair launch component) | No lockup |
+| **Ecosystem incentives** | 100,000,000 | 10% | Liquidity mining, State chain grants, developer rewards | DAO-controlled, 2-year distribution |
+
+**Genesis validator program (v1 specific):**
+
+`	ext
+Validator Bootstrap Rewards (100M CRYFT / 180 days):
+
+Formula:
+  daily_pool = 100,000,000 / 180 = 555,555 CRYFT/day
+  validator_share = (validator_uptime * validator_stake) / total_weighted_stake
+
+Minimum requirements:
+  - Stake: 1,000 CRYFT (genesis validators can stake from bootstrap allocation)
+  - Uptime: >95% (measured via missed block proposals and checkpoint signatures)
+  - Hardware: Meets CSS-1 specifications (8 vCPU, 32GB RAM, 1TB NVMe)
+
+Reward cliff:
+  Days 0-30:   100% of formula (maximum rewards for early validators)
+  Days 31-90:  75% of formula (reduced as fee revenue grows)
+  Days 91-150: 50% of formula
+  Days 151-180: 25% of formula (phase-out as fees dominate)
+  Days 181+:    0% (pure fee-based economics)
+
+Example validator (Day 15, 1,000 CRYFT stake, 98% uptime):
+  Assume 100 validators, all 1,000 stake, 95% avg uptime:
+  daily_pool = 555,555 CRYFT
+  validator_share = (0.98 * 1000) / (95 * 1000) = 1.03% (slightly above average)
+  daily_reward = 555,555 * 0.0103 = 5,722 CRYFT (~,400 at  CRYFT)
+  
+  Compare to Month 1 fee revenue: .60/day
+  Total validator income (Month 1): ,406/day (bootstrap) + .60/day (fees)
+  
+  Break-even time: Day 1 (bootstrap rewards cover all costs)
+`
+
+**Vesting and anti-gaming:**
+
+- Bootstrap rewards vest linearly over 6 months (cannot dump immediately)
+- Validators who drop below 90% uptime forfeit that day's rewards (redistributed to honest validators)
+- Validators slashed for misbehavior lose all unvested bootstrap allocation
+- Minimum participation period: 30 days (early exit forfeits 50% of earned rewards)
+
+#### 11.5.3 Regional State fee subsidies (opt-in mechanism)
+
+**Problem:** New State chains have low transaction volume initially, making it hard to attract validators.
+
+**Solution: State deployers can subsidize fees using treasury grants or self-funding**
+
+**State Fee Subsidy Pool (governance-approved mechanism):**
+
+`solidity
+contract StateFeeSubsidyPool {
+    mapping(uint64 region_id => uint256 subsidy_balance) public subsidies;
+    
+    // State deployer or DAO deposits subsidy budget
+    function depositSubsidy(uint64 region_id, uint256 amount) external {
+        require(msg.sender == regionDeployer[region_id] || msg.sender == DAO, "Unauthorized");
+        subsidies[region_id] += amount;
+    }
+    
+    // Validators claim subsidized rewards (on top of base fees)
+    function claimSubsidy(uint64 region_id, uint256 epoch) external {
+        require(isValidator(msg.sender, region_id), "Not validator");
+        
+        // Calculate validator's share based on participation
+        uint256 validatorShare = calculateShare(msg.sender, region_id, epoch);
+        uint256 subsidy = subsidies[region_id] * validatorShare / totalShares[region_id];
+        
+        // Pay out (capped by remaining subsidy balance)
+        uint256 payout = min(subsidy, subsidies[region_id]);
+        subsidies[region_id] -= payout;
+        payable(msg.sender).transfer(payout);
+        
+        emit SubsidyClaimed(region_id, msg.sender, payout, epoch);
+    }
+}
+`
+
+**Subsidy policy examples:**
+
+`	ext
+Example 1: Enterprise State (self-funded)
+- Deployer: MegaCorp deploys State 1042 for internal supply chain dApp
+- Subsidy budget: ,000 CRYFT (from MegaCorp treasury)
+- Duration: 12 months
+- Validator incentive: ,000 / 12 months / 20 validators = /validator/month
+- MegaCorp benefits: Guaranteed validator participation, low fees for internal users
+
+Example 2: Community State (DAO grant)
+- Deployer: DeFi DAO deploys State 1101 for decentralized exchange
+- Subsidy budget: 500,000 CRYFT (approved via CryftNet DAO proposal)
+- Duration: 6 months (bootstrap only)
+- Validator incentive: Tapers from /month (Month 1) to /month (Month 6)
+- DAO benefits: Attracts early liquidity, then transitions to fee-based sustainability
+
+Example 3: No subsidy (organic growth)
+- Deployer: Public goods State (donation-funded)
+- Subsidy budget: 0 CRYFT
+- Validator incentive: Pure fee-based (validators join only if volume justifies)
+- Result: Slower initial adoption but no artificial incentives
+`
+
+**Governance controls:**
+
+- Treasury-funded subsidies require DAO vote (>51% approval)
+- Maximum subsidy per State: 1,000,000 CRYFT (prevents capture)
+- Subsidy duration cap: 24 months (forces transition to sustainability)
+- Audit requirement: Subsidized States must publish monthly transaction volume reports
+
+#### 11.5.4 Treasury validator stipends (emergency backstop, governance-gated)
+
+**Problem:** Catastrophic scenariousage crashes, fee revenue drops below validator costs, validators churn.
+
+**Solution: Treasury emergency validator stipend program (requires DAO supermajority)**
+
+**Activation criteria (all must be true):**
+
+1. Network-wide fee revenue <,000/day for 14 consecutive days
+2. Validator count drops below 75 (security threshold: 100 minimum)
+3. DAO approves emergency stipend via 67% supermajority vote
+4. Treasury balance >5,000,000 CRYFT (sufficient runway)
+
+**Stipend structure (if activated):**
+
+`	ext
+Duration: Maximum 90 days (must resolve underlying usage problem, not prop up indefinitely)
+Amount: /validator/month (covers AWS costs + 50% margin)
+Eligibility: Validators with >95% uptime over previous 30 days
+Cap: 150 validators maximum (total cost: /month from treasury)
+
+Conditions:
+  - DAO must simultaneously approve "usage recovery plan" (marketing, partnerships, fee reductions)
+  - Stipend automatically sunsets after 90 days (requires re-vote to extend)
+  - If fee revenue recovers to >,000/day, stipend ends immediately (return unused funds to treasury)
+`
+
+**Why this works without long-term dependency:**
+
+1. **Time-limited:** 90-day maximum forces focus on fundamentals (usage, product-market fit)
+2. **Supermajority gating:** Prevents frivolous use (requires broad community consensus that network is worth saving)
+3. **Auto-sunset:** No "perpetual UBI" for validators; stipend ends when crisis resolves or time expires
+4. **Transparency:** All stipend payments on-chain, auditable in real-time
+
+**Historical precedent:** Similar emergency programs exist in other networks (Cosmos Hub community pool, Polkadot Treasury) but are rarely activated because fee revenue typically grows with adoption.
+
+#### 11.5.5 Long-term sustainability model (post-bootstrap)
+
+**Timeline: Month 7+ (bootstrap fully phased out)**
+
+Validator economics transition to **pure fee-based model:**
+
+`	ext
+Revenue sources (no emission):
+  1. Primary Network tx fees (50% burn, 30% validators, 20% treasury)
+  2. State chain tx fees (70% validators, 30% treasuryhigher validator share for region work)
+  3. Cross-region transfer fees (-10 per transfer, validator split)
+  4. Federation fees (contract mirroring, balance portabilitytreasury for protocol overhead)
+  5. Checkpoint fees (regions pay Federal Chain for settlementvalidator split)
+
+Cost optimization (expected by Month 12):
+  - Validator hardware costs decrease with software optimization (better parallelism, state pruning)
+  - Bandwidth costs amortized over higher transaction volume
+  - Staking capital requirements potentially reduced via governance (if network secure at lower stake)
+
+Profitability projection (Month 12, moderate success scenario):
+  Daily network fees: ,000 (conservative: 1/10th of Avalanche C-Chain at similar stage)
+  Validator count: 500
+  Per-validator revenue (30% to validator pool): ,000 * 0.30 / 500 = /day = /month
+  Validator costs (optimized): -150/month
+  Net profit: -800/month per validator (+500-800% ROI on costs, plus staking rewards)
+`
+
+**Failure scenario and pivot options:**
+
+If fee revenue remains insufficient by Month 12:
+
+1. **DAO can vote to introduce emission** (not permanently disabled, just initially zero)
+2. **Adjust fee distribution** (e.g., 40% to validators instead of 30%, reduce burn)
+3. **Reduce minimum stake** (lower capital requirements to improve validator economics)
+4. **Protocol optimization** (lower validator costs via client improvements)
+
+**Key principle:** Zero emission is the **default and target**, but governance retains flexibility to adapt if economic reality demands it. This is not ideological rigidityit's pragmatic long-term sustainability with clear bootstrap mechanics.
+

@@ -132,3 +132,173 @@ Federation governance is strengthened by including votes from across the federat
 #### 12.3.1 Cross-network vote export (Governance Adapters)
 
 A subnet that wants to participate in federation governance registers a Governance Adapter on Main:
+
+### 12.4 Bootstrapping and decentralization trajectory (v1 transition plan)
+
+**Critical for investor/auditor confidence:** "Cryft Labs maintains first-class implementations" requires explicit guardrails and a sunset plan for special powers.
+
+#### 12.4.1 Initial control assumptions (mainnet launch)
+
+At mainnet launch (v1), Cryft Labs holds **temporary centralized controls** for operational safety:
+
+**1. Primary Network deployment keys:**
+- **Federal Chain governance multisig** (3-of-5): Initially controlled by Cryft Labs founding team
+- **Mirror Chain system parameter updates**: Emergency upgrades via Cryft Labs-controlled proxy
+- **EVM Chain CMR admin**: Contract registry admin key for adding/removing authorized deployers
+
+**2. Cryftee module signing authority:**
+- **Root publisher allowlist**: Only Cryft Labs GitHub org authorized to publish signed modules
+- **Module attestation keys**: Cryft Labs controls TEE signing keys for initial module set (bls_tls_signer_v1, ipfs_v1, cgs_v1)
+- **Module upgrade coordination**: Cryft Labs schedules mandatory upgrades for security patches
+
+**3. Treasury and genesis distribution:**
+- **Treasury multisig** (5-of-9): Initially Cryft Labs (5), Strategic Partners (2), Community Representatives (2)
+- **Emergency circuit breakers**: Cryft Labs retains 72h pause authority for critical exploits (expires after 180 days post-mainnet)
+- **Genesis validator set**: Cryft Labs operates 40% of genesis validators (decreases to <10% by Month 6)
+
+**4. Code repository and release authority:**
+- **CryftGo (AvalancheGo fork)**: Cryft Labs GitHub org maintains canonical repository
+- **Release signing keys**: All binary releases signed by Cryft Labs GPG key (additional community signing keys added by Month 3)
+- **Protocol upgrade proposals**: Cryft Labs has expedited proposal path for first 90 days (then requires standard governance)
+
+#### 12.4.2 Decentralization phases (enforced timeline)
+
+**Phase 0: Controlled Launch (Days 0-30)**
+- **Goal:** Operational stability, security hardening, incident response
+- **Cryft Labs powers:** Full control over all keys/multisigs, expedited upgrades, validator majority (40%)
+- **Governance:** Read-only DAO (community can view proposals but not execute)
+- **Exit criteria:** Zero critical exploits, >95% validator uptime, successful atomic bundle stress test
+
+**Phase 1: Governance Bootstrap (Days 31-90)**
+- **Goal:** Transfer governance execution authority to community DAO
+- **Changes:**
+  - Federal Chain governance multisig  5-of-9 (Cryft Labs 3, Community 4, Strategic 2)
+  - Treasury multisig  4-of-9 (Cryft Labs 2, Community 4, Strategic 3)
+  - Emergency pause authority  Requires 2-of-3 security council (Cryft Labs 1 seat)
+  - DAO proposals become executable by tokenholders (>67% supermajority required)
+- **Cryft Labs retains:** Module signing authority, release coordination, expedited proposal path (expires Day 90)
+- **Exit criteria:** 3 successful community governance proposals executed, >50 active governance participants
+
+**Phase 2: Module Publisher Decentralization (Days 91-180)**
+- **Goal:** Multi-organization module signing authority
+- **Changes:**
+  - Cryftee root publisher allowlist expanded to 5 organizations (Cryft Labs + 4 approved publishers)
+  - Module attestation requires 3-of-5 publisher signatures (Cryft Labs + 2 others minimum)
+  - Community Module Review Committee (7 members, DAO-elected) can veto malicious modules
+  - Open-source module development grants (treasury-funded) for alternative implementations
+- **Cryft Labs retains:** 1-of-5 publisher seat (cannot unilaterally publish modules)
+- **Exit criteria:** 2 non-Cryft Labs modules published and adopted by >20% of validators
+
+**Phase 3: Operational Decentralization (Days 181-365)**
+- **Goal:** Remove all Cryft Labs special powers
+- **Changes:**
+  - Emergency pause authority removed entirely (replaced by standard DAO fast-track for emergencies)
+  - Cryft Labs validator stake reduced to <10% of network (public commitment to sell excess)
+  - Federal Chain governance multisig  DAO-controlled (7-of-11 elected community members)
+  - Treasury multisig  DAO-controlled (5-of-7 elected community members)
+  - Protocol upgrades require standard DAO approval (no expedited path)
+- **Cryft Labs becomes:** One participant among many (no special keys or authorities)
+- **Enforcement:** Smart contract time-locks prevent Cryft Labs from extending Phase 3 beyond Day 365
+
+#### 12.4.3 Enforcement mechanisms (preventing "perpetual bootstrap")
+
+**Problem:** Many projects claim decentralization but never execute. How is CryftNet's transition enforceable?
+
+**Solution: On-chain time-locked enforcement contracts**
+
+`solidity
+contract DecentralizationEnforcement {
+    uint256 public constant MAINNET_LAUNCH = ...; // genesis timestamp
+    
+    // Phase deadlines (immutable)
+    uint256 public constant PHASE_1_DEADLINE = MAINNET_LAUNCH + 90 days;
+    uint256 public constant PHASE_2_DEADLINE = MAINNET_LAUNCH + 180 days;
+    uint256 public constant PHASE_3_DEADLINE = MAINNET_LAUNCH + 365 days;
+    
+    // Authority tracking
+    mapping(address => bool) public emergencyPauseAuthority;
+    mapping(address => bool) public modulePublishers;
+    
+    // Phase 1 enforcement: DAO must be executable by Day 31
+    function enforcePhase1() external {
+        require(block.timestamp >= MAINNET_LAUNCH + 31 days, "Too early");
+        require(daoExecutable == false, "Already enforced");
+        
+        // Transfer governance execution to DAO contract
+        governanceExecutor = address(DAO_CONTRACT);
+        daoExecutable = true;
+        
+        emit Phase1Enforced(block.timestamp);
+    }
+    
+    // Phase 2 enforcement: Multi-publisher signing by Day 91
+    function enforcePhase2() external {
+        require(block.timestamp >= PHASE_1_DEADLINE, "Too early");
+        require(modulePublishers[CRYFT_LABS] == true, "Already enforced");
+        
+        // Remove Cryft Labs sole authority
+        moduleSigningThreshold = 3; // Require 3-of-5
+        
+        emit Phase2Enforced(block.timestamp);
+    }
+    
+    // Phase 3 enforcement: Remove all special powers by Day 365
+    function enforcePhase3() external {
+        require(block.timestamp >= PHASE_3_DEADLINE, "Too early");
+        
+        // Remove emergency pause (irreversible)
+        delete emergencyPauseAuthority[CRYFT_LABS];
+        emergencyPauseEnabled = false;
+        
+        // Transfer multisig control to DAO-elected addresses
+        federalChainGovernance = DAO_ELECTED_MULTISIG;
+        treasuryMultisig = DAO_ELECTED_MULTISIG;
+        
+        emit Phase3Enforced(block.timestamp);
+        emit FullDecentralizationAchieved(block.timestamp);
+    }
+}
+`
+
+**Enforcement guarantees:**
+
+1. **Anyone can trigger enforcement** - Community members can call enforcePhase3() if Cryft Labs delays
+2. **Time-locks are immutable** - Deadlines cannot be extended (contract is non-upgradeable)
+3. **Public auditability** - All key transfers emit events tracked by block explorers
+4. **Slashing for failure** - If Cryft Labs-controlled validators violate post-Phase 3 rules, automatic 10% slash
+
+**Community oversight:**
+
+- **Decentralization Dashboard** (public website): Real-time tracking of all Cryft Labs-controlled keys, validator stake %, module publisher list
+- **Quarterly transparency reports**: Cryft Labs publishes detailed breakdown of remaining centralized controls
+- **DAO veto power**: Community can vote to accelerate any phase (e.g., force Phase 3 early if desired)
+
+#### 12.4.4 Long-term Cryft Labs role (post-decentralization)
+
+After Phase 3 (Day 365+), Cryft Labs operates as:
+
+**1. Core protocol contributor** (not owner):
+- Maintains one of several CryftGo client implementations (alternative clients encouraged)
+- Proposes protocol improvements via standard DAO governance (no special voting power)
+- Operates <10% of validator stake (subject to further reduction via DAO vote)
+
+**2. Ecosystem development organization:**
+- Develops reference Cryftee modules (but requires DAO approval for mainnet inclusion)
+- Funds grants for alternative implementations (Go, Rust, TypeScript clients)
+- Operates developer documentation and SDKs (community-maintained repos accepted)
+
+**3. Strategic partnerships and adoption:**
+- Business development for enterprise State chain deployments
+- Integration partnerships with wallets, explorers, RPC providers
+- No special on-chain privileges (partnerships negotiated as private contracts)
+
+**Accountability:**
+
+- Cryft Labs subject to same slashing rules as all validators
+- DAO can vote to remove Cryft Labs from any funded programs (treasury grants, ecosystem fund)
+- Community can fork CryftGo and form alternative governance if Cryft Labs acts against network interest
+
+**Sunset commitment:**
+
+> "By Day 365 post-mainnet, CryftNet will be a credibly neutral protocol with no single point of control. Cryft Labs commits to transferring all special authorities to community governance by this deadline, enforced via immutable time-locked smart contracts. This transition is not a promiseit is code."
+
