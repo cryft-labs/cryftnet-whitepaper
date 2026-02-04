@@ -1,8 +1,14 @@
-### 13.5 CGS Module: Private Sync (`private_sync_v1`)
+### 13.3.5 CGS Module: Private Sync (`private_sync_v1`)
 
 The CGS (Cryft Global Synchronizer) module implements Canton Network-inspired confidential multi-party transaction synchronization within Cryftee's runtime. It enables atomic multi-party transactions with selective disclosure while maintaining TEE-guaranteed ordering.
 
-#### 13.5.1 Overview
+**Version:** 1.0.0  
+**Category:** Privacy  
+**Status:** Core Module (required for full network capability)
+
+---
+
+#### Overview
 
 | Property | Value |
 |:---------|:------|

@@ -1,10 +1,16 @@
-### 13.8 Redeemable Codes Module (`redeemable_codes_v1`)
+### 13.3.6 Redeemable Codes Module (`redeemable_codes_v1`)
 
 The Redeemable Codes module implements an on-chain managed gift code system with TEE-secured code storage, enabling secure token distribution, validator onboarding, and promotional campaigns.
 
+**Version:** 1.0.0  
+**Category:** Distribution  
+**Status:** Core Module (required for full network capability)
+
 **Patent Notice:** This module implements technology described in US Patent Application 20250139608.
 
-#### 13.8.1 Overview
+---
+
+#### Overview
 
 | Property | Value |
 |:---------|:------|

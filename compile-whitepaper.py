@@ -164,11 +164,14 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
         'whitepaper/13-cryftee/13-01-architecture.md',
         'whitepaper/13-cryftee/13-02-runtime.md',
         'whitepaper/13-cryftee/13-03-core-modules.md',
-        'whitepaper/13-cryftee/13-04-ipfs-module.md',
-        'whitepaper/13-cryftee/13-05-cgs-module.md',
+        'whitepaper/13-cryftee/13-03a-bls-tls-module.md',
+        'whitepaper/13-cryftee/13-03b-debug-module.md',
+        'whitepaper/13-cryftee/13-03c-llm-chat-module.md',
+        'whitepaper/13-cryftee/13-03d-ipfs-module.md',
+        'whitepaper/13-cryftee/13-03e-cgs-module.md',
+        'whitepaper/13-cryftee/13-03f-redeemable-codes.md',
         'whitepaper/13-cryftee/13-06-operations.md',
         'whitepaper/13-cryftee/13-07-aim.md',
-        'whitepaper/13-cryftee/13-08-redeemable-codes.md',
     ]
     
     # Final sections

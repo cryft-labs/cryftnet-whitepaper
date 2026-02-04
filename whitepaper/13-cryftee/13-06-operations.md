@@ -1,8 +1,8 @@
-### 13.6 Operational Integration
+### 13.4 Operational Integration
 
 This section describes how Cryftee integrates with CryftGo and the requirements for different node types.
 
-#### 13.6.1 CryftGo Launches Cryftee
+#### 13.4.1 CryftGo Launches Cryftee
 
 **CryftGo is the blockchain interface; Cryftee is the modular utility layer.**
 

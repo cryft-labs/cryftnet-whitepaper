@@ -6366,12 +6366,15 @@ This section is split into multiple files for easier navigation:
 
 - [13.1 Architecture Overview](13-01-architecture.md) - CryftGo vs Cryftee separation, design rationale, federation role
 - [13.2 Runtime Properties](13-02-runtime.md) - Module loading, API surface, trust model
-- [13.3 Core Modules](13-03-core-modules.md) - BLS/TLS signer, debug, LLM chat
-- [13.4 IPFS Module](13-04-ipfs-module.md) - Embedded IPFS node with validator pin rewards
-- [13.5 CGS Module (Private Sync)](13-05-cgs-module.md) - Canton-style confidential multi-party transactions
-- [13.6 Operational Integration](13-06-operations.md) - Node types, Cryftee requirements, configuration
-- [13.7 Agent Identity & Memory (AIM)](13-07-aim.md) - Tokenized agent identity, registry, memory commitments
-- [13.8 Redeemable Codes](13-08-redeemable-codes.md) - On-chain gift codes with TEE-secured storage
+- [13.3 Core Modules](13-03-core-modules.md) - Overview of all 6 core modules
+  - [13.3.1 BLS/TLS Signer](13-03a-bls-tls-module.md) - Staking cryptography, multi-device, Web3Signer
+  - [13.3.2 Debug Module](13-03b-debug-module.md) - Diagnostics and runtime inspection
+  - [13.3.3 LLM Chat Module](13-03c-llm-chat-module.md) - Operator assistance interface
+  - [13.3.4 IPFS Module](13-03d-ipfs-module.md) - Content-addressed storage with pin rewards
+  - [13.3.5 CGS Module (Private Sync)](13-03e-cgs-module.md) - Canton-style confidential transactions
+  - [13.3.6 Redeemable Codes](13-03f-redeemable-codes.md) - TEE-secured gift codes
+- [13.4 Operational Integration](13-06-operations.md) - Node types, Cryftee requirements, configuration
+- [13.5 Agent Identity & Memory (AIM)](13-07-aim.md) - On-chain agent registry, memory commitments (infrastructure layer)
 
 ---
 
@@ -6391,16 +6394,33 @@ This section is split into multiple files for easier navigation:
 3. **Off-chain parallelism:** Heavy computation off-chain, proofs verified on-chain
 4. **Targeted deployments:** Validators choose module sets based on operational needs
 
-**Module Categories:**
+**Core Modules (Required for Full Network Capability):**
 
-| Category | Modules | Purpose |
-|:---------|:--------|:--------|
-| **Staking** | `bls_tls_signer_v1` | BLS/TLS key operations, checkpoint signing, multi-device support |
-| **Storage** | `ipfs_v1` | Content-addressed storage, tiered pin rewards, storage challenges |
-| **Privacy** | `private_sync_v1` | Canton-style CGS, encrypted views, mediator finality |
-| **Utility** | `debug_v1`, `llm_chat_v1` | Diagnostics, multi-provider LLM assistance |
-| **Distribution** | `redeemable_codes_v1` | TEE-secured gift codes, validator onboarding (US Patent App 20250139608) |
-| **Agents** | `agent_registry_v1`, `agent_memory_v1`, `agent_session_v1` | Agent identity, memory commitments, session management |
+All six modules below are considered **core modules** required to operate at full capacity with complete network capabilities:
+
+| Module | Category | Purpose |
+|:-------|:---------|:--------|
+| `bls_tls_signer_v1` | **Staking** | BLS/TLS key operations, checkpoint signing, multi-device support |
+| `ipfs_v1` | **Storage** | Content-addressed storage, tiered pin rewards, storage challenges |
+| `private_sync_v1` | **Privacy** | Canton-style CGS, encrypted views, mediator finality |
+| `debug_v1` | **Diagnostics** | Runtime inspection, connectivity testing, error handling |
+| `llm_chat_v1` | **Operator Interface** | Direct LLM chat within Cryftee for operator assistance |
+| `redeemable_codes_v1` | **Distribution** | TEE-secured gift codes, validator onboarding (US Patent App 20250139608) |
+
+**Infrastructure Layer (On-Chain, Defined in AIM Specification):**
+
+The Agent Identity & Memory (AIM) specification (Section 13.7) defines on-chain infrastructure for autonomous agents:
+
+| Component | Purpose |
+|:----------|:--------|
+| `AgentRegistry` | Canonical agent identity mapping on GBL |
+| `AgentAccount` | Smart contract wallet for agent-authorized transactions |
+| `memoryHead` | Anchored cryptographic commitments for agent memory |
+
+**Note:** AIM and `llm_chat_v1` serve different purposes:
+- **`llm_chat_v1`** is a Cryftee module for direct operator chat interface within the runtime
+- **AIM** is on-chain infrastructure for managing autonomous agent identities and memory
+- The `llm_chat_v1` module MAY utilize LLM providers that are themselves AIM-registered agents
 
 **Cryftee Requirement by Node Type:**
 
@@ -6603,37 +6623,82 @@ CRYFTTEE_REQUIRE_ATTESTATION=false
 
 
 
-### 13.3 Core Modules
+### 13.3 Core Modules Overview
 
 This section describes the foundational modules included in Cryftee's initial release (v0.4.x runtime). All modules follow the **Power of Ten** safety rules: static bounds declared at module top, no unsafe code, proper error handling (no panics), self-contained limits, and comprehensive input validation.
 
-#### 13.3.1 Module Overview
+**All six modules below are considered CORE MODULES** required for full compatibility with network capabilities. Operators MUST enable all core modules to participate in the complete feature set of CryftNet.
 
-| Module | Version | Purpose | Representative Capabilities |
-|:-------|:--------|:--------|:---------------------------|
-| `bls_tls_signer_v1` | 1.2.0 | BLS + TLS staking with multi-device support | bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_module, verify_module, hash_module |
-| `debug_v1` | 1.0.0 | Diagnostics and runtime inspection | debug_echo, debug_info, debug_panic |
-| `llm_chat_v1` | 2.0.0 | Multi-provider LLM assistant with session management | llm_chat, llm_stream, session management |
+---
 
-#### 13.3.2 BLS/TLS Signer Module (`bls_tls_signer_v1`)
+#### Module Summary
+
+| Module | Version | Category | Purpose |
+|:-------|:--------|:---------|:--------|
+| `bls_tls_signer_v1` | 1.2.0 | Staking | BLS + TLS key operations, checkpoint signing, multi-device support |
+| `debug_v1` | 1.0.0 | Diagnostics | Runtime inspection, connectivity testing, error handling |
+| `llm_chat_v1` | 2.0.0 | Operator Interface | Direct LLM chat within Cryftee for operator assistance |
+| `ipfs_v1` | 1.1.0 | Storage | Content-addressed storage, tiered pin rewards, storage challenges |
+| `private_sync_v1` | 1.0.0 | Privacy | Canton-style CGS, encrypted views, mediator finality |
+| `redeemable_codes_v1` | 1.0.0 | Distribution | TEE-secured gift codes, validator onboarding |
+
+---
+
+#### Individual Module Specifications
+
+Each core module has its own detailed specification:
+
+- **Section 13.3.1:** [BLS/TLS Signer Module](13-03a-bls-tls-module.md) - Staking cryptography, multi-device, Web3Signer
+- **Section 13.3.2:** [Debug Module](13-03b-debug-module.md) - Diagnostics and runtime inspection
+- **Section 13.3.3:** [LLM Chat Module](13-03c-llm-chat-module.md) - Operator assistance interface
+- **Section 13.3.4:** [IPFS Module](13-03d-ipfs-module.md) - Content-addressed storage with pin rewards
+- **Section 13.3.5:** [CGS Module (Private Sync)](13-03e-cgs-module.md) - Canton-style confidential transactions
+- **Section 13.3.6:** [Redeemable Codes](13-03f-redeemable-codes.md) - TEE-secured gift codes
+
+---
+
+#### Power of Ten Compliance
+
+All modules MUST adhere to these safety rules:
+
+1. **Static bounds:** All resource limits declared at module top
+2. **No unsafe code:** Pure safe Rust/WASM only
+3. **No panics:** Proper error handling with Result types
+4. **Self-contained limits:** Each module manages its own resource constraints
+5. **Input validation:** Comprehensive validation before processing
+
+
+### 13.3.1 BLS/TLS Signer Module (`bls_tls_signer_v1`)
 
 The staking module provides cryptographic operations for validator participation with automatic TLS-first Node ID derivation for multi-device support.
 
-**Purpose:**
+**Version:** 1.2.0  
+**Category:** Staking  
+**Status:** Core Module (required for full network capability)
+
+---
+
+#### Purpose
+
 - BLS (Boneh-Lynn-Shacham) signature generation for block proposals and votes
 - TLS certificate management for secure peer communication
 - Automatic TLS-first Node ID derivation for multi-device isolation
 - Module signing for Cryftee's trust model
 - Integration with Web3Signer for key custody
 
-**Node ID Derivation:**
+---
+
+#### Node ID Derivation
 
 The module implements TLS-first identity bootstrapping:
+
 1. On first initialization, auto-bootstraps TLS identity if none exists
 2. Derives unique Node ID from TLS public key: `"NodeID-" + SHA256(pubkey)[0:40]`
 3. Keys are namespaced per device under `/keys/{NodeID}/` for multi-device isolation
 
-**Storage Backends:**
+---
+
+#### Storage Backends
 
 | Backend | Use Case | Description |
 |:--------|:---------|:------------|
@@ -6641,7 +6706,9 @@ The module implements TLS-first identity bootstrapping:
 | **Local Keystore** | Development/small deployments | EIP-2335 compatible encrypted JSON files |
 | **Memory** | Testing only | Non-persistent storage, keys lost on restart |
 
-**Capabilities:**
+---
+
+#### Capabilities
 
 | Function | Description |
 |:---------|:------------|
@@ -6656,9 +6723,12 @@ The module implements TLS-first identity bootstrapping:
 | `verify_module` | Verify a module signature before load |
 | `hash_module` | Compute hash of a WASM module binary |
 
-**Web3Signer Integration:**
+---
+
+#### Web3Signer Integration
 
 The module delegates key operations to Web3Signer when configured:
+
 ```text
 WEB3SIGNER_API_URL=http://localhost:9000
 WEB3SIGNER_TLS_CERT=/path/to/web3signer.crt
@@ -6666,17 +6736,38 @@ WEB3SIGNER_TLS_CERT=/path/to/web3signer.crt
 
 This allows validators to use hardware security modules (HSMs) or other secure key custody solutions without exposing keys to the Cryftee process.
 
-#### 13.3.3 Debug Module (`debug_v1`)
+---
 
-The debug module provides diagnostic capabilities for operators:
+#### Configuration
 
-**Purpose:**
+```text
+CRYFTTEE_BLS_BACKEND=vault|keystore|memory
+CRYFTTEE_VAULT_ADDR=http://localhost:8200
+CRYFTTEE_VAULT_TOKEN=<token>
+CRYFTTEE_KEYSTORE_PATH=/path/to/keystore
+```
+
+
+### 13.3.2 Debug Module (`debug_v1`)
+
+The debug module provides diagnostic capabilities for operators.
+
+**Version:** 1.0.0  
+**Category:** Diagnostics  
+**Status:** Core Module (required for full network capability)
+
+---
+
+#### Purpose
+
 - Runtime inspection and health checks
 - Testing module communication and round-trip connectivity
 - Controlled panic for testing error handling
 - Lightweight diagnostics for development and troubleshooting
 
-**Capabilities:**
+---
+
+#### Capabilities
 
 | Function | Description |
 |:---------|:------------|
@@ -6684,28 +6775,80 @@ The debug module provides diagnostic capabilities for operators:
 | `debug_info` | Return runtime version, loaded modules, and environment info |
 | `debug_panic` | Trigger a controlled panic for testing error handling |
 
-**Security Note:** The `debug_panic` function SHOULD be disabled in production deployments. Operators can configure via:
+---
+
+#### Security Considerations
+
+The `debug_panic` function SHOULD be disabled in production deployments. Operators can configure via:
+
 ```text
 CRYFTTEE_DEBUG_PANIC_ENABLED=false
 ```
 
-#### 13.3.4 LLM Chat Module (`llm_chat_v1`)
+When disabled, calls to `debug_panic` will return an error response rather than triggering a runtime panic.
+
+---
+
+#### Usage Examples
+
+**Echo Test:**
+```text
+Request:  debug_echo("hello")
+Response: "hello"
+```
+
+**Runtime Info:**
+```text
+Request:  debug_info()
+Response: {
+  "runtime_version": "0.4.2",
+  "modules": ["bls_tls_signer_v1", "debug_v1", "llm_chat_v1", ...],
+  "uptime_seconds": 3600,
+  "memory_used_mb": 128
+}
+```
+
+
+### 13.3.3 LLM Chat Module (`llm_chat_v1`)
 
 The LLM module provides a self-contained interactive AI assistant for runtime and module interaction, with all conversation state managed in-module.
 
-**Purpose:**
+**Version:** 2.0.0  
+**Category:** Operator Interface  
+**Status:** Core Module (required for full network capability)
+
+---
+
+#### Purpose
+
 - Answer operator questions about Cryftee configuration
 - Assist with troubleshooting and diagnostics
 - Provide documentation and guidance
 - Multi-provider support for flexibility
 
-**Architecture:**
+---
+
+#### Relationship to AIM
+
+> **Note on AIM vs LLM Chat:** This module provides direct LLM chat within the Cryftee operator interface. It is **distinct from the Agent Identity & Memory (AIM) specification** (Section 13.7).
+>
+> - **`llm_chat_v1`** is a runtime module for operator assistance within Cryftee
+> - **AIM** defines on-chain infrastructure for tokenized autonomous agent identities
+>
+> The `llm_chat_v1` module MAY utilize LLM providers that are themselves AIM-registered agents, enabling operators to interact with AIM-managed autonomous agents through this interface.
+
+---
+
+#### Architecture
+
 - Self-contained chat interface managing all conversation state in-module
 - Host calls used ONLY for network I/O to external APIs
 - Token counting and context management to stay within model limits
 - Response streaming assembly for real-time chat
 
-**Session Management:**
+---
+
+#### Session Management
 
 | Limit | Value |
 |:------|:------|
@@ -6713,44 +6856,67 @@ The LLM module provides a self-contained interactive AI assistant for runtime an
 | Max context window | 128k tokens |
 | Session timeout | Configurable per provider |
 
-**Supported Providers:**
+---
+
+#### Supported Providers
 
 | Provider | Models | Notes |
 |:---------|:-------|:------|
 | **OpenAI** | GPT-4, GPT-3.5-turbo | Default provider |
 | **Anthropic** | Claude-3-opus, Claude-3-sonnet | Extended context support |
 | **Local** | Llama, Mistral | Self-hosted, no external API calls |
+| **AIM Agent** | Any AIM-registered agent | Tokenized agent interaction |
 
-**Capabilities:**
+---
+
+#### Capabilities
 
 | Function | Description |
 |:---------|:------------|
 | `llm_chat` | Send a message and receive a complete response |
 | `llm_stream` | Send a message and receive a streaming response |
 
-**Configuration:**
+---
+
+#### Configuration
+
 ```text
-CRYFTTEE_LLM_PROVIDER=openai|anthropic|local
+CRYFTTEE_LLM_PROVIDER=openai|anthropic|local|aim
 CRYFTTEE_LLM_API_KEY=<key>
 CRYFTTEE_LLM_MODEL=gpt-4
 CRYFTTEE_LLM_MAX_SESSIONS=50
 CRYFTTEE_LLM_CONTEXT_WINDOW=128000
 ```
 
-**Security Note:** LLM outputs are NOT consensus-critical. The module provides operator assistance only; no LLM responses affect chain state or validator behavior
+For AIM-based providers:
+```text
+CRYFTTEE_LLM_PROVIDER=aim
+CRYFTTEE_LLM_AGENT_ID=<agentId>
+```
+
+---
+
+#### Security Note
+
+LLM outputs are NOT consensus-critical. The module provides operator assistance only; no LLM responses affect chain state or validator behavior.
 
 
-
-### 13.4 IPFS Module (`ipfs_v1`)
+### 13.3.4 IPFS Module (`ipfs_v1`)
 
 The IPFS module embeds a standalone content-addressed storage node within Cryftee's runtime, combining standard IPFS operations with blockchain-based storage incentives. No external IPFS daemon is required.
 
-#### 13.4.1 Overview
+**Version:** 1.1.0  
+**Category:** Storage  
+**Status:** Core Module (required for full network capability)
+
+---
+
+#### Overview
 
 | Property | Value |
 |:---------|:------|
 | Module ID | `ipfs_v1` |
-| Version | 2.0.0 |
+| Version | 1.1.0 |
 | Required for Validators | Yes |
 | Modes | Full node (default), Light client |
 | External Dependencies | None (standalone embedded node) |
@@ -6924,11 +7090,17 @@ See Section 11 (Asset Rewards & Monetary) for detailed pinning reward mechanics.
 
 
 
-### 13.5 CGS Module: Private Sync (`private_sync_v1`)
+### 13.3.5 CGS Module: Private Sync (`private_sync_v1`)
 
 The CGS (Cryft Global Synchronizer) module implements Canton Network-inspired confidential multi-party transaction synchronization within Cryftee's runtime. It enables atomic multi-party transactions with selective disclosure while maintaining TEE-guaranteed ordering.
 
-#### 13.5.1 Overview
+**Version:** 1.0.0  
+**Category:** Privacy  
+**Status:** Core Module (required for full network capability)
+
+---
+
+#### Overview
 
 | Property | Value |
 |:---------|:------|
@@ -7110,11 +7282,296 @@ CRYFTTEE_CGS_CONFIRMATION_QUORUM=all
 
 
 
-### 13.6 Operational Integration
+### 13.3.6 Redeemable Codes Module (`redeemable_codes_v1`)
+
+The Redeemable Codes module implements an on-chain managed gift code system with TEE-secured code storage, enabling secure token distribution, validator onboarding, and promotional campaigns.
+
+**Version:** 1.0.0  
+**Category:** Distribution  
+**Status:** Core Module (required for full network capability)
+
+**Patent Notice:** This module implements technology described in US Patent Application 20250139608.
+
+---
+
+#### Overview
+
+| Property | Value |
+|:---------|:------|
+| Module ID | `redeemable_codes_v1` |
+| Version | 1.0.0 |
+| Required for Validators | No (utility module) |
+| Patent | US Patent App 20250139608 |
+| Purpose | On-chain gift codes with TEE-secured storage |
+
+**Purpose:**
+- Generate and manage redeemable gift codes for token distribution
+- Secure code storage using dual smart contract architecture
+- Support for multiple content types (tokens, NFTs, experiences, validator registration)
+- Blockchain-recorded redemption with immutable audit trail
+- Batch operations for large-scale distributions
+
+#### 13.8.2 Dual Smart Contract Architecture
+
+The module uses a novel dual-contract design to separate sensitive code storage from public management:
+
+**Public Contract (On-Chain, Visible):**
+- Manages non-sensitive information
+- Tracks code status (active, frozen, redeemed, revoked)
+- Handles content assignments and redemption records
+- Provides public query interface
+
+**Private Contract (TEE-Only):**
+- Stores encrypted codes (hash + salt)
+- Executed only within TEE environment
+- Never exposes plaintext codes
+- Validates redemption requests
+
+```text
+┌---------------------------------------------------------┐
+|                    Public Contract                       |
+|  ┌-------------┬------------┬-------------------------┐ |
+|  | Code Index  |   Status   |   Content Assignment    | |
+|  |-------------┼------------┼-------------------------┤ |
+|  |    0001     |   ACTIVE   |   100 CRYFT tokens      | |
+|  |    0002     |  REDEEMED  |   NFT #4521             | |
+|  |    0003     |   FROZEN   |   Validator slot        | |
+|  `-------------┴------------┴-------------------------┘ |
+`---------------------------------------------------------┘
+                          |
+                          | Status queries
+                          ▼
+┌---------------------------------------------------------┐
+|              Private Contract (TEE-Only)                 |
+|  ┌-------------┬------------------┬--------------------┐|
+|  | Code Index  |   Hash(code)     |       Salt         ||
+|  |-------------┼------------------┼--------------------┤|
+|  |    0001     |   0xabc123...    |   0xdef456...      ||
+|  |    0002     |   0x789def...    |   0x123abc...      ||
+|  |    0003     |   0x456789...    |   0x789012...      ||
+|  `-------------┴------------------┴--------------------┘|
+|                                                          |
+|  ⚠ Codes stored as hash+salt, NEVER exposed in plaintext|
+`---------------------------------------------------------┘
+```
+
+#### 13.8.3 Code Structure
+
+Redeemable codes follow a structured format for efficient lookup and validation:
+
+```text
+Code Format: XXXX-YYYY-YYYY-YYYY
+
+Where:
+  XXXX         = Storage Index (locates hash in private contract)
+  YYYY-YYYY-YYYY = Redeemable Portion (validated against stored hash)
+
+Example: A1B2-C3D4-E5F6-G7H8
+  - Storage Index: A1B2
+  - Redeemable: C3D4-E5F6-G7H8
+```
+
+**Security Properties:**
+- Storage index allows O(1) lookup without revealing code
+- Redeemable portion is never stored in plaintext
+- Hash + salt prevents rainbow table attacks
+- TEE execution prevents extraction of code database
+
+#### 13.8.4 Capabilities
+
+**Code Generation:**
+
+| Function | Description |
+|:---------|:------------|
+| `code_generate` | Generate a single redeemable code with specified content |
+| `batch_generate` | Generate multiple codes for bulk distribution |
+| `validator_code_generate` | Generate codes specifically for validator registration |
+
+**Code Management:**
+
+| Function | Description |
+|:---------|:------------|
+| `code_status` | Query status of a code (without revealing code value) |
+| `code_freeze` | Temporarily prevent redemption |
+| `code_unfreeze` | Re-enable frozen code |
+| `code_revoke` | Permanently invalidate a code |
+| `code_transfer` | Transfer management rights to another address |
+
+**Redemption:**
+
+| Function | Description |
+|:---------|:------------|
+| `code_redeem` | Redeem a code and receive assigned content |
+| `validator_code_redeem` | Validator-assisted redemption for cross-region codes |
+| `batch_redeem` | Redeem multiple codes in a single transaction |
+
+#### 13.8.5 Content Types
+
+The module supports multiple content types for flexible distribution:
+
+| Content Type | Description | Example Use Case |
+|:-------------|:------------|:-----------------|
+| **Tokens** | CRYFT or other fungible tokens | Promotional giveaways, rewards |
+| **NFTs** | Non-fungible tokens | Digital collectibles, access passes |
+| **Experiences** | Off-chain service entitlements | Premium features, API credits |
+| **Validator Registration** | Validator slot + initial stake | Onboarding new validators |
+| **Custom** | Application-defined content | Game items, subscription credits |
+
+**Content Assignment:**
+
+```text
+ContentAssignment {
+  code_index:    uint32      // storage index
+  content_type:  enum        // TOKENS, NFT, EXPERIENCE, VALIDATOR, CUSTOM
+  content_id:    bytes32     // token address, NFT ID, or custom identifier
+  amount:        uint256     // quantity (for fungible content)
+  metadata:      bytes       // additional content-specific data
+  expiry:        uint64      // optional expiration timestamp
+}
+```
+
+#### 13.8.6 Redemption Flow
+
+**Standard Redemption:**
+
+```text
+1. User submits: code_redeem(code="A1B2-C3D4-E5F6-G7H8", recipient=0x...)
+
+2. Module extracts storage index: A1B2
+
+3. TEE queries private contract:
+   - Retrieves hash and salt for index A1B2
+   - Computes: expected_hash = hash(C3D4-E5F6-G7H8 || salt)
+   - Verifies: expected_hash == stored_hash
+
+4. If valid:
+   - Public contract marks code as REDEEMED
+   - Content is transferred to recipient
+   - Redemption recorded on-chain with timestamp
+
+5. Returns: RedemptionReceipt {
+     code_index: A1B2,
+     recipient: 0x...,
+     content: {...},
+     tx_hash: 0x...,
+     timestamp: 1700000000
+   }
+```
+
+**Validator-Assisted Redemption:**
+
+For cross-region codes, validators facilitate redemption:
+
+```text
+1. User presents code to local validator
+2. Validator submits: validator_code_redeem(code, user, region_proof)
+3. Cross-region verification via checkpoint
+4. Content delivered in user's home region
+5. Validator receives small facilitation fee
+```
+
+#### 13.8.7 Batch Operations
+
+For large-scale distributions (airdrops, promotions):
+
+```text
+BatchGeneration {
+  count:         uint32      // number of codes to generate
+  content_type:  enum        // content type for all codes
+  content_id:    bytes32     // shared content identifier
+  amount_each:   uint256     // amount per code
+  prefix:        string      // optional code prefix for tracking
+  expiry:        uint64      // shared expiration
+}
+
+Result: BatchResult {
+  codes: string[]           // generated codes (returned once, not stored)
+  indices: uint32[]         // storage indices for management
+  total_value: uint256      // total content allocated
+}
+```
+
+**Security Note:** Generated codes are returned exactly once during batch generation. The module does not retain plaintext codes after generation.
+
+#### 13.8.8 Audit Trail
+
+All code operations are recorded on-chain for transparency:
+
+```text
+CodeEvent {
+  event_type:   enum        // GENERATED, REDEEMED, FROZEN, REVOKED, TRANSFERRED
+  code_index:   uint32      // storage index (never reveals code)
+  actor:        address     // address that triggered event
+  timestamp:    uint64      // block timestamp
+  metadata:     bytes       // event-specific data
+}
+```
+
+**Query Functions:**
+
+| Function | Description |
+|:---------|:------------|
+| `audit_history` | Get all events for a code index |
+| `redemption_stats` | Aggregate statistics for a batch or campaign |
+| `active_codes` | Count of unredeemed codes by content type |
+
+#### 13.8.9 Security Considerations
+
+**Threat Mitigations:**
+
+| Threat | Mitigation |
+|:-------|:-----------|
+| Code extraction | Codes stored as hash+salt in TEE-only contract |
+| Brute force | Rate limiting + salt prevents offline attacks |
+| Replay attacks | One-time redemption enforced on-chain |
+| Code enumeration | Storage indices are not sequential |
+| Insider theft | Dual-contract separation limits exposure |
+
+**Operational Security:**
+
+- Generated codes should be distributed through secure channels
+- Batch codes should have expiration dates
+- Frozen codes should be investigated before unfreezing
+- Revoked codes cannot be recovered
+
+#### 13.8.10 Configuration
+
+```text
+CRYFTTEE_CODES_ENABLED=true
+CRYFTTEE_CODES_MAX_BATCH_SIZE=10000
+CRYFTTEE_CODES_DEFAULT_EXPIRY=31536000  # 1 year in seconds
+CRYFTTEE_CODES_RATE_LIMIT=100           # redemptions per minute per IP
+```
+
+#### 13.8.11 Use Cases
+
+**Promotional Token Distribution:**
+- Generate codes for marketing campaigns
+- Track redemption rates by campaign prefix
+- Set expiration for limited-time offers
+
+**Validator Onboarding:**
+- Issue validator registration codes with initial stake
+- Enable sponsored validator slots for partners
+- Track validator origin for analytics
+
+**Cross-Region Gifts:**
+- Users gift tokens to recipients in other regions
+- Validator-assisted redemption handles cross-region transfer
+- Gift sender pays cross-region fees upfront
+
+**NFT Claim Codes:**
+- Physical merchandise includes redemption code
+- Code unlocks digital NFT companion
+- One-time redemption prevents duplication
+
+
+
+### 13.4 Operational Integration
 
 This section describes how Cryftee integrates with CryftGo and the requirements for different node types.
 
-#### 13.6.1 CryftGo Launches Cryftee
+#### 13.4.1 CryftGo Launches Cryftee
 
 **CryftGo is the blockchain interface; Cryftee is the modular utility layer.**
 
@@ -7214,9 +7671,11 @@ Light validators may run a subset (e.g., `bls_tls_signer_v1` only) if they deleg
 
 
 
-### 13.7 Tokenized Agent Identity & Memory (Cryftee AIM)
+### 13.5 Tokenized Agent Identity & Memory (Cryftee AIM)
 
 This section defines a standardized agent identity and memory layer integrated with Cryftee and the Global Balance Ledger (GBL). The Cryftee AIM specification provides a minimal viable agent infrastructure enabling interoperable agent-based applications across the CryftNet federation.
+
+> **Relationship to LLM Chat Module:** AIM is an on-chain infrastructure layer for autonomous agent identities, distinct from the `llm_chat_v1` module (Section 13.3.3). The `llm_chat_v1` module provides direct operator chat within the Cryftee runtime, while AIM defines the registry, account, and memory primitives for autonomous agents to operate across the network. AIM-registered agents MAY be utilized as LLM providers by the `llm_chat_v1` module, enabling operators to interact with tokenized agents through the Cryftee interface.
 
 **Design Principles:**
 
@@ -7863,285 +8322,6 @@ The specification uses version prefixes in domain separators to enable non-break
 - New commitment schemes can coexist via version negotiation.
 - Registry entries include version flags for schema evolution.
 - AgentAccount implementations SHOULD be upgradeable via standard proxy patterns.
-
-
-
-### 13.8 Redeemable Codes Module (`redeemable_codes_v1`)
-
-The Redeemable Codes module implements an on-chain managed gift code system with TEE-secured code storage, enabling secure token distribution, validator onboarding, and promotional campaigns.
-
-**Patent Notice:** This module implements technology described in US Patent Application 20250139608.
-
-#### 13.8.1 Overview
-
-| Property | Value |
-|:---------|:------|
-| Module ID | `redeemable_codes_v1` |
-| Version | 1.0.0 |
-| Required for Validators | No (utility module) |
-| Patent | US Patent App 20250139608 |
-| Purpose | On-chain gift codes with TEE-secured storage |
-
-**Purpose:**
-- Generate and manage redeemable gift codes for token distribution
-- Secure code storage using dual smart contract architecture
-- Support for multiple content types (tokens, NFTs, experiences, validator registration)
-- Blockchain-recorded redemption with immutable audit trail
-- Batch operations for large-scale distributions
-
-#### 13.8.2 Dual Smart Contract Architecture
-
-The module uses a novel dual-contract design to separate sensitive code storage from public management:
-
-**Public Contract (On-Chain, Visible):**
-- Manages non-sensitive information
-- Tracks code status (active, frozen, redeemed, revoked)
-- Handles content assignments and redemption records
-- Provides public query interface
-
-**Private Contract (TEE-Only):**
-- Stores encrypted codes (hash + salt)
-- Executed only within TEE environment
-- Never exposes plaintext codes
-- Validates redemption requests
-
-```text
-┌---------------------------------------------------------┐
-|                    Public Contract                       |
-|  ┌-------------┬------------┬-------------------------┐ |
-|  | Code Index  |   Status   |   Content Assignment    | |
-|  |-------------┼------------┼-------------------------┤ |
-|  |    0001     |   ACTIVE   |   100 CRYFT tokens      | |
-|  |    0002     |  REDEEMED  |   NFT #4521             | |
-|  |    0003     |   FROZEN   |   Validator slot        | |
-|  `-------------┴------------┴-------------------------┘ |
-`---------------------------------------------------------┘
-                          |
-                          | Status queries
-                          ▼
-┌---------------------------------------------------------┐
-|              Private Contract (TEE-Only)                 |
-|  ┌-------------┬------------------┬--------------------┐|
-|  | Code Index  |   Hash(code)     |       Salt         ||
-|  |-------------┼------------------┼--------------------┤|
-|  |    0001     |   0xabc123...    |   0xdef456...      ||
-|  |    0002     |   0x789def...    |   0x123abc...      ||
-|  |    0003     |   0x456789...    |   0x789012...      ||
-|  `-------------┴------------------┴--------------------┘|
-|                                                          |
-|  ⚠ Codes stored as hash+salt, NEVER exposed in plaintext|
-`---------------------------------------------------------┘
-```
-
-#### 13.8.3 Code Structure
-
-Redeemable codes follow a structured format for efficient lookup and validation:
-
-```text
-Code Format: XXXX-YYYY-YYYY-YYYY
-
-Where:
-  XXXX         = Storage Index (locates hash in private contract)
-  YYYY-YYYY-YYYY = Redeemable Portion (validated against stored hash)
-
-Example: A1B2-C3D4-E5F6-G7H8
-  - Storage Index: A1B2
-  - Redeemable: C3D4-E5F6-G7H8
-```
-
-**Security Properties:**
-- Storage index allows O(1) lookup without revealing code
-- Redeemable portion is never stored in plaintext
-- Hash + salt prevents rainbow table attacks
-- TEE execution prevents extraction of code database
-
-#### 13.8.4 Capabilities
-
-**Code Generation:**
-
-| Function | Description |
-|:---------|:------------|
-| `code_generate` | Generate a single redeemable code with specified content |
-| `batch_generate` | Generate multiple codes for bulk distribution |
-| `validator_code_generate` | Generate codes specifically for validator registration |
-
-**Code Management:**
-
-| Function | Description |
-|:---------|:------------|
-| `code_status` | Query status of a code (without revealing code value) |
-| `code_freeze` | Temporarily prevent redemption |
-| `code_unfreeze` | Re-enable frozen code |
-| `code_revoke` | Permanently invalidate a code |
-| `code_transfer` | Transfer management rights to another address |
-
-**Redemption:**
-
-| Function | Description |
-|:---------|:------------|
-| `code_redeem` | Redeem a code and receive assigned content |
-| `validator_code_redeem` | Validator-assisted redemption for cross-region codes |
-| `batch_redeem` | Redeem multiple codes in a single transaction |
-
-#### 13.8.5 Content Types
-
-The module supports multiple content types for flexible distribution:
-
-| Content Type | Description | Example Use Case |
-|:-------------|:------------|:-----------------|
-| **Tokens** | CRYFT or other fungible tokens | Promotional giveaways, rewards |
-| **NFTs** | Non-fungible tokens | Digital collectibles, access passes |
-| **Experiences** | Off-chain service entitlements | Premium features, API credits |
-| **Validator Registration** | Validator slot + initial stake | Onboarding new validators |
-| **Custom** | Application-defined content | Game items, subscription credits |
-
-**Content Assignment:**
-
-```text
-ContentAssignment {
-  code_index:    uint32      // storage index
-  content_type:  enum        // TOKENS, NFT, EXPERIENCE, VALIDATOR, CUSTOM
-  content_id:    bytes32     // token address, NFT ID, or custom identifier
-  amount:        uint256     // quantity (for fungible content)
-  metadata:      bytes       // additional content-specific data
-  expiry:        uint64      // optional expiration timestamp
-}
-```
-
-#### 13.8.6 Redemption Flow
-
-**Standard Redemption:**
-
-```text
-1. User submits: code_redeem(code="A1B2-C3D4-E5F6-G7H8", recipient=0x...)
-
-2. Module extracts storage index: A1B2
-
-3. TEE queries private contract:
-   - Retrieves hash and salt for index A1B2
-   - Computes: expected_hash = hash(C3D4-E5F6-G7H8 || salt)
-   - Verifies: expected_hash == stored_hash
-
-4. If valid:
-   - Public contract marks code as REDEEMED
-   - Content is transferred to recipient
-   - Redemption recorded on-chain with timestamp
-
-5. Returns: RedemptionReceipt {
-     code_index: A1B2,
-     recipient: 0x...,
-     content: {...},
-     tx_hash: 0x...,
-     timestamp: 1700000000
-   }
-```
-
-**Validator-Assisted Redemption:**
-
-For cross-region codes, validators facilitate redemption:
-
-```text
-1. User presents code to local validator
-2. Validator submits: validator_code_redeem(code, user, region_proof)
-3. Cross-region verification via checkpoint
-4. Content delivered in user's home region
-5. Validator receives small facilitation fee
-```
-
-#### 13.8.7 Batch Operations
-
-For large-scale distributions (airdrops, promotions):
-
-```text
-BatchGeneration {
-  count:         uint32      // number of codes to generate
-  content_type:  enum        // content type for all codes
-  content_id:    bytes32     // shared content identifier
-  amount_each:   uint256     // amount per code
-  prefix:        string      // optional code prefix for tracking
-  expiry:        uint64      // shared expiration
-}
-
-Result: BatchResult {
-  codes: string[]           // generated codes (returned once, not stored)
-  indices: uint32[]         // storage indices for management
-  total_value: uint256      // total content allocated
-}
-```
-
-**Security Note:** Generated codes are returned exactly once during batch generation. The module does not retain plaintext codes after generation.
-
-#### 13.8.8 Audit Trail
-
-All code operations are recorded on-chain for transparency:
-
-```text
-CodeEvent {
-  event_type:   enum        // GENERATED, REDEEMED, FROZEN, REVOKED, TRANSFERRED
-  code_index:   uint32      // storage index (never reveals code)
-  actor:        address     // address that triggered event
-  timestamp:    uint64      // block timestamp
-  metadata:     bytes       // event-specific data
-}
-```
-
-**Query Functions:**
-
-| Function | Description |
-|:---------|:------------|
-| `audit_history` | Get all events for a code index |
-| `redemption_stats` | Aggregate statistics for a batch or campaign |
-| `active_codes` | Count of unredeemed codes by content type |
-
-#### 13.8.9 Security Considerations
-
-**Threat Mitigations:**
-
-| Threat | Mitigation |
-|:-------|:-----------|
-| Code extraction | Codes stored as hash+salt in TEE-only contract |
-| Brute force | Rate limiting + salt prevents offline attacks |
-| Replay attacks | One-time redemption enforced on-chain |
-| Code enumeration | Storage indices are not sequential |
-| Insider theft | Dual-contract separation limits exposure |
-
-**Operational Security:**
-
-- Generated codes should be distributed through secure channels
-- Batch codes should have expiration dates
-- Frozen codes should be investigated before unfreezing
-- Revoked codes cannot be recovered
-
-#### 13.8.10 Configuration
-
-```text
-CRYFTTEE_CODES_ENABLED=true
-CRYFTTEE_CODES_MAX_BATCH_SIZE=10000
-CRYFTTEE_CODES_DEFAULT_EXPIRY=31536000  # 1 year in seconds
-CRYFTTEE_CODES_RATE_LIMIT=100           # redemptions per minute per IP
-```
-
-#### 13.8.11 Use Cases
-
-**Promotional Token Distribution:**
-- Generate codes for marketing campaigns
-- Track redemption rates by campaign prefix
-- Set expiration for limited-time offers
-
-**Validator Onboarding:**
-- Issue validator registration codes with initial stake
-- Enable sponsored validator slots for partners
-- Track validator origin for analytics
-
-**Cross-Region Gifts:**
-- Users gift tokens to recipients in other regions
-- Validator-assisted redemption handles cross-region transfer
-- Gift sender pays cross-region fees upfront
-
-**NFT Claim Codes:**
-- Physical merchandise includes redemption code
-- Code unlocks digital NFT companion
-- One-time redemption prevents duplication
 
 
 

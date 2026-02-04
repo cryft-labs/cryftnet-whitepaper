@@ -1,136 +1,43 @@
-### 13.3 Core Modules
+### 13.3 Core Modules Overview
 
 This section describes the foundational modules included in Cryftee's initial release (v0.4.x runtime). All modules follow the **Power of Ten** safety rules: static bounds declared at module top, no unsafe code, proper error handling (no panics), self-contained limits, and comprehensive input validation.
 
-#### 13.3.1 Module Overview
+**All six modules below are considered CORE MODULES** required for full compatibility with network capabilities. Operators MUST enable all core modules to participate in the complete feature set of CryftNet.
 
-| Module | Version | Purpose | Representative Capabilities |
-|:-------|:--------|:--------|:---------------------------|
-| `bls_tls_signer_v1` | 1.2.0 | BLS + TLS staking with multi-device support | bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_module, verify_module, hash_module |
-| `debug_v1` | 1.0.0 | Diagnostics and runtime inspection | debug_echo, debug_info, debug_panic |
-| `llm_chat_v1` | 2.0.0 | Multi-provider LLM assistant with session management | llm_chat, llm_stream, session management |
+---
 
-#### 13.3.2 BLS/TLS Signer Module (`bls_tls_signer_v1`)
+#### Module Summary
 
-The staking module provides cryptographic operations for validator participation with automatic TLS-first Node ID derivation for multi-device support.
+| Module | Version | Category | Purpose |
+|:-------|:--------|:---------|:--------|
+| `bls_tls_signer_v1` | 1.2.0 | Staking | BLS + TLS key operations, checkpoint signing, multi-device support |
+| `debug_v1` | 1.0.0 | Diagnostics | Runtime inspection, connectivity testing, error handling |
+| `llm_chat_v1` | 2.0.0 | Operator Interface | Direct LLM chat within Cryftee for operator assistance |
+| `ipfs_v1` | 1.1.0 | Storage | Content-addressed storage, tiered pin rewards, storage challenges |
+| `private_sync_v1` | 1.0.0 | Privacy | Canton-style CGS, encrypted views, mediator finality |
+| `redeemable_codes_v1` | 1.0.0 | Distribution | TEE-secured gift codes, validator onboarding |
 
-**Purpose:**
-- BLS (Boneh-Lynn-Shacham) signature generation for block proposals and votes
-- TLS certificate management for secure peer communication
-- Automatic TLS-first Node ID derivation for multi-device isolation
-- Module signing for Cryftee's trust model
-- Integration with Web3Signer for key custody
+---
 
-**Node ID Derivation:**
+#### Individual Module Specifications
 
-The module implements TLS-first identity bootstrapping:
-1. On first initialization, auto-bootstraps TLS identity if none exists
-2. Derives unique Node ID from TLS public key: `"NodeID-" + SHA256(pubkey)[0:40]`
-3. Keys are namespaced per device under `/keys/{NodeID}/` for multi-device isolation
+Each core module has its own detailed specification:
 
-**Storage Backends:**
+- **Section 13.3.1:** [BLS/TLS Signer Module](13-03a-bls-tls-module.md) - Staking cryptography, multi-device, Web3Signer
+- **Section 13.3.2:** [Debug Module](13-03b-debug-module.md) - Diagnostics and runtime inspection
+- **Section 13.3.3:** [LLM Chat Module](13-03c-llm-chat-module.md) - Operator assistance interface
+- **Section 13.3.4:** [IPFS Module](13-03d-ipfs-module.md) - Content-addressed storage with pin rewards
+- **Section 13.3.5:** [CGS Module (Private Sync)](13-03e-cgs-module.md) - Canton-style confidential transactions
+- **Section 13.3.6:** [Redeemable Codes](13-03f-redeemable-codes.md) - TEE-secured gift codes
 
-| Backend | Use Case | Description |
-|:--------|:---------|:------------|
-| **Vault** | Production (recommended) | HashiCorp Vault integration for secure key storage |
-| **Local Keystore** | Development/small deployments | EIP-2335 compatible encrypted JSON files |
-| **Memory** | Testing only | Non-persistent storage, keys lost on restart |
+---
 
-**Capabilities:**
+#### Power of Ten Compliance
 
-| Function | Description |
-|:---------|:------------|
-| `bls_register` | Register a new BLS public key for staking |
-| `bls_sign` | Sign a message using the validator's BLS key |
-| `bls_verify` | Verify a BLS signature |
-| `tls_register` | Register TLS certificate for peer authentication |
-| `tls_sign` | Sign data for TLS handshakes |
-| `tls_verify` | Verify TLS signatures |
-| `module_signing_key` | Retrieve the dedicated WASM module signing key |
-| `sign_module` | Sign a WASM module for distribution |
-| `verify_module` | Verify a module signature before load |
-| `hash_module` | Compute hash of a WASM module binary |
+All modules MUST adhere to these safety rules:
 
-**Web3Signer Integration:**
-
-The module delegates key operations to Web3Signer when configured:
-```text
-WEB3SIGNER_API_URL=http://localhost:9000
-WEB3SIGNER_TLS_CERT=/path/to/web3signer.crt
-```
-
-This allows validators to use hardware security modules (HSMs) or other secure key custody solutions without exposing keys to the Cryftee process.
-
-#### 13.3.3 Debug Module (`debug_v1`)
-
-The debug module provides diagnostic capabilities for operators:
-
-**Purpose:**
-- Runtime inspection and health checks
-- Testing module communication and round-trip connectivity
-- Controlled panic for testing error handling
-- Lightweight diagnostics for development and troubleshooting
-
-**Capabilities:**
-
-| Function | Description |
-|:---------|:------------|
-| `debug_echo` | Echo input back to caller (connectivity test) |
-| `debug_info` | Return runtime version, loaded modules, and environment info |
-| `debug_panic` | Trigger a controlled panic for testing error handling |
-
-**Security Note:** The `debug_panic` function SHOULD be disabled in production deployments. Operators can configure via:
-```text
-CRYFTTEE_DEBUG_PANIC_ENABLED=false
-```
-
-#### 13.3.4 LLM Chat Module (`llm_chat_v1`)
-
-The LLM module provides a self-contained interactive AI assistant for runtime and module interaction, with all conversation state managed in-module.
-
-**Purpose:**
-- Answer operator questions about Cryftee configuration
-- Assist with troubleshooting and diagnostics
-- Provide documentation and guidance
-- Multi-provider support for flexibility
-
-**Architecture:**
-- Self-contained chat interface managing all conversation state in-module
-- Host calls used ONLY for network I/O to external APIs
-- Token counting and context management to stay within model limits
-- Response streaming assembly for real-time chat
-
-**Session Management:**
-
-| Limit | Value |
-|:------|:------|
-| Max concurrent sessions | 50 |
-| Max context window | 128k tokens |
-| Session timeout | Configurable per provider |
-
-**Supported Providers:**
-
-| Provider | Models | Notes |
-|:---------|:-------|:------|
-| **OpenAI** | GPT-4, GPT-3.5-turbo | Default provider |
-| **Anthropic** | Claude-3-opus, Claude-3-sonnet | Extended context support |
-| **Local** | Llama, Mistral | Self-hosted, no external API calls |
-
-**Capabilities:**
-
-| Function | Description |
-|:---------|:------------|
-| `llm_chat` | Send a message and receive a complete response |
-| `llm_stream` | Send a message and receive a streaming response |
-
-**Configuration:**
-```text
-CRYFTTEE_LLM_PROVIDER=openai|anthropic|local
-CRYFTTEE_LLM_API_KEY=<key>
-CRYFTTEE_LLM_MODEL=gpt-4
-CRYFTTEE_LLM_MAX_SESSIONS=50
-CRYFTTEE_LLM_CONTEXT_WINDOW=128000
-```
-
-**Security Note:** LLM outputs are NOT consensus-critical. The module provides operator assistance only; no LLM responses affect chain state or validator behavior
-
+1. **Static bounds:** All resource limits declared at module top
+2. **No unsafe code:** Pure safe Rust/WASM only
+3. **No panics:** Proper error handling with Result types
+4. **Self-contained limits:** Each module manages its own resource constraints
+5. **Input validation:** Comprehensive validation before processing

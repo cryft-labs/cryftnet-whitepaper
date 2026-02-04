@@ -1,13 +1,19 @@
-### 13.4 IPFS Module (`ipfs_v1`)
+### 13.3.4 IPFS Module (`ipfs_v1`)
 
 The IPFS module embeds a standalone content-addressed storage node within Cryftee's runtime, combining standard IPFS operations with blockchain-based storage incentives. No external IPFS daemon is required.
 
-#### 13.4.1 Overview
+**Version:** 1.1.0  
+**Category:** Storage  
+**Status:** Core Module (required for full network capability)
+
+---
+
+#### Overview
 
 | Property | Value |
 |:---------|:------|
 | Module ID | `ipfs_v1` |
-| Version | 2.0.0 |
+| Version | 1.1.0 |
 | Required for Validators | Yes |
 | Modes | Full node (default), Light client |
 | External Dependencies | None (standalone embedded node) |
