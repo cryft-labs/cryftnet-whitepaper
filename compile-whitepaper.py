@@ -114,14 +114,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.31<br>
+<strong>Revision:</strong> v1.32<br>
 <strong>Date:</strong> February 4, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.31):</strong> **CRYFTEE MODULE ACCURACY UPDATE:** Updated all Cryftee modules to match actual implementation. Section 13.3 Core Modules: bls_tls_signer_v1 now includes TLS-first Node ID derivation, multi-device support, 3 storage backends (Vault/Local/Memory); llm_chat_v1 updated to v2.0.0 with multi-provider support (OpenAI/Anthropic/Local), 50 concurrent sessions, 128k token context. Section 13.4 IPFS Module: Added tiered reward system (Basic 1x to Critical 10x), storage challenges with merkle proofs, validator statistics tracking. Section 13.5 CGS Module: Updated to Canton Network-inspired protocol with encrypted party views, commitment-based confirmation, TEE-secured mediator finality, and detailed 4-step transaction flow. Added Section 13.8 Redeemable Codes Module (US Patent App 20250139608): dual smart contract architecture (Public + Private TEE), XXXX-YYYY-YYYY-YYYY code format, multiple content types (tokens/NFTs/experiences/validator registration), batch operations, and immutable audit trail. Total: ~3,200 lines. Previous (v1.30): Cryftee modular reorganization and AIM section.
+<strong>Latest Changes (v1.32):</strong> **CRYFTEE MODULE FILE REORGANIZATION:** All 6 core modules now have individual specification files using consistent 13.3.x numbering (13-03a through 13-03f). Modules: bls_tls_signer_v1 (13.3.1), debug_v1 (13.3.2), llm_chat_v1 (13.3.3), ipfs_v1 (13.3.4), private_sync_v1 (13.3.5), redeemable_codes_v1 (13.3.6). All modules designated as CORE MODULES required for full network capability. Added clear distinction between llm_chat_v1 (operator chat interface within Cryftee runtime) and AIM (on-chain agent identity infrastructure layer). Operations section renumbered to 13.4, AIM section renumbered to 13.5. Total: ~10,000 lines. Previous (v1.31): Cryftee module accuracy updates.
 </p>
 
 <p align="center"><em>

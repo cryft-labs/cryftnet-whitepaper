@@ -1,14 +1,14 @@
 ﻿<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.29<br>
-<strong>Date:</strong> January 20, 2026<br>
+<strong>Revision:</strong> v1.32<br>
+<strong>Date:</strong> February 4, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.29):</strong> **INVESTOR/AUDITOR CONFIDENCE ADDITIONS:** Added Section 12.4 Bootstrapping & Decentralization (4-phase transition with on-chain time-locks, Cryft Labs special powers sunset by Day 365, Decentralization Dashboard). Added Section 11.5 Zero-Emission Economics (100M CRYFT genesis validator bootstrap, realistic fee projections, State subsidy pools, emergency treasury stipends with 90-day auto-sunset). Added Section 5.7 Operational SLO Monitoring (CSS-1 required metrics, ping beacon network, tiered penalties for violations, public dashboard at status.cryftnet.io). Addresses "benevolent dictatorship" concerns, "who pays for security" question, and makes "Web2 feel" enforceable. Total additions: ~1,950 lines. Previous (v1.28): P1 specification gaps resolved.
+<strong>Latest Changes (v1.32):</strong> **CRYFTEE MODULE FILE REORGANIZATION:** All 6 core modules now have individual specification files using consistent 13.3.x numbering. Created 13-03a through 13-03f for each core module (bls_tls_signer_v1, debug_v1, llm_chat_v1, ipfs_v1, private_sync_v1, redeemable_codes_v1). Clarified that ALL modules are CORE MODULES required for full network capability. Added clear distinction between llm_chat_v1 (operator chat interface within Cryftee) and AIM (on-chain agent identity infrastructure) - they are separate systems, with llm_chat optionally using AIM-registered agents as providers. Operations section renumbered to 13.4, AIM section renumbered to 13.5. Total: ~10,000 lines. Previous (v1.31): Cryftee module accuracy updates.
 </p>
 
 <p align="center"><em>
@@ -77,7 +77,18 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
   - [10.11 Developer experience summary](whitepaper/10-cross-chain/10-09-dev-experience.md)
 - [11. Asset model, rewards, and monetary policy](whitepaper/11-asset-rewards-monetary.md)
 - [12. Governance: federated DAO and cross-network democracy](whitepaper/12-governance.md)
-- [13. Cryftee: signed WASM module runtime for chain utilities](whitepaper/13-cryftee.md)
+- [13. Cryftee: signed WASM module runtime for chain utilities](whitepaper/13-cryftee/README.md)
+  - [13.1 Architecture Overview](whitepaper/13-cryftee/13-01-architecture.md)
+  - [13.2 Runtime Properties](whitepaper/13-cryftee/13-02-runtime.md)
+  - [13.3 Core Modules](whitepaper/13-cryftee/13-03-core-modules.md)
+    - [13.3.1 BLS/TLS Signer](whitepaper/13-cryftee/13-03a-bls-tls-module.md)
+    - [13.3.2 Debug Module](whitepaper/13-cryftee/13-03b-debug-module.md)
+    - [13.3.3 LLM Chat Module](whitepaper/13-cryftee/13-03c-llm-chat-module.md)
+    - [13.3.4 IPFS Module](whitepaper/13-cryftee/13-03d-ipfs-module.md)
+    - [13.3.5 CGS Module (Private Sync)](whitepaper/13-cryftee/13-03e-cgs-module.md)
+    - [13.3.6 Redeemable Codes](whitepaper/13-cryftee/13-03f-redeemable-codes.md)
+  - [13.4 Operational Integration](whitepaper/13-cryftee/13-06-operations.md)
+  - [13.5 Agent Identity & Memory (AIM)](whitepaper/13-cryftee/13-07-aim.md)
 - [14. Security model and threat analysis](whitepaper/14-security-threats.md)
   - [14.1 Threat categories](whitepaper/14-security-threats.md#141-threat-categories)
   - [14.2 Consensus safety threats](whitepaper/14-security-threats.md#142-consensus-safety-threats)
@@ -115,7 +126,7 @@ The whitepaper has been split into multiple files for easier maintenance and tar
 | **Cross-chain** | [whitepaper/10-cross-chain/](whitepaper/10-cross-chain/) (see index) |
 | **Assets & rewards** | [whitepaper/11-asset-rewards-monetary.md](whitepaper/11-asset-rewards-monetary.md) |
 | **Governance** | [whitepaper/12-governance.md](whitepaper/12-governance.md) |
-| **Cryftee runtime** | [whitepaper/13-cryftee.md](whitepaper/13-cryftee.md) |
+| **Cryftee runtime** | [whitepaper/13-cryftee/](whitepaper/13-cryftee/) (see index) |
 | **Security & threats** | [whitepaper/14-security-threats.md](whitepaper/14-security-threats.md) |
 | **Roadmap** | [whitepaper/15-roadmap.md](whitepaper/15-roadmap.md) |
 | **Appendices** | [whitepaper/16-appendices.md](whitepaper/16-appendices.md) |
@@ -133,6 +144,22 @@ Section 10 is split into multiple files for easier navigation:
 - [10-07-region-first-deploy.md](whitepaper/10-cross-chain/10-07-region-first-deploy.md) - Region-first deployment
 - [10-08-cross-region-fees.md](whitepaper/10-cross-chain/10-08-cross-region-fees.md) - Federation fees
 - [10-09-dev-experience.md](whitepaper/10-cross-chain/10-09-dev-experience.md) - Developer experience summary
+
+### Section 13 (Cryftee) Sub-Files
+
+Section 13 is split into multiple files for modular editing:
+
+- [13-01-architecture.md](whitepaper/13-cryftee/13-01-architecture.md) - CryftGo vs Cryftee separation, design rationale
+- [13-02-runtime.md](whitepaper/13-cryftee/13-02-runtime.md) - Module loading, API surface, trust model
+- [13-03-core-modules.md](whitepaper/13-cryftee/13-03-core-modules.md) - Overview of all 6 core modules
+  - [13-03a-bls-tls-module.md](whitepaper/13-cryftee/13-03a-bls-tls-module.md) - BLS/TLS Signer (staking, multi-device)
+  - [13-03b-debug-module.md](whitepaper/13-cryftee/13-03b-debug-module.md) - Debug module (diagnostics)
+  - [13-03c-llm-chat-module.md](whitepaper/13-cryftee/13-03c-llm-chat-module.md) - LLM Chat (operator interface)
+  - [13-03d-ipfs-module.md](whitepaper/13-cryftee/13-03d-ipfs-module.md) - IPFS (storage, pin rewards)
+  - [13-03e-cgs-module.md](whitepaper/13-cryftee/13-03e-cgs-module.md) - CGS/Private Sync (Canton-style)
+  - [13-03f-redeemable-codes.md](whitepaper/13-cryftee/13-03f-redeemable-codes.md) - Redeemable Codes (gift codes)
+- [13-06-operations.md](whitepaper/13-cryftee/13-06-operations.md) - Node types, Cryftee requirements
+- [13-07-aim.md](whitepaper/13-cryftee/13-07-aim.md) - Agent Identity & Memory (infrastructure layer)
 
 ### Guidelines
 
