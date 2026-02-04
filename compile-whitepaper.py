@@ -114,14 +114,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.29<br>
-<strong>Date:</strong> January 20, 2026<br>
+<strong>Revision:</strong> v1.31<br>
+<strong>Date:</strong> February 4, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.29):</strong> **INVESTOR/AUDITOR CONFIDENCE ADDITIONS:** Added Section 12.4 Bootstrapping & Decentralization (4-phase transition Days 0-365 with on-chain time-locks, Cryft Labs special powers sunset by Day 365, enforcement contracts prevent perpetual bootstrap, Decentralization Dashboard for transparency). Added Section 11.5 Zero-Emission Economics (100M CRYFT genesis validator bootstrap Days 0-180, realistic fee projections $2.2k/day Month 1, State subsidy pools, emergency treasury stipends with 90-day auto-sunset, DAO flexibility to introduce emission if needed). Added Section 5.7 Operational SLO Monitoring (CSS-1 required metrics p50/p95/p99, 20-50 ping beacons, tiered penalties Tier 1-3, recovery process, public dashboard status.cryftnet.io). Transforms \"Web2 feel\" into enforceable protocol guarantees. Addresses \"benevolent dictatorship\" concerns and \"who pays for security\" question. Total: ~1,950 lines. Previous (v1.28): P1 specification gaps.
+<strong>Latest Changes (v1.31):</strong> **CRYFTEE MODULE ACCURACY UPDATE:** Updated all Cryftee modules to match actual implementation. Section 13.3 Core Modules: bls_tls_signer_v1 now includes TLS-first Node ID derivation, multi-device support, 3 storage backends (Vault/Local/Memory); llm_chat_v1 updated to v2.0.0 with multi-provider support (OpenAI/Anthropic/Local), 50 concurrent sessions, 128k token context. Section 13.4 IPFS Module: Added tiered reward system (Basic 1x to Critical 10x), storage challenges with merkle proofs, validator statistics tracking. Section 13.5 CGS Module: Updated to Canton Network-inspired protocol with encrypted party views, commitment-based confirmation, TEE-secured mediator finality, and detailed 4-step transaction flow. Added Section 13.8 Redeemable Codes Module (US Patent App 20250139608): dual smart contract architecture (Public + Private TEE), XXXX-YYYY-YYYY-YYYY code format, multiple content types (tokens/NFTs/experiences/validator registration), batch operations, and immutable audit trail. Total: ~3,200 lines. Previous (v1.30): Cryftee modular reorganization and AIM section.
 </p>
 
 <p align="center"><em>
@@ -159,11 +159,26 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
         'whitepaper/10-cross-chain/10-09-dev-experience.md',
     ]
     
+    # Section 13 Cryftee sub-files
+    s13_files = [
+        'whitepaper/13-cryftee/13-01-architecture.md',
+        'whitepaper/13-cryftee/13-02-runtime.md',
+        'whitepaper/13-cryftee/13-03-core-modules.md',
+        'whitepaper/13-cryftee/13-04-ipfs-module.md',
+        'whitepaper/13-cryftee/13-05-cgs-module.md',
+        'whitepaper/13-cryftee/13-06-operations.md',
+        'whitepaper/13-cryftee/13-07-aim.md',
+        'whitepaper/13-cryftee/13-08-redeemable-codes.md',
+    ]
+    
     # Final sections
     final_sections = [
         'whitepaper/11-asset-rewards-monetary.md',
         'whitepaper/12-governance.md',
-        'whitepaper/13-cryftee.md',
+    ]
+    
+    # Post-Cryftee sections
+    post_cryftee_sections = [
         'whitepaper/14-security-threats.md',
         'whitepaper/15-roadmap.md',
         'whitepaper/16-appendices.md',
@@ -194,13 +209,35 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
     
     compiled.append('\n---\n')
     
-    print("  📄 Adding sections 11-16...")
-    for i, section_file in enumerate(final_sections):
+    print("  📄 Adding sections 11-12...")
+    for section_file in final_sections:
+        path = base_dir / section_file
+        content = path.read_text(encoding='utf-8')
+        compiled.append(content)
+        compiled.append('\n---\n')
+    
+    print("  📄 Adding section 13 (Cryftee, README + 7 sub-files)...")
+    # Add Section 13 parent header from README
+    s13_readme_path = base_dir / 'whitepaper/13-cryftee/README.md'
+    s13_readme_content = s13_readme_path.read_text(encoding='utf-8')
+    compiled.append(s13_readme_content)
+    compiled.append('')
+    
+    for s13_file in s13_files:
+        path = base_dir / s13_file
+        content = path.read_text(encoding='utf-8')
+        compiled.append(content)
+        compiled.append('')
+    
+    compiled.append('\n---\n')
+    
+    print("  📄 Adding sections 14-16...")
+    for i, section_file in enumerate(post_cryftee_sections):
         path = base_dir / section_file
         content = path.read_text(encoding='utf-8')
         compiled.append(content)
         
-        if i < len(final_sections) - 1:
+        if i < len(post_cryftee_sections) - 1:
             compiled.append('\n---\n')
     
     # Add final line

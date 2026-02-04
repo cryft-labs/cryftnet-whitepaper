@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.29<br>
-<strong>Date:</strong> January 20, 2026<br>
+<strong>Revision:</strong> v1.31<br>
+<strong>Date:</strong> February 4, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.29):</strong> **INVESTOR/AUDITOR CONFIDENCE ADDITIONS:** Added Section 12.4 Bootstrapping & Decentralization (4-phase transition Days 0-365 with on-chain time-locks, Cryft Labs special powers sunset by Day 365, enforcement contracts prevent perpetual bootstrap, Decentralization Dashboard for transparency). Added Section 11.5 Zero-Emission Economics (100M CRYFT genesis validator bootstrap Days 0-180, realistic fee projections $2.2k/day Month 1, State subsidy pools, emergency treasury stipends with 90-day auto-sunset, DAO flexibility to introduce emission if needed). Added Section 5.7 Operational SLO Monitoring (CSS-1 required metrics p50/p95/p99, 20-50 ping beacons, tiered penalties Tier 1-3, recovery process, public dashboard status.cryftnet.io). Transforms "Web2 feel" into enforceable protocol guarantees. Addresses "benevolent dictatorship" concerns and "who pays for security" question. Total: ~1,950 lines. Previous (v1.28): P1 specification gaps.
+<strong>Latest Changes (v1.31):</strong> **CRYFTEE MODULE ACCURACY UPDATE:** Updated all Cryftee modules to match actual implementation. Section 13.3 Core Modules: bls_tls_signer_v1 now includes TLS-first Node ID derivation, multi-device support, 3 storage backends (Vault/Local/Memory); llm_chat_v1 updated to v2.0.0 with multi-provider support (OpenAI/Anthropic/Local), 50 concurrent sessions, 128k token context. Section 13.4 IPFS Module: Added tiered reward system (Basic 1x to Critical 10x), storage challenges with merkle proofs, validator statistics tracking. Section 13.5 CGS Module: Updated to Canton Network-inspired protocol with encrypted party views, commitment-based confirmation, TEE-secured mediator finality, and detailed 4-step transaction flow. Added Section 13.8 Redeemable Codes Module (US Patent App 20250139608): dual smart contract architecture (Public + Private TEE), XXXX-YYYY-YYYY-YYYY code format, multiple content types (tokens/NFTs/experiences/validator registration), batch operations, and immutable audit trail. Total: ~3,200 lines. Previous (v1.30): Cryftee modular reorganization and AIM section.
 </p>
 
 <p align="center"><em>
@@ -6358,94 +6358,101 @@ After Phase 3 (Day 365+), Cryft Labs operates as:
 
 ---
 
+## 13. Cryftee: Signed WASM Module Runtime for Chain Utilities
 
-- adapter_type (EVM contract, validity proof system, or external committee)
-- vote_weight policy (stake-based, token-based, mixed, or capped)
-- export format (signed root of votes, merkle proofs for audits)
-- dispute and audit rules
+Cryftee is a Rust-based TEE-style sidecar runtime designed to integrate with CryftGo and Web3Signer. It is deliberately stateless: it does not store long-term secrets on disk and instead relies on external key managers (Web3Signer, Vault) or ephemeral key material. Cryftee loads signed WASM modules from a manifest and exposes a versioned API over UDS or HTTPS. It also ships with a kiosk-style web UI for operators on port 3232.
 
-```text
-VoteExport {
-  proposal_id: 0xP...,
-  subnet_id: 42,
-  totals: { yes: 1_230_000, no: 120_000, abstain: 50_000 },
-  eligible_weight: 1_500_000,
-  merkle_root: 0x...,
-  proof: { type: "SUBNET_QUORUM_SIG", sig: 0x..., signers: bitmap },
-  timestamp: 1700000000
-}
-```
-#### 12.3.2 Aggregation and decision rules
+This section is split into multiple files for easier navigation:
 
-Main computes a final decision using both chambers. Example rule (illustrative): - A proposal passes
-if: (ValidatorCouncil_yes >= 2/3 of stake AND Assembly_yes >= 1/2 of exported weight) OR
-(ValidatorCouncil_yes >= 3/4) for emergency security patch class
-### 12.4 Governance safety: timelocks, signaling, and staged activation
-
-Upgrades and parameter changes use:
-
-- on-chain signaling period (days to weeks)
-- timelock before activation
-- activation height for deterministic deployment
-- rollback plan and kill-switch conditions for emergencies
-
-Regions may adopt federation upgrades on their own cadence, but CSS-1 compatibility requires staying within supported version windows.
-### 12.5 Validator eligibility governance via pings
-
-Ping-based eligibility is itself governed. Regions can vote on:
-
-- which beacons are trusted
-- RTT/loss/jitter thresholds (and how strict they are)
-- how eligibility affects rewards (e.g., linear scaling vs hard gate)
-- penalties for falsified measurement attempts
-
-Main can set federation minimums to prevent "fake regions" that degrade user routing or security assumptions.
-### 12.6 Dispute resolution and appeals
-
-Some decisions require adjudication: - slashing disputes (validator misbehavior, pin provider fraud,
-CGS key compromise) - governance export disputes (subnet reported totals vs audited votes)
-CryftNet may use a "court-like" committee elected by federation governance. The committee can
-require selective disclosure of evidence (CGS DisputeBundle). Decisions are recorded on Main and
-can trigger slashing or registry changes.
+- [13.1 Architecture Overview](13-01-architecture.md) - CryftGo vs Cryftee separation, design rationale, federation role
+- [13.2 Runtime Properties](13-02-runtime.md) - Module loading, API surface, trust model
+- [13.3 Core Modules](13-03-core-modules.md) - BLS/TLS signer, debug, LLM chat
+- [13.4 IPFS Module](13-04-ipfs-module.md) - Embedded IPFS node with validator pin rewards
+- [13.5 CGS Module (Private Sync)](13-05-cgs-module.md) - Canton-style confidential multi-party transactions
+- [13.6 Operational Integration](13-06-operations.md) - Node types, Cryftee requirements, configuration
+- [13.7 Agent Identity & Memory (AIM)](13-07-aim.md) - Tokenized agent identity, registry, memory commitments
+- [13.8 Redeemable Codes](13-08-redeemable-codes.md) - On-chain gift codes with TEE-secured storage
 
 ---
 
-## 13. Cryftee: signed WASM module runtime for chain utilities
+### Architecture Summary
 
-Cryftee is a Rust-based TEE-style sidecar runtime designed to integrate with CryftGo and
-Web3Signer. It is deliberately stateless: it does not store long-term secrets on disk and instead relies
-on external key managers (Web3Signer, Vault) or ephemeral key material. Cryftee loads signed
-WASM modules from a manifest and exposes a versioned API over UDS or HTTPS. It also ships with
-a kiosk-style web UI for operators on port 3232.
+**CryftGo vs. Cryftee:**
 
-**Architecture clarity: CryftGo vs. Cryftee**
+| Component | Role | Responsibilities |
+|:----------|:-----|:-----------------|
+| **CryftGo** | Consensus client | Block validation, state transitions, consensus participation, on-chain verification |
+| **Cryftee** | Utility sidecar | Off-chain computation, WASM module execution, IPFS/CGS operations, signed attestations |
+
+**Why separate?**
+
+1. **Consensus safety:** Novel features do not touch the consensus kernel
+2. **Modular upgrades:** Modules upgrade independently via signed releases
+3. **Off-chain parallelism:** Heavy computation off-chain, proofs verified on-chain
+4. **Targeted deployments:** Validators choose module sets based on operational needs
+
+**Module Categories:**
+
+| Category | Modules | Purpose |
+|:---------|:--------|:--------|
+| **Staking** | `bls_tls_signer_v1` | BLS/TLS key operations, checkpoint signing, multi-device support |
+| **Storage** | `ipfs_v1` | Content-addressed storage, tiered pin rewards, storage challenges |
+| **Privacy** | `private_sync_v1` | Canton-style CGS, encrypted views, mediator finality |
+| **Utility** | `debug_v1`, `llm_chat_v1` | Diagnostics, multi-provider LLM assistance |
+| **Distribution** | `redeemable_codes_v1` | TEE-secured gift codes, validator onboarding (US Patent App 20250139608) |
+| **Agents** | `agent_registry_v1`, `agent_memory_v1`, `agent_session_v1` | Agent identity, memory commitments, session management |
+
+**Cryftee Requirement by Node Type:**
+
+| Node Type | Consensus? | Rewards? | Cryftee Required? |
+|:----------|:-----------|:---------|:------------------|
+| Full Validator | Yes | Yes | **Required** |
+| Light Validator | Yes (light) | Yes (partial) | **Required** |
+| RPC Node | No | No | Not required |
+| Archive Node | No | No | Not required |
+| Explorer/Indexer | No | No | Optional |
+
+
+
+### 13.1 Architecture Overview
+
+Cryftee is the off-chain computation and utility layer for CryftNet, designed as a modular sidecar that runs WASM modules for auxiliary features like CGS, IPFS, staking operations, and specialized validation logic.
+
+#### 13.1.1 CryftGo vs. Cryftee
 
 - **CryftGo** is the consensus client (blockchain interface) - a fork of AvalancheGo that handles on-chain consensus, block validation, and state transitions. CryftGo is the "consensus kernel" that must remain lean and proven.
 - **Cryftee** is the off-chain computation and utility layer - a modular sidecar that runs WASM modules for auxiliary features like CGS, IPFS, staking operations, and specialized validation logic.
 - **All extensions are modules** within Cryftee. IPFS, CGS, pin provider logic, governance helpers, and future features are all WASM modules that load into Cryftee's runtime.
 
-**Why separate CryftGo and Cryftee?**
+#### 13.1.2 Design Rationale
 
 1. **Consensus safety:** Novel features (CGS, Smart Slots parallel scheduling, IPFS) do not touch the consensus kernel. CryftGo remains a minimal, auditable, proven codebase.
 2. **Modular upgrades:** Modules can be upgraded independently via signed releases without requiring consensus client upgrades or chain-wide coordination.
 3. **Off-chain parallelism:** Cryftee can perform parallel validation, content availability checks, and computation-heavy tasks off-chain, then submit proofs/attestations to CryftGo for on-chain recording.
 4. **Targeted deployments:** Different validators can run different module sets based on their operational needs (e.g., IPFS-only validators, CGS relays, pin providers).
 
-**Cryftee's role in the federation:**
+#### 13.1.3 Why a Sidecar Runtime?
 
-- **Primary Network (Federal Chain, Mirror Chain, EVM Chain):** All three chains use Cryftee modules for operations:
-  - Federal Chain: Validator eligibility checks, governance vote aggregation, checkpoint acceptance logic
-  - Mirror Chain: UTXO validation assistance, high-throughput parallel processing, GBL management support
-  - EVM Chain: Smart contract execution support, cross-chain messaging coordination
-  - All chains: CGS hosting for privacy-aware transaction propagation
+- Keeps the consensus client lean: consensus and execution code stays minimal; auxiliary features live in modules.
+- Upgrades and experiments are safer: modules are signed and version-gated; incompatible code can be rejected.
+- Operational consistency: the same module APIs can be used across Main and subnets.
+- Security boundaries: key operations can be isolated behind Web3Signer and attestation hooks.
 
-- **Subnets/Regions:** Each subnet validator runs Cryftee for:
-  - CGS domain participation (privacy pools, intent routing)
-  - IPFS pinning and content availability attestations
-  - Local balance tracking synchronization with Mirror Chain GBL (if opted into federation)
-  - Checkpoint submission to Primary Network
+#### 13.1.4 Cryftee's Role in the Federation
 
-**Consensus validates Cryftee is operating as expected:**
+**Primary Network (Federal Chain, Mirror Chain, EVM Chain):** All three chains use Cryftee modules for operations:
+- Federal Chain: Validator eligibility checks, governance vote aggregation, checkpoint acceptance logic
+- Mirror Chain: UTXO validation assistance, high-throughput parallel processing, GBL management support
+- EVM Chain: Smart contract execution support, cross-chain messaging coordination
+- All chains: CGS hosting for privacy-aware transaction propagation
+
+**Subnets/Regions:** Each subnet validator runs Cryftee for:
+- CGS domain participation (privacy pools, intent routing)
+- IPFS pinning and content availability attestations
+- Local balance tracking synchronization with Mirror Chain GBL (if opted into federation)
+- Checkpoint submission to Primary Network
+
+#### 13.1.5 Consensus Validates Cryftee Outputs
 
 Cryftee performs off-chain computation (parallel validation, IPFS availability checks, CGS routing), but **consensus verifies the results**:
 
@@ -6456,7 +6463,7 @@ Cryftee performs off-chain computation (parallel validation, IPFS availability c
 
 This achieves **high parallel throughput** (Cryftee does the heavy lifting off-chain) while maintaining **consensus security** (CryftGo validates all results on-chain).
 
-**GBL and Cryftee: opt-in federation without bridges**
+#### 13.1.6 GBL and Cryftee: Opt-in Federation Without Bridges
 
 The Global Balance Ledger (GBL) on Mirror Chain can be accessed by:
 - **Subnets opting into GBL** - subnets query Mirror Chain's GBL via atomic cross-chain messaging or precompiles; no custom bridge contracts required
@@ -6464,65 +6471,39 @@ The Global Balance Ledger (GBL) on Mirror Chain can be accessed by:
 - **Cross-region transfers** - processed through Mirror Chain's UTXO model with checkpoint verification at each step
 
 This provides a **unified, robust approach to cross-chain balance tracking** with Mirror Chain as the authoritative ledger.
-### 13.1 Why a sidecar runtime?
 
-- Keeps the consensus client lean: consensus and execution code stays minimal; auxiliary features
-live in modules.
-- Upgrades and experiments are safer: modules are signed and version-gated; incompatible code
-can be rejected.
-- Operational consistency: the same module APIs can be used across Main and subnets.
-- Security boundaries: key operations can be isolated behind Web3Signer and attestation hooks.
-### 13.2 Runtime properties
 
-- Loads and manages signed WASM modules from a manifest.json registry.
-- Provides BLS/TLS staking key operations via modular plugins.
-- Exposes a versioned API over Unix Domain Socket (default) or HTTPS.
-- Includes a kiosk web UI on port 3232 with per-module GUIs rendered as tabs.
-- Enforces version compatibility (minCryftteeVersion) and publisher trust.
-### 13.3 Embedding CGS and IPFS inside Cryftee as modules
 
-**All auxiliary features are WASM modules loaded by Cryftee runtime:**
+### 13.2 Runtime Properties and Trust Model
 
-| Module | Version | Purpose | Representative capabilities |
-|:-------|:--------|:--------|:----------------------------|
-| bls_tls_signer_v1 | 1.2.0 | BLS + TLS staking module with Web3Signer integration and module signing | bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_module, verify_module |
-| debug_v1 | 1.0.0 | Diagnostics and runtime inspection | debug_echo, debug_info, debug_panic |
-| llm_chat_v1 | 1.0.0 | Operator assistance via LLM interface | llm_chat, llm_stream |
-| **ipfs_v1** | 2.0.0 | **Embedded IPFS node management (full/light modes)** - IPFS is a Cryftee module, not a separate service | node_start, ipfs_add, ipfs_pin, ipns_publish, peer_connect |
-| redeemable_codes_v1 | 1.0.0 | On-chain redeemable gift code system | code_generate, code_redeem, code_freeze, validator_code_redeem |
-| **private_sync_v1** | 1.0.0 | **Cryft-style private transaction synchronizer (CGS domain module)** | domain_create, party_register, tx_submit, view_decrypt, mediator_confirm |
+This section describes Cryftee's runtime architecture, module loading, API surface, and security model.
 
-**CGS is embedded in Cryftee in two layers:**
+#### 13.2.1 Core Runtime Properties
 
-- A CGS core service in the runtime that manages routing, pools, and key rotation schedules.
-- A set of modules (starting with private_sync_v1) that implement domain logic: party registration, tx submit/confirm, view requests, and mediator flows.
+Cryftee provides:
+- Loads and manages signed WASM modules from a manifest.json registry
+- Provides BLS/TLS staking key operations via modular plugins
+- Exposes a versioned API over Unix Domain Socket (default) or HTTPS
+- Includes a kiosk web UI on port 3232 with per-module GUIs rendered as tabs
+- Enforces version compatibility (minCryftteeVersion) and publisher trust
 
-This mirrors Cryft-style constructs while remaining pluggable. Embedding CGS in Cryftee keeps the synchronizer close to the validator, reducing latency and enabling tight integration with mempool selection and Smart Slot scheduling (via slot commitments).
-
-**IPFS layer is a Cryftee module (ipfs_v1):**
-
-The IPFS node runs inside Cryftee's module sandbox. This provides:
-- **Unified operational model:** IPFS configuration is managed via Cryftee's module manifest
-- **Signature verification:** IPFS module binaries are signed and verified before load
-- **Modular upgrades:** IPFS can be updated via module releases without changing CryftGo
-- **Integration with other modules:** CGS and governance modules can directly access IPFS for content storage and retrieval
-
-Validators configure IPFS mode (full node, light client, gateway-only) via Cryftee module settings.
-### 13.4 Trust model: signed modules and publisher verification
+#### 13.2.2 Trust Model: Signed Modules and Publisher Verification
 
 All modules are verified before load:
 
-- hash verification against manifest.json
-- signature verification (Ed25519) against trust.toml or
+- Hash verification against manifest.json
+- Signature verification (Ed25519) against trust.toml
 - GitHub-based verification (signed commits, CI builds, attestations) under policy
 
 Rejected modules do not load and do not affect runtime stability.
-```jsonc
-// trust.toml (example)
+
+```toml
+# trust.toml (example)
 [[publishers]]
 id        = "cryft-labs"
 algo      = "ed25519"
 publicKey = "BASE64_PUBLIC_KEY_HERE"
+
 [[github_publishers]]
 id                     = "cryft-labs"
 github_org             = "cryft-labs"
@@ -6533,20 +6514,11 @@ allowed_workflows      = ["release.yml"]
 allow_prereleases      = false
 ```
 
-### 13.5 Initial module set (v0.4.x runtime)
+#### 13.2.3 API Surface
 
-The initial module set provides staking, diagnostics, IPFS services, redeemable codes, and private synchronization. Modules may include GUIs served through the kiosk interface and sandboxed in iframes.
-### 13.6 API surface (summary)
+Cryftee provides endpoints organized by function:
 
-Cryftee provides:
-
-- **Staking endpoints:** BLS/TLS register and sign
-- **Runtime endpoints:** attestation, schema, reload modules
-- **Module GUI endpoints**
-
-The transport can be UDS (default) or HTTPS.
-
-**Staking:**
+**Staking Endpoints:**
 ```text
 POST /v1/staking/bls/register
 POST /v1/staking/bls/sign
@@ -6555,133 +6527,24 @@ POST /v1/staking/tls/sign
 GET  /v1/staking/status
 ```
 
-**Runtime/Admin:**
+**Runtime/Admin Endpoints:**
 ```text
 GET  /v1/runtime/attestation
 GET  /v1/schema/modules
 POST /v1/admin/reload-modules
 ```
 
-**Module GUIs:**
+**Module GUI Endpoints:**
 ```text
 GET  /api/modules/{module_id}/gui/
 ```
-### 13.7 Operational integration: CryftGo launches Cryftee
 
-**CryftGo is the blockchain interface; Cryftee is the modular utility layer:**
+The transport can be UDS (default) or HTTPS.
 
-CryftGo (the consensus client) launches Cryftee as a child process and configures it via environment variables. CryftGo can
-verify the Cryftee binary hash before launch and optionally require attestation for sensitive operations.
+#### 13.2.4 Module Manifest Format
 
-**Mandatory startup requirement for validators:** CryftGo MUST fail startup if Cryftee is not running or if required modules (`bls_tls_signer_v1`, `ipfs_v1` for validators) fail to load or attest. This is enforced via startup checks and runtime attestation verification. Non-validator nodes (RPC, archive) may start without Cryftee.
+Modules are declared in manifest.json with hash and signature verification:
 
-**CryftGo responsibilities:**
-- Consensus participation (block proposal, voting, finalization)
-- On-chain state validation and commitment
-- Verification of Cryftee attestations and proofs
-- Network communication with other validators
-
-**Cryftee responsibilities:**
-- Off-chain computation (parallel validation, IPFS operations, CGS routing)
-- Module execution (WASM sandboxing, API exposure)
-- Producing signed attestations for CryftGo to verify
-- Heavy lifting that doesn't need to be in consensus kernel
-
-This separation allows **modular and targeted implementations**: validators can choose which modules to run, and upgrades happen independently. A validator running IPFS pinning doesn't need the same modules as a validator focused on CGS privacy relay.
-
-**Core:**
-```text
-CRYFTTEE_MODULE_DIR=./modules
-CRYFTTEE_MODULES=bls_tls_signer_v1,ipfs_v1,private_sync_v1
-CRYFTTEE_API_TRANSPORT=uds
-CRYFTTEE_UDS_PATH=/tmp/cryfttee.sock
-```
-
-**Web3Signer:**```text
-WEB3SIGNER_API_URL=http://localhost:9000
-WEB3SIGNER_TLS_CERT=/path/to/web3signer.crt
-```
-
-### 13.8 Cryftee requirement & node stack
-
-**Cryftee is mandatory ONLY for validators participating in consensus or seeking to earn rewards.**
-
-CryftNet supports multiple node types with different operational requirements. Cryftee's off-chain utilities (BLS/TLS signing, checkpoint submission, IPFS/CGS operations, runtime attestation) are consensus-critical and reward-critical, but they are **not required** for nodes that merely serve queries or archive historical state.
-
-#### 13.8.1 Node types & Cryftee requirement summary
-
-| Node Type              | Participates in Consensus? | Earns Rewards? | Runs Cryftee? | Reason / Dependencies                                                                 |
-|------------------------|----------------------------|----------------|---------------|---------------------------------------------------------------------------------------|
-| **Full Validator**     | Yes                        | Yes            | **Required**  | Needs Cryftee for BLS/TLS signing, checkpoint submission, Code Vault/IPFS fetches, bundle validation support, attestation to peers |
-| **Light Validator**    | Yes (light-vote path)      | Yes (partial)  | **Required**  | Still needs Cryftee for staking ops, attestation, and some off-chain verification (e.g., GBL queries) |
-| **RPC Node**           | No                         | No             | **Not required** | Only serves JSON-RPC queries (eth_getBlockByNumber, etc.). Can rely on trusted full nodes or validators for data. No signing, no bundle validation, no checkpoint submission |
-| **Archive Node**       | No                         | No             | **Not required** | Stores historical state for queries. Can sync from validators without Cryftee. No consensus participation or reward eligibility |
-| **Explorer / Indexer** | No                         | No             | **Optional**  | May benefit from Cryftee's IPFS module for fetching pinned content, but not required |
-
-#### 13.8.2 Why Cryftee is required for consensus participants
-
-Cryftee's main responsibilities are **off-chain utilities that are consensus-critical or reward-critical**:
-
-- **BLS/TLS staking key operations** (`bls_tls_signer_v1`): Validators must sign block proposals, votes, and checkpoint submissions. These cryptographic operations are performed by Cryftee modules and verified by CryftGo.
-- **IPFS node management** (`ipfs_v1`): Code Vault lazy mirroring, bundle verification, and content availability attestations require IPFS operations. Validators fetch and pin critical content to maintain consensus integrity.
-- **Checkpoint production & signing**: Regions submit checkpoints to the Primary Network for cross-region verification. Cryftee produces these checkpoints and signs them for on-chain acceptance.
-- **Runtime attestation** (`/v1/runtime/attestation`): Peers verify that a validator is running the correct module set with valid signatures. This prevents malicious or outdated code from participating in consensus.
-- **CGS domain participation** (`private_sync_v1`): Privacy-aware transaction propagation and slot commitment require CGS routing, key rotation, and mediator confirmation logic.
-
-#### 13.8.3 Non-consensus nodes: RPC, archive, and indexers
-
-RPC and archive nodes **do not**:
-- Propose or vote on bundles
-- Sign checkpoints
-- Participate in validator committees
-- Earn block rewards or staking rewards
-- Need to prove module integrity to peers
-
-These nodes can safely run **just CryftGo** (the consensus client) in non-validator mode and connect to trusted validators for syncing and serving queries. They do not require Cryftee unless the operator wishes to leverage optional IPFS functionality for convenient access to pinned content.
-
-**Recommended configuration for non-consensus nodes:**
-```bash
-# RPC node (serves JSON-RPC queries only)
-cryftgo --rpc-only=true --staking-enabled=false --consensus-enabled=false
-
-# Archive node (stores historical state for queries)
-cryftgo --archive=true --staking-enabled=false --consensus-enabled=false
-```
-
-These nodes may optionally run Cryftee modules (e.g., `ipfs_v1` for convenient access to pinned content or explorer features) but are not obligated to do so.
-
-#### 13.8.4 Practical implications for CryftGo implementation
-
-When CryftGo starts, it determines whether Cryftee is required based on operational mode:
-
-**Startup logic** (`cmd/cryftgo/main.go` or `node/node.go`):
-- If `--staking-enabled=true` or `--validator-mode=true` -> **require** Cryftee running + valid attestation
-- If `--rpc-only=true` or `--archive=true` -> allow startup without Cryftee
-
-**Recommended flags:**
-```bash
---require-cryftee-for-consensus    # default true; enforces Cryftee for validators
---cryftee-path                     # path to Cryftee binary for auto-launch
---cryftee-required-modules         # comma-separated list (e.g., bls_tls_signer_v1,ipfs_v1)
---cryftee-attestation-required     # default true for validators; verify runtime attestation
-```
-
-**Benefits of this approach:**
-- **No unnecessary overhead** for public RPC providers or archive operators
-- **Clear security boundary**: validators are locked down with mandatory Cryftee modules and attestation
-- **Operational flexibility**: node operators can choose their configuration based on their role in the network
-
-#### 13.8.5 Module selection for validators
-
-Full validators should run the following **minimum module set**:
-
-- `bls_tls_signer_v1`: Required for staking operations and checkpoint signing
-- `ipfs_v1`: Required for Code Vault access and content availability attestations
-- `private_sync_v1`: Recommended for CGS domain participation (opt-in for privacy features)
-
-Light validators may run a subset (e.g., `bls_tls_signer_v1` only) if they delegate heavy computation to full validators.
-
-**Module configuration in manifest.json:**
 ```json
 {
   "modules": [
@@ -6710,9 +6573,1578 @@ Light validators may run a subset (e.g., `bls_tls_signer_v1` only) if they deleg
 }
 ```
 
-This modular approach ensures that **consensus participants run Cryftee with verified modules**, while **non-consensus nodes remain lightweight and efficient** without unnecessary overhead.
+#### 13.2.5 Environment Configuration
+
+**Core Settings:**
+```text
+CRYFTTEE_MODULE_DIR=./modules
+CRYFTTEE_MODULES=bls_tls_signer_v1,ipfs_v1,private_sync_v1
+CRYFTTEE_API_TRANSPORT=uds
+CRYFTTEE_UDS_PATH=/tmp/cryfttee.sock
+```
+
+**Web3Signer Integration:**
+```text
+CRYFTTEE_WEB3SIGNER_URL=http://localhost:9000
+CRYFTTEE_WEB3SIGNER_TIMEOUT=30
+```
+
+**Key Derivation:**
+```text
+CRYFTTEE_KEY_SEED=<hex>
+CRYFTTEE_NODE_ID=<node_id>
+```
+
+**Security:**
+```text
+CRYFTTEE_VERIFIED_BINARY_HASH=sha256:<hex>
+CRYFTTEE_REQUIRE_ATTESTATION=false
+```
+
+
+
+### 13.3 Core Modules
+
+This section describes the foundational modules included in Cryftee's initial release (v0.4.x runtime). All modules follow the **Power of Ten** safety rules: static bounds declared at module top, no unsafe code, proper error handling (no panics), self-contained limits, and comprehensive input validation.
+
+#### 13.3.1 Module Overview
+
+| Module | Version | Purpose | Representative Capabilities |
+|:-------|:--------|:--------|:---------------------------|
+| `bls_tls_signer_v1` | 1.2.0 | BLS + TLS staking with multi-device support | bls_register, bls_sign, bls_verify, tls_register, tls_sign, tls_verify, sign_module, verify_module, hash_module |
+| `debug_v1` | 1.0.0 | Diagnostics and runtime inspection | debug_echo, debug_info, debug_panic |
+| `llm_chat_v1` | 2.0.0 | Multi-provider LLM assistant with session management | llm_chat, llm_stream, session management |
+
+#### 13.3.2 BLS/TLS Signer Module (`bls_tls_signer_v1`)
+
+The staking module provides cryptographic operations for validator participation with automatic TLS-first Node ID derivation for multi-device support.
+
+**Purpose:**
+- BLS (Boneh-Lynn-Shacham) signature generation for block proposals and votes
+- TLS certificate management for secure peer communication
+- Automatic TLS-first Node ID derivation for multi-device isolation
+- Module signing for Cryftee's trust model
+- Integration with Web3Signer for key custody
+
+**Node ID Derivation:**
+
+The module implements TLS-first identity bootstrapping:
+1. On first initialization, auto-bootstraps TLS identity if none exists
+2. Derives unique Node ID from TLS public key: `"NodeID-" + SHA256(pubkey)[0:40]`
+3. Keys are namespaced per device under `/keys/{NodeID}/` for multi-device isolation
+
+**Storage Backends:**
+
+| Backend | Use Case | Description |
+|:--------|:---------|:------------|
+| **Vault** | Production (recommended) | HashiCorp Vault integration for secure key storage |
+| **Local Keystore** | Development/small deployments | EIP-2335 compatible encrypted JSON files |
+| **Memory** | Testing only | Non-persistent storage, keys lost on restart |
+
+**Capabilities:**
+
+| Function | Description |
+|:---------|:------------|
+| `bls_register` | Register a new BLS public key for staking |
+| `bls_sign` | Sign a message using the validator's BLS key |
+| `bls_verify` | Verify a BLS signature |
+| `tls_register` | Register TLS certificate for peer authentication |
+| `tls_sign` | Sign data for TLS handshakes |
+| `tls_verify` | Verify TLS signatures |
+| `module_signing_key` | Retrieve the dedicated WASM module signing key |
+| `sign_module` | Sign a WASM module for distribution |
+| `verify_module` | Verify a module signature before load |
+| `hash_module` | Compute hash of a WASM module binary |
+
+**Web3Signer Integration:**
+
+The module delegates key operations to Web3Signer when configured:
+```text
+WEB3SIGNER_API_URL=http://localhost:9000
+WEB3SIGNER_TLS_CERT=/path/to/web3signer.crt
+```
+
+This allows validators to use hardware security modules (HSMs) or other secure key custody solutions without exposing keys to the Cryftee process.
+
+#### 13.3.3 Debug Module (`debug_v1`)
+
+The debug module provides diagnostic capabilities for operators:
+
+**Purpose:**
+- Runtime inspection and health checks
+- Testing module communication and round-trip connectivity
+- Controlled panic for testing error handling
+- Lightweight diagnostics for development and troubleshooting
+
+**Capabilities:**
+
+| Function | Description |
+|:---------|:------------|
+| `debug_echo` | Echo input back to caller (connectivity test) |
+| `debug_info` | Return runtime version, loaded modules, and environment info |
+| `debug_panic` | Trigger a controlled panic for testing error handling |
+
+**Security Note:** The `debug_panic` function SHOULD be disabled in production deployments. Operators can configure via:
+```text
+CRYFTTEE_DEBUG_PANIC_ENABLED=false
+```
+
+#### 13.3.4 LLM Chat Module (`llm_chat_v1`)
+
+The LLM module provides a self-contained interactive AI assistant for runtime and module interaction, with all conversation state managed in-module.
+
+**Purpose:**
+- Answer operator questions about Cryftee configuration
+- Assist with troubleshooting and diagnostics
+- Provide documentation and guidance
+- Multi-provider support for flexibility
+
+**Architecture:**
+- Self-contained chat interface managing all conversation state in-module
+- Host calls used ONLY for network I/O to external APIs
+- Token counting and context management to stay within model limits
+- Response streaming assembly for real-time chat
+
+**Session Management:**
+
+| Limit | Value |
+|:------|:------|
+| Max concurrent sessions | 50 |
+| Max context window | 128k tokens |
+| Session timeout | Configurable per provider |
+
+**Supported Providers:**
+
+| Provider | Models | Notes |
+|:---------|:-------|:------|
+| **OpenAI** | GPT-4, GPT-3.5-turbo | Default provider |
+| **Anthropic** | Claude-3-opus, Claude-3-sonnet | Extended context support |
+| **Local** | Llama, Mistral | Self-hosted, no external API calls |
+
+**Capabilities:**
+
+| Function | Description |
+|:---------|:------------|
+| `llm_chat` | Send a message and receive a complete response |
+| `llm_stream` | Send a message and receive a streaming response |
+
+**Configuration:**
+```text
+CRYFTTEE_LLM_PROVIDER=openai|anthropic|local
+CRYFTTEE_LLM_API_KEY=<key>
+CRYFTTEE_LLM_MODEL=gpt-4
+CRYFTTEE_LLM_MAX_SESSIONS=50
+CRYFTTEE_LLM_CONTEXT_WINDOW=128000
+```
+
+**Security Note:** LLM outputs are NOT consensus-critical. The module provides operator assistance only; no LLM responses affect chain state or validator behavior
+
+
+
+### 13.4 IPFS Module (`ipfs_v1`)
+
+The IPFS module embeds a standalone content-addressed storage node within Cryftee's runtime, combining standard IPFS operations with blockchain-based storage incentives. No external IPFS daemon is required.
+
+#### 13.4.1 Overview
+
+| Property | Value |
+|:---------|:------|
+| Module ID | `ipfs_v1` |
+| Version | 2.0.0 |
+| Required for Validators | Yes |
+| Modes | Full node (default), Light client |
+| External Dependencies | None (standalone embedded node) |
+
+**Purpose:**
+- Standalone embedded IPFS node (no external daemon required)
+- Content availability attestations with storage challenge verification
+- Blockchain-integrated reward system for incentivized pinning
+- Code Vault access for contract verification
+- Integration with CGS for content-addressed privacy payloads
+
+#### 13.4.2 Capabilities
+
+**Standard IPFS Operations:**
+
+| Function | Description |
+|:---------|:------------|
+| `add` | Add content to the local IPFS node |
+| `cat` | Retrieve content by CID |
+| `get` | Download content to local filesystem |
+| `pin` | Pin content for persistent storage |
+| `unpin` | Remove pin from content |
+| `ipns_publish` | Publish an IPNS name pointing to content |
+
+**DHT Operations:**
+
+| Function | Description |
+|:---------|:------------|
+| `peer_connect` | Connect to specific IPFS peers |
+| `dht_findpeer` | Locate a peer in the DHT |
+| `dht_findprovs` | Find providers for a CID |
+
+**Validator Reward Operations:**
+
+| Function | Description |
+|:---------|:------------|
+| `validator_stats` | Get validator pinning statistics (pins, rewards, challenges) |
+| `incentivized_list` | List all content with active incentives |
+| `storage_challenge` | Respond to a storage challenge with proof |
+| `claim_rewards` | Claim accumulated pinning rewards |
+
+#### 13.4.3 IPFS as a Cryftee Module
+
+IPFS runs inside Cryftee's module sandbox rather than as a separate service. This provides:
+
+- **Unified operational model:** IPFS configuration is managed via Cryftee's module manifest
+- **Signature verification:** IPFS module binaries are signed and verified before load
+- **Modular upgrades:** IPFS can be updated via module releases without changing CryftGo
+- **Integration with other modules:** CGS and governance modules can directly access IPFS for content storage and retrieval
+- **No external dependencies:** Standalone embedded node eliminates daemon management
+
+#### 13.4.4 Node Modes
+
+Validators configure IPFS mode via Cryftee module settings:
+
+**Full Node Mode (Default):**
+- Stores and serves content
+- Participates in DHT routing
+- Eligible for pinning rewards
+- Responds to storage challenges
+- Higher storage and bandwidth requirements
+
+**Light Client Mode:**
+- Retrieves content on demand
+- Minimal local storage
+- Relies on full nodes for content discovery
+- Suitable for light validators
+- Not eligible for pinning rewards
+
+**Configuration:**
+```text
+CRYFTTEE_IPFS_MODE=full|light
+CRYFTTEE_IPFS_STORAGE_PATH=/data/ipfs
+CRYFTTEE_IPFS_STORAGE_LIMIT=100GB
+CRYFTTEE_IPFS_SWARM_PORT=4001
+```
+
+#### 13.4.5 Incentivized Pinning Reward System
+
+The IPFS module integrates with the Cryft blockchain for storage incentives:
+
+**How It Works:**
+1. Content creators deposit CRYFT tokens to incentivize their content
+2. Validators pin incentivized content and respond to storage challenges
+3. Proofs are verified on-chain and rewards distributed automatically
+
+**Reward Tiers:**
+
+| Tier | Multiplier | Use Case |
+|:-----|:-----------|:---------|
+| **Basic** | 1x | Standard content, low priority |
+| **Standard** | 2x | Regular application data |
+| **Priority** | 5x | Important contracts, high-availability content |
+| **Critical** | 10x | System-critical data, consensus artifacts |
+
+**Storage Challenges:**
+
+To prevent fake pinning claims, the network issues random storage challenges:
+
+```text
+StorageChallenge {
+  cid:           string      // content to prove
+  chunk_index:   uint64      // specific chunk to sample
+  nonce:         bytes32     // challenge randomness
+  deadline:      uint64      // block height deadline
+}
+
+ChallengeResponse {
+  challenge_id:  bytes32     // reference to challenge
+  chunk_hash:    bytes32     // hash of requested chunk
+  merkle_proof:  bytes[]     // proof of chunk in content
+  signature:     bytes       // validator signature
+}
+```
+
+**Validator Statistics:**
+
+The module tracks per-validator metrics:
+- Total pins maintained
+- Rewards earned (lifetime and pending)
+- Challenges received and passed
+- Uptime and availability score
+
+#### 13.4.6 Content Availability Attestations
+
+Validators generate signed attestations proving content availability:
+
+```text
+AvailabilityAttestation {
+  cid:          string       // IPFS content identifier
+  validator_id: bytes32      // validator's node ID
+  timestamp:    uint64       // attestation time
+  block_height: uint64       // reference block for timing
+  sample_hash:  bytes32      // hash of sampled content chunk
+  signature:    bytes        // BLS signature over attestation
+}
+```
+
+Attestations are:
+- Submitted to on-chain pinning contracts
+- Aggregated for quorum verification
+- Used to calculate pinning rewards
+- Evidence for storage challenge responses
+
+#### 13.4.7 Code Vault Integration
+
+The IPFS module supports Code Vault lazy mirroring:
+
+1. Contract bytecode is uploaded to IPFS with a deterministic CID
+2. Validators pin contract code based on registry entries
+3. During contract deployment, CryftGo fetches bytecode via Cryftee's IPFS module
+4. Bytecode hash is verified against the on-chain registry
+
+This enables:
+- Lazy loading of contract code (reduced chain bloat)
+- Verified contract source availability
+- Cross-region contract mirroring
+
+#### 13.4.8 Pinning Provider Operations
+
+Pin providers operate through the IPFS module:
+
+1. Register as pin provider with stake bond
+2. Accept pin jobs from the on-chain registry
+3. Maintain content availability
+4. Respond to storage challenges
+5. Generate periodic attestations
+6. Receive tiered rewards based on verified availability
+
+See Section 11 (Asset Rewards & Monetary) for detailed pinning reward mechanics.
+
+
+
+### 13.5 CGS Module: Private Sync (`private_sync_v1`)
+
+The CGS (Cryft Global Synchronizer) module implements Canton Network-inspired confidential multi-party transaction synchronization within Cryftee's runtime. It enables atomic multi-party transactions with selective disclosure while maintaining TEE-guaranteed ordering.
+
+#### 13.5.1 Overview
+
+| Property | Value |
+|:---------|:------|
+| Module ID | `private_sync_v1` |
+| Version | 1.0.0 |
+| Required for Validators | Recommended (opt-in for privacy features) |
+| Inspiration | Canton Network synchronization protocol |
+| Purpose | Confidential multi-party transaction execution |
+
+**Purpose:**
+- Canton-style synchronization protocol for private smart contract execution
+- Sub-transaction privacy with encrypted party views
+- Commitment-based confirmation without full data exposure
+- Domain-isolated synchronization contexts
+- TEE-secured mediator for conflict detection and finality
+
+#### 13.5.2 CGS Architecture within Cryftee
+
+CGS is embedded in Cryftee in two layers:
+
+1. **CGS Core Service:** Manages routing, pools, and key rotation schedules within the Cryftee runtime
+2. **Domain Modules:** Implement domain-specific logic (starting with `private_sync_v1`)
+
+This mirrors Canton-style constructs while remaining pluggable. Embedding CGS in Cryftee keeps the synchronizer close to the validator, reducing latency and enabling tight integration with:
+- Mempool selection
+- Smart Slot scheduling (via slot commitments)
+- Intent routing
+
+#### 13.5.3 Key Concepts
+
+**Sub-transaction Privacy:**
+Each party receives only an encrypted "view" of the portions relevant to them. No party sees the complete transaction unless explicitly authorized.
+
+**Commitment Scheme:**
+Transactions use cryptographic commitments - parties confirm participation without seeing the full transaction data. This enables atomic execution across mutually distrusting parties.
+
+**Domains:**
+Isolated synchronization contexts with independent transaction ordering. Each domain maintains its own participant set, key schedule, and confirmation rules.
+
+**Mediator Role:**
+TEE-secured mediators provide conflict detection and finality guarantees. Mediators see commitments but not transaction content, ensuring privacy while preventing double-spends.
+
+#### 13.5.4 Capabilities
+
+| Function | Description |
+|:---------|:------------|
+| `domain_create` | Create a new privacy domain with parameters |
+| `party_register` | Register a party in a domain with viewing keys |
+| `tx_submit` | Submit a transaction (commitment + encrypted views) |
+| `tx_confirm` | Confirm participation based on party's view |
+| `view_request` | Request decrypted view for authorized party |
+| `contract_create` | Create a private contract within a domain |
+| `commitment_create` | Generate cryptographic commitment for transaction |
+| `sync_request` | Request synchronization state for a domain |
+| `mediator_submit` | Submit transaction to mediator for finality |
+
+#### 13.5.5 Domain Model
+
+Privacy domains define the scope and rules for private transactions:
+
+```text
+PrivacyDomain {
+  domain_id:       bytes32     // unique domain identifier
+  domain_type:     enum        // POOL, BILATERAL, MULTI_PARTY
+  participants:    address[]   // registered parties
+  viewing_keys:    bytes[]     // encrypted viewing keys per party
+  mediators:       address[]   // TEE-secured mediator set
+  key_schedule:    KeyRotation // rotation parameters
+  slot_policy:     SlotPolicy  // Smart Slot integration rules
+  ordering_mode:   enum        // FIFO, PRIORITY, CUSTOM
+}
+```
+
+#### 13.5.6 Canton-Style Transaction Flow
+
+The synchronization protocol follows Canton's multi-party confirmation model:
+
+**Step 1: Transaction Submission**
+```text
+Party A submits transaction:
+  - commitment: hash(tx_content || salt)
+  - encrypted_views: { Party_B: enc(view_B), Party_C: enc(view_C) }
+  - slot_claims: commitment to accessed state
+```
+
+**Step 2: View Distribution**
+```text
+Synchronizer routes views to relevant parties WITHOUT decrypting:
+  - Party B receives: enc(view_B)
+  - Party C receives: enc(view_C)
+  - Mediator receives: commitment only (no content)
+```
+
+**Step 3: Party Confirmation**
+```text
+Each party confirms based on their view alone:
+  - Decrypt their view using party key
+  - Validate view matches expected state changes
+  - Sign confirmation: sign(commitment || view_hash || party_id)
+```
+
+**Step 4: Mediator Finalization**
+```text
+When all confirmations received:
+  - Mediator verifies all signatures
+  - Checks for conflicts (double-spends, ordering violations)
+  - Produces finality certificate
+  - Transaction commits atomically
+```
+
+**Key Property:** No single party (including the mediator) sees the complete transaction. Atomicity is achieved through cryptographic commitments, not data sharing.
+
+#### 13.5.7 Integration with Smart Slots
+
+CGS integrates with Smart Slot scheduling via slot commitments:
+
+```text
+SlotCommitment {
+  tx_hash:        bytes32     // hash of encrypted transaction
+  claimed_slots:  SlotClaim[] // slots this tx will access
+  commitment:     bytes32     // hiding commitment to slot claims
+  reveal_block:   uint64      // block at which commitment opens
+}
+```
+
+This allows:
+- Parallel scheduling without revealing transaction details
+- Privacy-preserving mempool ordering
+- Deterministic execution across validators
+
+#### 13.5.8 Key Rotation
+
+Domains support scheduled key rotation for forward secrecy:
+
+```text
+KeyRotation {
+  interval_blocks: uint64     // blocks between rotations
+  current_epoch:   uint64     // current key epoch
+  pending_keys:    bytes[]    // next epoch keys (encrypted)
+  rotation_delay:  uint64     // blocks before new keys active
+}
+```
+
+Key rotation:
+- Limits exposure from key compromise
+- Enables participant addition/removal
+- Maintains viewing access to historical transactions
+
+#### 13.5.9 Mediator Flows
+
+For high-value or regulated transactions, domains may require mediator confirmation:
+
+```text
+MediatorConfirmation {
+  tx_hash:        bytes32     // transaction being confirmed
+  mediator:       address     // confirming mediator (TEE-secured)
+  decision:       enum        // APPROVE, REJECT, DEFER
+  conflict_info:  bytes       // conflict details if rejected
+  finality_cert:  bytes       // finality certificate if approved
+  signature:      bytes       // mediator signature
+}
+```
+
+**Mediator Guarantees:**
+- TEE-secured execution prevents mediator from seeing transaction content
+- Ordering is deterministic and verifiable
+- Conflicts are detected without exposing competing transaction details
+- Finality certificates are cryptographically verifiable
+
+#### 13.5.10 Configuration
+
+```text
+CRYFTTEE_CGS_ENABLED=true
+CRYFTTEE_CGS_DEFAULT_POOL=main_privacy_pool
+CRYFTTEE_CGS_KEY_ROTATION_INTERVAL=10000
+CRYFTTEE_CGS_MEDIATOR_TIMEOUT=300
+CRYFTTEE_CGS_CONFIRMATION_QUORUM=all
+```
+
+
+
+### 13.6 Operational Integration
+
+This section describes how Cryftee integrates with CryftGo and the requirements for different node types.
+
+#### 13.6.1 CryftGo Launches Cryftee
+
+**CryftGo is the blockchain interface; Cryftee is the modular utility layer.**
+
+CryftGo (the consensus client) launches Cryftee as a child process and configures it via environment variables. CryftGo can verify the Cryftee binary hash before launch and optionally require attestation for sensitive operations.
+
+**Mandatory startup requirement for validators:** CryftGo MUST fail startup if Cryftee is not running or if required modules (`bls_tls_signer_v1`, `ipfs_v1` for validators) fail to load or attest. This is enforced via startup checks and runtime attestation verification. Non-validator nodes (RPC, archive) may start without Cryftee.
+
+**Responsibility Separation:**
+
+| CryftGo | Cryftee |
+|:--------|:--------|
+| Consensus participation (block proposal, voting, finalization) | Off-chain computation (parallel validation, IPFS operations, CGS routing) |
+| On-chain state validation and commitment | Module execution (WASM sandboxing, API exposure) |
+| Verification of Cryftee attestations and proofs | Producing signed attestations for CryftGo to verify |
+| Network communication with other validators | Heavy lifting that doesn't need to be in consensus kernel |
+
+This separation allows **modular and targeted implementations**: validators can choose which modules to run, and upgrades happen independently.
+
+#### 13.6.2 Node Types and Cryftee Requirements
+
+**Cryftee is mandatory ONLY for validators participating in consensus or seeking to earn rewards.**
+
+| Node Type | Participates in Consensus? | Earns Rewards? | Runs Cryftee? | Reason / Dependencies |
+|:----------|:---------------------------|:---------------|:--------------|:---------------------|
+| **Full Validator** | Yes | Yes | **Required** | Needs Cryftee for BLS/TLS signing, checkpoint submission, Code Vault/IPFS fetches, bundle validation support, attestation to peers |
+| **Light Validator** | Yes (light-vote path) | Yes (partial) | **Required** | Still needs Cryftee for staking ops, attestation, and some off-chain verification (e.g., GBL queries) |
+| **RPC Node** | No | No | **Not required** | Only serves JSON-RPC queries. Can rely on trusted full nodes for data. No signing, no bundle validation, no checkpoint submission |
+| **Archive Node** | No | No | **Not required** | Stores historical state for queries. Can sync from validators without Cryftee. No consensus participation or reward eligibility |
+| **Explorer / Indexer** | No | No | **Optional** | May benefit from Cryftee's IPFS module for fetching pinned content, but not required |
+
+#### 13.6.3 Why Cryftee is Required for Consensus Participants
+
+Cryftee's main responsibilities are **off-chain utilities that are consensus-critical or reward-critical**:
+
+- **BLS/TLS staking key operations** (`bls_tls_signer_v1`): Validators must sign block proposals, votes, and checkpoint submissions. These cryptographic operations are performed by Cryftee modules and verified by CryftGo.
+
+- **IPFS node management** (`ipfs_v1`): Code Vault lazy mirroring, bundle verification, and content availability attestations require IPFS operations. Validators fetch and pin critical content to maintain consensus integrity.
+
+- **Checkpoint production & signing**: Regions submit checkpoints to the Primary Network for cross-region verification. Cryftee produces these checkpoints and signs them for on-chain acceptance.
+
+- **Runtime attestation** (`/v1/runtime/attestation`): Peers verify that a validator is running the correct module set with valid signatures. This prevents malicious or outdated code from participating in consensus.
+
+- **CGS domain participation** (`private_sync_v1`): Privacy-aware transaction propagation and slot commitment require CGS routing, key rotation, and mediator confirmation logic.
+
+#### 13.6.4 Non-Consensus Nodes
+
+RPC and archive nodes **do not**:
+- Propose or vote on bundles
+- Sign checkpoints
+- Participate in validator committees
+- Earn block rewards or staking rewards
+- Need to prove module integrity to peers
+
+These nodes can safely run **just CryftGo** in non-validator mode and connect to trusted validators for syncing and serving queries.
+
+**Recommended configuration for non-consensus nodes:**
+```bash
+# RPC node (serves JSON-RPC queries only)
+cryftgo --rpc-only=true --staking-enabled=false --consensus-enabled=false
+
+# Archive node (stores historical state for queries)
+cryftgo --archive=true --staking-enabled=false --consensus-enabled=false
+```
+
+These nodes may optionally run Cryftee modules (e.g., `ipfs_v1` for convenient access to pinned content) but are not obligated to do so.
+
+#### 13.6.5 CryftGo Startup Logic
+
+When CryftGo starts, it determines whether Cryftee is required based on operational mode:
+
+**Startup logic:**
+- If `--staking-enabled=true` or `--validator-mode=true` -> **require** Cryftee running + valid attestation
+- If `--rpc-only=true` or `--archive=true` -> allow startup without Cryftee
+
+**Recommended flags:**
+```bash
+--require-cryftee-for-consensus    # default true; enforces Cryftee for validators
+--cryftee-path                     # path to Cryftee binary for auto-launch
+--cryftee-required-modules         # comma-separated list (e.g., bls_tls_signer_v1,ipfs_v1)
+--cryftee-attestation-required     # default true for validators; verify runtime attestation
+```
+
+**Benefits of this approach:**
+- **No unnecessary overhead** for public RPC providers or archive operators
+- **Clear security boundary**: validators are locked down with mandatory Cryftee modules and attestation
+- **Operational flexibility**: node operators can choose their configuration based on their role in the network
+
+#### 13.6.6 Module Selection for Validators
+
+Full validators should run the following **minimum module set**:
+
+- `bls_tls_signer_v1`: Required for staking operations and checkpoint signing
+- `ipfs_v1`: Required for Code Vault access and content availability attestations
+- `private_sync_v1`: Recommended for CGS domain participation (opt-in for privacy features)
+
+Light validators may run a subset (e.g., `bls_tls_signer_v1` only) if they delegate heavy computation to full validators.
+
+
+
+### 13.7 Tokenized Agent Identity & Memory (Cryftee AIM)
+
+This section defines a standardized agent identity and memory layer integrated with Cryftee and the Global Balance Ledger (GBL). The Cryftee AIM specification provides a minimal viable agent infrastructure enabling interoperable agent-based applications across the CryftNet federation.
+
+**Design Principles:**
+
+1. **Non-consensus-critical AI reasoning:** LLM and agent reasoning MUST NOT be consensus-critical. Agents are treated as external actors whose outputs are validated through signatures and registry state, not by replaying inference.
+
+2. **Minimal on-chain footprint:** On-chain storage is limited to identity mappings and cryptographic commitments; all rich data (memory, metadata, model weights) lives off-chain.
+
+3. **Interoperability:** Any compliant dApp MUST be able to integrate with any compliant agent. The specification defines interfaces, not implementations.
+
+4. **Future extensibility:** Tokenized memory capsules, agent marketplaces, and auditor agents are explicitly optional extensions that do not affect baseline compliance.
+
+**Minimum Viable Compliance Target:**
+
+A compliant implementation MUST support:
+- AgentRegistry (canonical identity mapping on GBL)
+- AgentAccount (interoperable agent wallet interface)
+- Anchored memoryHead (cryptographic memory commitment)
 
 ---
+
+#### 13.7.1 Definitions
+
+The following terms are normative throughout this section:
+
+**Agent:** An autonomous software entity (typically LLM-powered) that can authorize on-chain actions, maintain persistent memory, and interact with dApps. An agent is NOT a consensus participant; it is an external actor whose actions are validated via cryptographic signatures.
+
+**agentId:** A stable, collision-resistant identifier for an agent. The agentId MUST be unique within the federation and SHOULD remain constant across the agent's lifecycle regardless of key rotations or controller changes.
+
+**AgentRegistry:** A canonical on-chain registry anchored to the GBL that maps agentId to agent metadata, controllers, account addresses, memory commitments, and status. The AgentRegistry is the authoritative source of agent identity within the federation.
+
+**AgentAccount:** A smart contract account (similar to ERC-4337 smart accounts) controlled by an agent. The AgentAccount provides the on-chain execution interface for agent-authorized transactions.
+
+**Controller:** An address (EOA or contract) authorized to manage an agent's registry entry, including key rotation, revocation, and metadata updates. An agent MAY have multiple controllers with different permission levels.
+
+**Session Key:** A temporary key pair with scoped permissions and expiration, delegated by a controller to enable time-limited or capability-restricted agent operations without exposing primary controller keys.
+
+**Memory Entry:** A discrete unit of agent memory stored off-chain (e.g., conversation history, learned facts, task context). Each entry is content-addressed via its cryptographic hash.
+
+**memoryHead:** A rolling cryptographic commitment representing the current state of an agent's memory chain. The memoryHead is stored on-chain; the underlying memory entries are stored off-chain.
+
+**Memory Epoch:** A checkpoint in the memory commitment chain that aggregates multiple entries into a verifiable root. Epochs enable efficient verification of memory continuity without replaying the entire history.
+
+---
+
+#### 13.7.2 GBL-backed AgentRegistry (Canonical Identity)
+
+The AgentRegistry is a canonical mapping maintained on the GBL (via Mirror Chain) that provides authoritative agent identity resolution across the federation.
+
+##### 13.7.2.1 Registry Entry Structure
+
+Each agentId maps to a registry entry containing:
+
+```text
+AgentRegistryEntry {
+  agentId:         bytes32         // stable unique identifier
+  account:         address         // AgentAccount address (optional, may be zero)
+  controllers:     address[]       // authorized controller addresses
+  controllerPerms: uint8[]         // permission bitmap per controller
+  metadataHash:    bytes32         // IPFS CID or content hash of off-chain metadata
+  memoryHead:      bytes32         // current memory commitment
+  memoryEpoch:     uint64          // current epoch number
+  status:          AgentStatus     // ACTIVE, SUSPENDED, REVOKED
+  createdAt:       uint64          // block timestamp of registration
+  updatedAt:       uint64          // block timestamp of last update
+}
+```
+
+##### 13.7.2.2 agentId Derivation
+
+The agentId MUST be stable and collision-resistant. The recommended derivation is:
+
+```text
+agentId = keccak256(
+  DOMAIN_SEPARATOR ||
+  genesisPubKey ||
+  chainId ||
+  salt
+)
+
+where:
+  DOMAIN_SEPARATOR = keccak256("CryftNet.AgentRegistry.v1")
+  genesisPubKey    = the agent's initial public key at creation
+  chainId          = the chain ID where the agent was first registered
+  salt             = optional deployer-provided entropy (32 bytes)
+```
+
+Implementations MAY use alternative derivation schemes provided they satisfy:
+- Collision resistance: probability of collision MUST be negligible (< 2^-128)
+- Stability: agentId MUST NOT change due to key rotation or controller changes
+- Determinism: given the same inputs, derivation MUST produce identical output
+
+##### 13.7.2.3 Controller Management
+
+Registry entries MUST support multi-controller configurations:
+
+- **Primary Controller:** Full permissions including revocation, controller rotation, and status changes. At least one primary controller MUST exist for ACTIVE agents.
+
+- **Delegate Controller:** Limited permissions (e.g., session key issuance, memory updates) without revocation rights.
+
+- **Recovery Controller:** Dormant controller activated only via timelock or social recovery, intended for key compromise scenarios.
+
+**Controller Permission Bitmap:**
+
+```text
+PERM_UPDATE_METADATA  = 0x01  // update metadataHash
+PERM_UPDATE_MEMORY    = 0x02  // update memoryHead
+PERM_ISSUE_SESSION    = 0x04  // issue session keys
+PERM_ADD_CONTROLLER   = 0x08  // add new controllers
+PERM_REMOVE_CONTROLLER= 0x10  // remove controllers
+PERM_CHANGE_STATUS    = 0x20  // suspend/reactivate agent
+PERM_REVOKE           = 0x40  // permanently revoke agent
+PERM_UPGRADE_ACCOUNT  = 0x80  // upgrade AgentAccount implementation
+```
+
+**Normative Requirements:**
+
+- Controller additions MUST be signed by a controller with PERM_ADD_CONTROLLER.
+- Controller removals MUST be signed by a controller with PERM_REMOVE_CONTROLLER; a controller MUST NOT remove the last primary controller unless revoking the agent.
+- Revocation MUST be signed by a controller with PERM_REVOKE and sets status to REVOKED. Revocation is permanent; revoked agents MUST NOT be reactivated.
+
+##### 13.7.2.4 Metadata Requirements
+
+The metadataHash MUST reference off-chain metadata stored in content-addressed storage (IPFS, Arweave, or equivalent). On-chain storage MUST NOT contain raw metadata blobs.
+
+**Recommended Metadata Schema:**
+
+```json
+{
+  "name": "string",
+  "description": "string",
+  "version": "semver",
+  "capabilities": ["string"],
+  "modelInfo": {
+    "provider": "string",
+    "modelId": "string",
+    "contextWindow": "number"
+  },
+  "endpoints": {
+    "api": "url",
+    "webhook": "url"
+  },
+  "legal": {
+    "termsOfService": "url",
+    "privacyPolicy": "url"
+  }
+}
+```
+
+Metadata schema validation is NOT consensus-critical; dApps SHOULD validate metadata client-side.
+
+##### 13.7.2.5 Memory Commitment Requirements
+
+The memoryHead stored on-chain MUST be a cryptographic commitment, not raw memory content:
+
+- memoryHead MUST be a 32-byte hash value.
+- The commitment scheme MUST support verification of memory continuity (see Section 13.7.4).
+- Memory content MAY be encrypted; the chain sees only commitments.
+- memoryEpoch MUST increment monotonically with each on-chain memoryHead update.
+
+---
+
+#### 13.7.3 Standard AgentAccount Interface (Interoperable "Agent Wallet")
+
+The AgentAccount is a smart contract providing the on-chain execution interface for agents. It functions similarly to ERC-4337 smart accounts but with agent-specific extensions.
+
+##### 13.7.3.1 Core Interface
+
+Compliant AgentAccount implementations MUST implement the following interface:
+
+```solidity
+interface IAgentAccount {
+    // Identity
+    function agentId() external view returns (bytes32);
+    function registry() external view returns (address);
+    
+    // Signature validation (ERC-1271 compatible)
+    function isValidSignature(bytes32 hash, bytes calldata signature) 
+        external view returns (bytes4 magicValue);
+    
+    // Execution
+    function execute(
+        address target,
+        uint256 value,
+        bytes calldata data,
+        bytes calldata auth
+    ) external payable returns (bytes memory);
+    
+    function executeBatch(
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata datas,
+        bytes calldata auth
+    ) external payable returns (bytes[] memory);
+    
+    // Session keys
+    function isValidSessionKey(address key) external view returns (bool);
+    function sessionKeyPermissions(address key) 
+        external view returns (SessionKeyInfo memory);
+}
+
+struct SessionKeyInfo {
+    address key;
+    uint64 validAfter;
+    uint64 validUntil;
+    bytes32 permissionHash;  // hash of allowed selectors/targets
+    uint256 spendLimit;      // max value per tx (0 = unlimited)
+    uint256 spentTotal;      // cumulative spent
+}
+```
+
+##### 13.7.3.2 Signature Validation
+
+AgentAccount MUST support signature validation for the associated agentId:
+
+- Signatures MUST be verifiable against controller keys registered in AgentRegistry.
+- Session key signatures MUST be accepted if the key is valid and within scope.
+- The `isValidSignature` function MUST return `0x1626ba7e` (ERC-1271 magic value) for valid signatures.
+
+**Signature Encoding:**
+
+```text
+AgentSignature {
+  signatureType: uint8       // 0x00=controller, 0x01=sessionKey
+  signerIndex:   uint8       // index in controllers array or session key
+  signature:     bytes       // ECDSA or EIP-712 signature
+  validationData: bytes      // optional: merkle proofs, session key proof
+}
+```
+
+##### 13.7.3.3 Execution Authorization
+
+The `execute` function MUST validate authorization before performing any state changes:
+
+1. Decode the `auth` parameter to extract signature and signer information.
+2. Verify the signature against the hash of (target, value, data, nonce, chainId).
+3. If using a session key, verify the key is valid and the operation is within scope.
+4. Execute the call only if all checks pass.
+
+**Authorization MUST be verifiable purely via signatures and registry state.** The AgentAccount MUST NOT:
+- Maintain consensus-critical "AI state"
+- Require replaying LLM inference for validation
+- Store or validate model outputs on-chain
+
+##### 13.7.3.4 Session Key Management
+
+AgentAccount SHOULD support session keys with the following properties:
+
+- **Expiration:** Session keys MUST have validAfter and validUntil timestamps.
+- **Scoped Permissions:** Session keys SHOULD be restricted to specific target contracts, function selectors, or value limits.
+- **Revocation:** Controllers MUST be able to revoke session keys before expiration.
+
+**Session Key Registration:**
+
+```solidity
+function registerSessionKey(
+    address key,
+    uint64 validAfter,
+    uint64 validUntil,
+    bytes32 permissionHash,
+    uint256 spendLimit,
+    bytes calldata controllerSig
+) external;
+
+function revokeSessionKey(address key, bytes calldata controllerSig) external;
+```
+
+##### 13.7.3.5 Interoperability Guarantees
+
+AgentAccount MUST be usable by wallets and dApps as a predictable actor:
+
+- MUST implement ERC-1271 for signature validation.
+- MUST expose agentId and registry linkage for identity verification.
+- SHOULD be compatible with ERC-4337 bundlers (UserOperation support is RECOMMENDED).
+- MUST emit standardized events for execution, session key changes, and registry updates.
+
+**Events:**
+
+```solidity
+event Executed(address indexed target, uint256 value, bytes data, bytes result);
+event SessionKeyRegistered(address indexed key, uint64 validUntil, bytes32 permissionHash);
+event SessionKeyRevoked(address indexed key);
+event RegistryLinked(bytes32 indexed agentId, address indexed registry);
+```
+
+---
+
+#### 13.7.4 Anchored Memory Commitments (Continuity without Chain Bloat)
+
+Agent memory persistence is achieved through off-chain storage with on-chain cryptographic commitments. This provides verifiable memory continuity without storing large data on-chain.
+
+##### 13.7.4.1 Memory Entry Structure
+
+Memory entries are stored off-chain in content-addressed storage:
+
+```text
+MemoryEntry {
+  entryId:      bytes32     // unique identifier (content hash or UUID)
+  parentHead:   bytes32     // memoryHead before this entry
+  timestamp:    uint64      // creation timestamp
+  domain:       string      // application domain (e.g., "chat", "trading", "governance")
+  contentHash:  bytes32     // hash of encrypted or plaintext content
+  contentCid:   string      // IPFS CID or storage pointer
+  metadata:     bytes       // optional structured metadata (JSON)
+}
+```
+
+##### 13.7.4.2 Commitment Chain
+
+Each memory update produces a new memoryHead via a rolling commitment:
+
+```text
+memoryHead_new = keccak256(
+  MEMORY_DOMAIN_SEPARATOR ||
+  memoryHead_prev ||
+  entryHash ||
+  timestamp ||
+  agentId
+)
+
+where:
+  MEMORY_DOMAIN_SEPARATOR = keccak256("CryftNet.AgentMemory.v1")
+  entryHash = keccak256(abi.encode(MemoryEntry))
+```
+
+**Normative Requirements:**
+
+- On-chain storage MUST only store memoryHead (32 bytes) and optionally epoch roots.
+- Systems MUST be able to verify memory continuity by replaying the commitment chain from a known-good epoch.
+- Memory content MAY be encrypted; the chain sees only commitments.
+- Commitment updates MUST be signed by a controller with PERM_UPDATE_MEMORY.
+
+##### 13.7.4.3 Memory Epochs
+
+To enable efficient verification without replaying the entire history, agents SHOULD create periodic epochs:
+
+```text
+MemoryEpoch {
+  epochNumber:   uint64      // monotonically increasing
+  startHead:     bytes32     // memoryHead at epoch start
+  endHead:       bytes32     // memoryHead at epoch end (= current memoryHead)
+  entryCount:    uint64      // number of entries in this epoch
+  entriesRoot:   bytes32     // merkle root of entry hashes in epoch
+  timestamp:     uint64      // epoch finalization time
+}
+```
+
+Epoch roots MAY be stored on-chain to provide trust anchors for verification. Verification of an entry's inclusion requires:
+
+1. Merkle proof of entryHash in entriesRoot
+2. Epoch signature from a valid controller
+3. entriesRoot matches on-chain epoch commitment (if stored)
+
+##### 13.7.4.4 Storage Requirements
+
+**Off-chain Storage (REQUIRED):**
+- Memory entries MUST be stored in content-addressed storage (IPFS, Arweave, or equivalent).
+- Storage providers MAY be CryftNet pin providers (see Section 13.4 for pinning incentives).
+- Encrypted entries SHOULD use authenticated encryption (e.g., AES-256-GCM with agent-controlled keys).
+
+**On-chain Storage (MINIMAL):**
+- memoryHead: 32 bytes (REQUIRED)
+- memoryEpoch: 8 bytes (REQUIRED)
+- Epoch roots: 32 bytes per epoch (OPTIONAL, for trust anchors)
+
+##### 13.7.4.5 Tokenized Memory Capsules (Optional Extension)
+
+**This subsection describes an OPTIONAL extension. Baseline compliance does NOT require tokenized memory capsules.**
+
+Agents MAY tokenize memory segments as NFTs for:
+- Transfer of specialized knowledge between agents
+- Monetization of training data or expertise
+- Provenance tracking for audit purposes
+
+Memory capsule tokens:
+- MUST reference a sealed epoch range with merkle proofs
+- MUST NOT expose raw memory content on-chain
+- SHOULD include licensing metadata for usage rights
+- MAY implement royalty mechanisms for derivative use
+
+This extension requires additional registry contracts and is deferred to future specification updates.
+
+---
+
+#### 13.7.5 Security & Threat Model
+
+This section describes what Cryftee AIM protects against and what remains out of scope.
+
+##### 13.7.5.1 Protected Threats
+
+**Memory Tampering:**
+- Commitment chain ensures any modification to historical entries is detectable.
+- Verification: replay commitment chain; mismatches indicate tampering.
+- Mitigation: epoch checkpoints provide trust anchors; validators can reject tampered histories.
+
+**Agent Impersonation:**
+- All agent actions require valid signatures from registered controllers or session keys.
+- Verification: signature check against AgentRegistry state.
+- Mitigation: key rotation and session key expiration limit exposure window.
+
+**Key Compromise:**
+- Multi-controller architecture enables key rotation without identity loss.
+- Timelocked recovery controllers enable secure recovery.
+- Revocation permanently disables compromised agents.
+- Mitigation: rotate controller keys; revoke compromised session keys; use hardware security modules for primary controllers.
+
+**Session Key Abuse:**
+- Scoped permissions limit damage from compromised session keys.
+- Expiration ensures temporary access.
+- Spend limits prevent value extraction beyond thresholds.
+- Mitigation: minimal permission grants; short validity windows; on-chain revocation.
+
+**Registry Manipulation:**
+- Registry updates require controller signatures with appropriate permissions.
+- GBL anchoring provides federation-wide consistency.
+- Mitigation: multi-sig controllers for high-value agents; governance oversight for registry contracts.
+
+##### 13.7.5.2 Out-of-Scope Threats (Explicit Non-Goals)
+
+**Truthfulness of Model Outputs:**
+- Cryftee AIM does NOT verify that agent responses are factually correct.
+- LLM hallucinations, incorrect reasoning, and misleading outputs are NOT detectable on-chain.
+- dApps MUST implement their own validation for agent outputs.
+
+**Correctness of Agent Reasoning:**
+- The specification does NOT make LLM inference consensus-critical.
+- There is no on-chain guarantee that an agent "reasoned correctly."
+- Agents are treated as external oracles; their outputs are accepted or rejected by dApp logic.
+
+**Oracle Manipulation:**
+- If an agent relies on external data sources (price feeds, API calls), those sources can be manipulated.
+- This specification does NOT address oracle security; see dedicated oracle specifications.
+
+**Model Integrity:**
+- The specification does NOT verify that an agent is running a specific model version.
+- Attestations of model integrity (e.g., TEE attestations) are OPTIONAL extensions.
+
+**Collusion Between Agents:**
+- Multiple agents controlled by the same party can collude.
+- Sybil resistance at the agent level requires application-specific mechanisms.
+
+---
+
+#### 13.7.6 Optional Extension: Auditor Agents & Quorum Findings
+
+**This subsection describes an OPTIONAL extension for agent-based auditing. Baseline compliance does NOT require auditor agent support.**
+
+Auditor agents are specialized agents that analyze on-chain activity, off-chain data, or other agents' behavior and publish signed findings.
+
+##### 13.7.6.1 Auditor Registration
+
+Auditor agents MAY register with additional metadata:
+
+```text
+AuditorRegistration {
+  agentId:        bytes32       // standard agent ID
+  auditDomains:   string[]      // areas of expertise (e.g., "smart-contract", "financial", "compliance")
+  stakeBond:      uint256       // slashable stake for false findings
+  reputationScore: uint256      // governance-managed reputation
+}
+```
+
+##### 13.7.6.2 Finding Publication
+
+Auditor agents MAY publish signed findings:
+
+```text
+AuditFinding {
+  findingId:      bytes32       // unique finding identifier
+  auditorId:      bytes32       // agentId of auditor
+  targetType:     string        // "contract", "agent", "transaction", "protocol"
+  targetId:       bytes32       // identifier of audited entity
+  severity:       uint8         // 0=info, 1=low, 2=medium, 3=high, 4=critical
+  category:       string        // finding category
+  evidenceHash:   bytes32       // hash of supporting evidence
+  evidenceCid:    string        // IPFS CID of evidence bundle
+  timestamp:      uint64        // finding timestamp
+  signature:      bytes         // auditor signature
+}
+```
+
+##### 13.7.6.3 Quorum Credibility
+
+Findings MAY gain credibility through threshold co-signatures:
+
+- A finding becomes "credible" when co-signed by a threshold of registered auditors.
+- Threshold MAY be domain-specific (e.g., 3/5 for financial audits, 5/7 for critical findings).
+- Co-signers attest to evidence review, not necessarily independent discovery.
+
+```text
+CredibleFinding {
+  finding:        AuditFinding
+  coSigners:      bytes32[]     // agentIds of co-signing auditors
+  coSignatures:   bytes[]       // corresponding signatures
+  quorumMet:      bool          // threshold reached
+  finalizedAt:    uint64        // timestamp of quorum
+}
+```
+
+##### 13.7.6.4 Governance Integration
+
+Credible findings MAY trigger governance actions:
+
+- Alert publication to federation dashboards
+- Optional challenge windows for disputed findings
+- Governance proposals for remediation
+- Slashing proposals for verified misbehavior
+
+**Critical Constraint:** Auditor findings MUST NOT change base consensus rules. The auditor layer provides alerts, governance triggers, and optional challenge mechanisms; it does NOT affect block validity or transaction inclusion.
+
+---
+
+#### 13.7.7 Lifecycle Example: Happy Path
+
+This section illustrates a complete agent lifecycle from creation to on-chain action.
+
+##### Step 1: Agent Creation
+
+The agent operator generates a key pair and computes the agentId:
+
+```text
+1. Generate key pair: (privKey, pubKey)
+2. Choose salt: 0x1234...
+3. Compute agentId:
+   agentId = keccak256(DOMAIN_SEPARATOR || pubKey || chainId || salt)
+   Result: 0xABCD...
+```
+
+##### Step 2: Registry Registration
+
+The operator submits a registration transaction to the AgentRegistry on Mirror Chain:
+
+```text
+AgentRegistry.register({
+  agentId: 0xABCD...,
+  controllers: [operatorAddress],
+  controllerPerms: [0xFF],  // full permissions
+  metadataHash: 0x5678...,  // IPFS CID of agent metadata
+  memoryHead: 0x0000...,    // initial empty memory
+  status: ACTIVE
+})
+
+Result: Agent registered, agentId 0xABCD... is now canonical
+```
+
+##### Step 3: AgentAccount Deployment
+
+The operator deploys an AgentAccount linked to the agentId:
+
+```text
+factory.createAccount({
+  agentId: 0xABCD...,
+  registry: AgentRegistry.address,
+  initialController: operatorAddress
+})
+
+Result: AgentAccount deployed at 0x9999...
+        Registry updated: account = 0x9999...
+```
+
+##### Step 4: Session Key Issuance
+
+The controller issues a session key for the agent's runtime:
+
+```text
+AgentAccount.registerSessionKey({
+  key: agentRuntimePubKey,
+  validAfter: now,
+  validUntil: now + 24 hours,
+  permissionHash: keccak256(allowedSelectors),
+  spendLimit: 1 ETH,
+  controllerSig: sign(operatorPrivKey, ...)
+})
+
+Result: Session key active for 24 hours with scoped permissions
+```
+
+##### Step 5: Memory Commitment
+
+The agent processes interactions and commits memory:
+
+```text
+1. Agent receives query, generates response
+2. Creates MemoryEntry:
+   - contentHash = keccak256(encryptedConversation)
+   - contentCid = ipfs://Qm...
+3. Computes new memoryHead:
+   memoryHead_new = keccak256(DOMAIN || memoryHead_prev || entryHash || timestamp || agentId)
+4. Submits on-chain update:
+   AgentRegistry.updateMemoryHead(agentId, memoryHead_new, epoch, sessionKeySig)
+
+Result: Memory continuity established, verifiable on-chain
+```
+
+##### Step 6: On-Chain Action
+
+The agent executes an authorized transaction:
+
+```text
+AgentAccount.execute({
+  target: DeFiProtocol.address,
+  value: 0.5 ETH,
+  data: abi.encodeCall(swap, params),
+  auth: AgentSignature{
+    signatureType: SESSION_KEY,
+    signerIndex: 0,
+    signature: sign(sessionKey, txHash)
+  }
+})
+
+Result: 
+- Signature validated against session key
+- Session key verified (valid time, within scope, under spend limit)
+- Transaction executed
+- Event emitted: Executed(DeFiProtocol, 0.5 ETH, data, result)
+```
+
+This lifecycle demonstrates the complete flow from identity creation to authenticated on-chain action, with memory anchoring providing continuity throughout.
+
+---
+
+#### 13.7.8 Implementation Notes
+
+##### 13.7.8.1 Cryftee Module Integration
+
+AgentAccount operations and memory commitments SHOULD be processed through Cryftee modules:
+
+- **agent_registry_v1:** Handles registry queries, caching, and cross-region synchronization.
+- **agent_memory_v1:** Manages off-chain memory storage, commitment computation, and epoch management.
+- **agent_session_v1:** Session key lifecycle, signature generation, and scope validation.
+
+##### 13.7.8.2 GBL Synchronization
+
+AgentRegistry state is replicated across the federation via GBL:
+
+- Primary registry lives on Mirror Chain (high-throughput, low-cost updates).
+- Registry snapshots are checkpointed to Federal Chain for finality.
+- Regional chains cache registry state for local validation.
+- Cross-region agent operations use GBL proofs for identity verification.
+
+##### 13.7.8.3 Upgrade Path
+
+The specification uses version prefixes in domain separators to enable non-breaking upgrades:
+
+- New commitment schemes can coexist via version negotiation.
+- Registry entries include version flags for schema evolution.
+- AgentAccount implementations SHOULD be upgradeable via standard proxy patterns.
+
+
+
+### 13.8 Redeemable Codes Module (`redeemable_codes_v1`)
+
+The Redeemable Codes module implements an on-chain managed gift code system with TEE-secured code storage, enabling secure token distribution, validator onboarding, and promotional campaigns.
+
+**Patent Notice:** This module implements technology described in US Patent Application 20250139608.
+
+#### 13.8.1 Overview
+
+| Property | Value |
+|:---------|:------|
+| Module ID | `redeemable_codes_v1` |
+| Version | 1.0.0 |
+| Required for Validators | No (utility module) |
+| Patent | US Patent App 20250139608 |
+| Purpose | On-chain gift codes with TEE-secured storage |
+
+**Purpose:**
+- Generate and manage redeemable gift codes for token distribution
+- Secure code storage using dual smart contract architecture
+- Support for multiple content types (tokens, NFTs, experiences, validator registration)
+- Blockchain-recorded redemption with immutable audit trail
+- Batch operations for large-scale distributions
+
+#### 13.8.2 Dual Smart Contract Architecture
+
+The module uses a novel dual-contract design to separate sensitive code storage from public management:
+
+**Public Contract (On-Chain, Visible):**
+- Manages non-sensitive information
+- Tracks code status (active, frozen, redeemed, revoked)
+- Handles content assignments and redemption records
+- Provides public query interface
+
+**Private Contract (TEE-Only):**
+- Stores encrypted codes (hash + salt)
+- Executed only within TEE environment
+- Never exposes plaintext codes
+- Validates redemption requests
+
+```text
+┌---------------------------------------------------------┐
+|                    Public Contract                       |
+|  ┌-------------┬------------┬-------------------------┐ |
+|  | Code Index  |   Status   |   Content Assignment    | |
+|  |-------------┼------------┼-------------------------┤ |
+|  |    0001     |   ACTIVE   |   100 CRYFT tokens      | |
+|  |    0002     |  REDEEMED  |   NFT #4521             | |
+|  |    0003     |   FROZEN   |   Validator slot        | |
+|  `-------------┴------------┴-------------------------┘ |
+`---------------------------------------------------------┘
+                          |
+                          | Status queries
+                          ▼
+┌---------------------------------------------------------┐
+|              Private Contract (TEE-Only)                 |
+|  ┌-------------┬------------------┬--------------------┐|
+|  | Code Index  |   Hash(code)     |       Salt         ||
+|  |-------------┼------------------┼--------------------┤|
+|  |    0001     |   0xabc123...    |   0xdef456...      ||
+|  |    0002     |   0x789def...    |   0x123abc...      ||
+|  |    0003     |   0x456789...    |   0x789012...      ||
+|  `-------------┴------------------┴--------------------┘|
+|                                                          |
+|  ⚠ Codes stored as hash+salt, NEVER exposed in plaintext|
+`---------------------------------------------------------┘
+```
+
+#### 13.8.3 Code Structure
+
+Redeemable codes follow a structured format for efficient lookup and validation:
+
+```text
+Code Format: XXXX-YYYY-YYYY-YYYY
+
+Where:
+  XXXX         = Storage Index (locates hash in private contract)
+  YYYY-YYYY-YYYY = Redeemable Portion (validated against stored hash)
+
+Example: A1B2-C3D4-E5F6-G7H8
+  - Storage Index: A1B2
+  - Redeemable: C3D4-E5F6-G7H8
+```
+
+**Security Properties:**
+- Storage index allows O(1) lookup without revealing code
+- Redeemable portion is never stored in plaintext
+- Hash + salt prevents rainbow table attacks
+- TEE execution prevents extraction of code database
+
+#### 13.8.4 Capabilities
+
+**Code Generation:**
+
+| Function | Description |
+|:---------|:------------|
+| `code_generate` | Generate a single redeemable code with specified content |
+| `batch_generate` | Generate multiple codes for bulk distribution |
+| `validator_code_generate` | Generate codes specifically for validator registration |
+
+**Code Management:**
+
+| Function | Description |
+|:---------|:------------|
+| `code_status` | Query status of a code (without revealing code value) |
+| `code_freeze` | Temporarily prevent redemption |
+| `code_unfreeze` | Re-enable frozen code |
+| `code_revoke` | Permanently invalidate a code |
+| `code_transfer` | Transfer management rights to another address |
+
+**Redemption:**
+
+| Function | Description |
+|:---------|:------------|
+| `code_redeem` | Redeem a code and receive assigned content |
+| `validator_code_redeem` | Validator-assisted redemption for cross-region codes |
+| `batch_redeem` | Redeem multiple codes in a single transaction |
+
+#### 13.8.5 Content Types
+
+The module supports multiple content types for flexible distribution:
+
+| Content Type | Description | Example Use Case |
+|:-------------|:------------|:-----------------|
+| **Tokens** | CRYFT or other fungible tokens | Promotional giveaways, rewards |
+| **NFTs** | Non-fungible tokens | Digital collectibles, access passes |
+| **Experiences** | Off-chain service entitlements | Premium features, API credits |
+| **Validator Registration** | Validator slot + initial stake | Onboarding new validators |
+| **Custom** | Application-defined content | Game items, subscription credits |
+
+**Content Assignment:**
+
+```text
+ContentAssignment {
+  code_index:    uint32      // storage index
+  content_type:  enum        // TOKENS, NFT, EXPERIENCE, VALIDATOR, CUSTOM
+  content_id:    bytes32     // token address, NFT ID, or custom identifier
+  amount:        uint256     // quantity (for fungible content)
+  metadata:      bytes       // additional content-specific data
+  expiry:        uint64      // optional expiration timestamp
+}
+```
+
+#### 13.8.6 Redemption Flow
+
+**Standard Redemption:**
+
+```text
+1. User submits: code_redeem(code="A1B2-C3D4-E5F6-G7H8", recipient=0x...)
+
+2. Module extracts storage index: A1B2
+
+3. TEE queries private contract:
+   - Retrieves hash and salt for index A1B2
+   - Computes: expected_hash = hash(C3D4-E5F6-G7H8 || salt)
+   - Verifies: expected_hash == stored_hash
+
+4. If valid:
+   - Public contract marks code as REDEEMED
+   - Content is transferred to recipient
+   - Redemption recorded on-chain with timestamp
+
+5. Returns: RedemptionReceipt {
+     code_index: A1B2,
+     recipient: 0x...,
+     content: {...},
+     tx_hash: 0x...,
+     timestamp: 1700000000
+   }
+```
+
+**Validator-Assisted Redemption:**
+
+For cross-region codes, validators facilitate redemption:
+
+```text
+1. User presents code to local validator
+2. Validator submits: validator_code_redeem(code, user, region_proof)
+3. Cross-region verification via checkpoint
+4. Content delivered in user's home region
+5. Validator receives small facilitation fee
+```
+
+#### 13.8.7 Batch Operations
+
+For large-scale distributions (airdrops, promotions):
+
+```text
+BatchGeneration {
+  count:         uint32      // number of codes to generate
+  content_type:  enum        // content type for all codes
+  content_id:    bytes32     // shared content identifier
+  amount_each:   uint256     // amount per code
+  prefix:        string      // optional code prefix for tracking
+  expiry:        uint64      // shared expiration
+}
+
+Result: BatchResult {
+  codes: string[]           // generated codes (returned once, not stored)
+  indices: uint32[]         // storage indices for management
+  total_value: uint256      // total content allocated
+}
+```
+
+**Security Note:** Generated codes are returned exactly once during batch generation. The module does not retain plaintext codes after generation.
+
+#### 13.8.8 Audit Trail
+
+All code operations are recorded on-chain for transparency:
+
+```text
+CodeEvent {
+  event_type:   enum        // GENERATED, REDEEMED, FROZEN, REVOKED, TRANSFERRED
+  code_index:   uint32      // storage index (never reveals code)
+  actor:        address     // address that triggered event
+  timestamp:    uint64      // block timestamp
+  metadata:     bytes       // event-specific data
+}
+```
+
+**Query Functions:**
+
+| Function | Description |
+|:---------|:------------|
+| `audit_history` | Get all events for a code index |
+| `redemption_stats` | Aggregate statistics for a batch or campaign |
+| `active_codes` | Count of unredeemed codes by content type |
+
+#### 13.8.9 Security Considerations
+
+**Threat Mitigations:**
+
+| Threat | Mitigation |
+|:-------|:-----------|
+| Code extraction | Codes stored as hash+salt in TEE-only contract |
+| Brute force | Rate limiting + salt prevents offline attacks |
+| Replay attacks | One-time redemption enforced on-chain |
+| Code enumeration | Storage indices are not sequential |
+| Insider theft | Dual-contract separation limits exposure |
+
+**Operational Security:**
+
+- Generated codes should be distributed through secure channels
+- Batch codes should have expiration dates
+- Frozen codes should be investigated before unfreezing
+- Revoked codes cannot be recovered
+
+#### 13.8.10 Configuration
+
+```text
+CRYFTTEE_CODES_ENABLED=true
+CRYFTTEE_CODES_MAX_BATCH_SIZE=10000
+CRYFTTEE_CODES_DEFAULT_EXPIRY=31536000  # 1 year in seconds
+CRYFTTEE_CODES_RATE_LIMIT=100           # redemptions per minute per IP
+```
+
+#### 13.8.11 Use Cases
+
+**Promotional Token Distribution:**
+- Generate codes for marketing campaigns
+- Track redemption rates by campaign prefix
+- Set expiration for limited-time offers
+
+**Validator Onboarding:**
+- Issue validator registration codes with initial stake
+- Enable sponsored validator slots for partners
+- Track validator origin for analytics
+
+**Cross-Region Gifts:**
+- Users gift tokens to recipients in other regions
+- Validator-assisted redemption handles cross-region transfer
+- Gift sender pays cross-region fees upfront
+
+**NFT Claim Codes:**
+- Physical merchandise includes redemption code
+- Code unlocks digital NFT companion
+- One-time redemption prevents duplication
+
+
+
 
 ---
 
