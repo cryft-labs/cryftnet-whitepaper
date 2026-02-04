@@ -3,6 +3,7 @@
 This section is split into multiple files for easier navigation:
 
 - [10.1 Checkpoint format](10-01-checkpoints.md)
+  - [10.1.1 Checkpoint verification algorithm](10-01a-checkpoint-verification.md)
 - [10.2 Message passing guarantees](10-02-messaging-replay.md#102-message-passing-guarantees)
 - [10.3 Replay protection and ordering](10-02-messaging-replay.md#103-replay-protection-and-ordering)
 - [10.4 Interaction with CGS](10-02-messaging-replay.md#104-interaction-with-cgs)

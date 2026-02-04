@@ -170,8 +170,8 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
         'whitepaper/13-cryftee/13-03d-ipfs-module.md',
         'whitepaper/13-cryftee/13-03e-cgs-module.md',
         'whitepaper/13-cryftee/13-03f-redeemable-codes.md',
+        'whitepaper/13-cryftee/13-03g-aim.md',
         'whitepaper/13-cryftee/13-06-operations.md',
-        'whitepaper/13-cryftee/13-07-aim.md',
     ]
     
     # Final sections
@@ -219,7 +219,7 @@ This document is a technical design proposal. Some subsystems (notably CGS priva
         compiled.append(content)
         compiled.append('\n---\n')
     
-    print("  📄 Adding section 13 (Cryftee, README + 7 sub-files)...")
+    print("  📄 Adding section 13 (Cryftee, README + 11 sub-files)...")
     # Add Section 13 parent header from README
     s13_readme_path = base_dir / 'whitepaper/13-cryftee/README.md'
     s13_readme_content = s13_readme_path.read_text(encoding='utf-8')

@@ -6,15 +6,15 @@ This section is split into multiple files for easier navigation:
 
 - [13.1 Architecture Overview](13-01-architecture.md) - CryftGo vs Cryftee separation, design rationale, federation role
 - [13.2 Runtime Properties](13-02-runtime.md) - Module loading, API surface, trust model
-- [13.3 Core Modules](13-03-core-modules.md) - Overview of all 6 core modules
+- [13.3 Core Modules](13-03-core-modules.md) - Overview of all 7 core modules
   - [13.3.1 BLS/TLS Signer](13-03a-bls-tls-module.md) - Staking cryptography, multi-device, Web3Signer
   - [13.3.2 Debug Module](13-03b-debug-module.md) - Diagnostics and runtime inspection
   - [13.3.3 LLM Chat Module](13-03c-llm-chat-module.md) - Operator assistance interface
   - [13.3.4 IPFS Module](13-03d-ipfs-module.md) - Content-addressed storage with pin rewards
   - [13.3.5 CGS Module (Private Sync)](13-03e-cgs-module.md) - Canton-style confidential transactions
   - [13.3.6 Redeemable Codes](13-03f-redeemable-codes.md) - TEE-secured gift codes
+  - [13.3.7 Agent Identity & Memory (AIM)](13-03g-aim.md) - On-chain agent registry, tokenized identity
 - [13.4 Operational Integration](13-06-operations.md) - Node types, Cryftee requirements, configuration
-- [13.5 Agent Identity & Memory (AIM)](13-07-aim.md) - On-chain agent registry, memory commitments (infrastructure layer)
 
 ---
 
@@ -36,7 +36,7 @@ This section is split into multiple files for easier navigation:
 
 **Core Modules (Required for Full Network Capability):**
 
-All six modules below are considered **core modules** required to operate at full capacity with complete network capabilities:
+All seven modules below are considered **core modules** required to operate at full capacity with complete network capabilities:
 
 | Module | Category | Purpose |
 |:-------|:---------|:--------|
@@ -46,20 +46,11 @@ All six modules below are considered **core modules** required to operate at ful
 | `debug_v1` | **Diagnostics** | Runtime inspection, connectivity testing, error handling |
 | `llm_chat_v1` | **Operator Interface** | Direct LLM chat within Cryftee for operator assistance |
 | `redeemable_codes_v1` | **Distribution** | TEE-secured gift codes, validator onboarding (US Patent App 20250139608) |
-
-**Infrastructure Layer (On-Chain, Defined in AIM Specification):**
-
-The Agent Identity & Memory (AIM) specification (Section 13.7) defines on-chain infrastructure for autonomous agents:
-
-| Component | Purpose |
-|:----------|:--------|
-| `AgentRegistry` | Canonical agent identity mapping on GBL |
-| `AgentAccount` | Smart contract wallet for agent-authorized transactions |
-| `memoryHead` | Anchored cryptographic commitments for agent memory |
+| `aim_v1` | **Agent Identity** | On-chain agent registry, tokenized identity, memory commitments |
 
 **Note:** AIM and `llm_chat_v1` serve different purposes:
 - **`llm_chat_v1`** is a Cryftee module for direct operator chat interface within the runtime
-- **AIM** is on-chain infrastructure for managing autonomous agent identities and memory
+- **AIM (`aim_v1`)** is infrastructure for managing autonomous agent identities and memory
 - The `llm_chat_v1` module MAY utilize LLM providers that are themselves AIM-registered agents
 
 **Cryftee Requirement by Node Type:**

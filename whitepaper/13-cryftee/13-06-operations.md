@@ -21,7 +21,7 @@ CryftGo (the consensus client) launches Cryftee as a child process and configure
 
 This separation allows **modular and targeted implementations**: validators can choose which modules to run, and upgrades happen independently.
 
-#### 13.6.2 Node Types and Cryftee Requirements
+#### 13.4.2 Node Types and Cryftee Requirements
 
 **Cryftee is mandatory ONLY for validators participating in consensus or seeking to earn rewards.**
 
@@ -33,7 +33,7 @@ This separation allows **modular and targeted implementations**: validators can 
 | **Archive Node** | No | No | **Not required** | Stores historical state for queries. Can sync from validators without Cryftee. No consensus participation or reward eligibility |
 | **Explorer / Indexer** | No | No | **Optional** | May benefit from Cryftee's IPFS module for fetching pinned content, but not required |
 
-#### 13.6.3 Why Cryftee is Required for Consensus Participants
+#### 13.4.3 Why Cryftee is Required for Consensus Participants
 
 Cryftee's main responsibilities are **off-chain utilities that are consensus-critical or reward-critical**:
 
@@ -47,7 +47,7 @@ Cryftee's main responsibilities are **off-chain utilities that are consensus-cri
 
 - **CGS domain participation** (`private_sync_v1`): Privacy-aware transaction propagation and slot commitment require CGS routing, key rotation, and mediator confirmation logic.
 
-#### 13.6.4 Non-Consensus Nodes
+#### 13.4.4 Non-Consensus Nodes
 
 RPC and archive nodes **do not**:
 - Propose or vote on bundles
@@ -69,7 +69,7 @@ cryftgo --archive=true --staking-enabled=false --consensus-enabled=false
 
 These nodes may optionally run Cryftee modules (e.g., `ipfs_v1` for convenient access to pinned content) but are not obligated to do so.
 
-#### 13.6.5 CryftGo Startup Logic
+#### 13.4.5 CryftGo Startup Logic
 
 When CryftGo starts, it determines whether Cryftee is required based on operational mode:
 
@@ -90,7 +90,7 @@ When CryftGo starts, it determines whether Cryftee is required based on operatio
 - **Clear security boundary**: validators are locked down with mandatory Cryftee modules and attestation
 - **Operational flexibility**: node operators can choose their configuration based on their role in the network
 
-#### 13.6.6 Module Selection for Validators
+#### 13.4.6 Module Selection for Validators
 
 Full validators should run the following **minimum module set**:
 

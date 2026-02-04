@@ -2,7 +2,7 @@
 
 This section describes the foundational modules included in Cryftee's initial release (v0.4.x runtime). All modules follow the **Power of Ten** safety rules: static bounds declared at module top, no unsafe code, proper error handling (no panics), self-contained limits, and comprehensive input validation.
 
-**All six modules below are considered CORE MODULES** required for full compatibility with network capabilities. Operators MUST enable all core modules to participate in the complete feature set of CryftNet.
+**All seven modules below are considered CORE MODULES** required for full compatibility with network capabilities. Operators MUST enable all core modules to participate in the complete feature set of CryftNet.
 
 ---
 
@@ -16,6 +16,7 @@ This section describes the foundational modules included in Cryftee's initial re
 | `ipfs_v1` | 1.1.0 | Storage | Content-addressed storage, tiered pin rewards, storage challenges |
 | `private_sync_v1` | 1.0.0 | Privacy | Canton-style CGS, encrypted views, mediator finality |
 | `redeemable_codes_v1` | 1.0.0 | Distribution | TEE-secured gift codes, validator onboarding |
+| `aim_v1` | 1.0.0 | Agent Identity | On-chain agent registry, tokenized identity, memory commitments |
 
 ---
 
@@ -29,6 +30,7 @@ Each core module has its own detailed specification:
 - **Section 13.3.4:** [IPFS Module](13-03d-ipfs-module.md) - Content-addressed storage with pin rewards
 - **Section 13.3.5:** [CGS Module (Private Sync)](13-03e-cgs-module.md) - Canton-style confidential transactions
 - **Section 13.3.6:** [Redeemable Codes](13-03f-redeemable-codes.md) - TEE-secured gift codes
+- **Section 13.3.7:** [Agent Identity & Memory (AIM)](13-03g-aim.md) - Tokenized agent identity and memory
 
 ---
 

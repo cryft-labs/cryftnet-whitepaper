@@ -19,10 +19,10 @@ The LLM module provides a self-contained interactive AI assistant for runtime an
 
 #### Relationship to AIM
 
-> **Note on AIM vs LLM Chat:** This module provides direct LLM chat within the Cryftee operator interface. It is **distinct from the Agent Identity & Memory (AIM) specification** (Section 13.7).
+> **Note on AIM vs LLM Chat:** This module provides direct LLM chat within the Cryftee operator interface. It is **distinct from the Agent Identity & Memory (AIM) module** (Section 13.3.7).
 >
 > - **`llm_chat_v1`** is a runtime module for operator assistance within Cryftee
-> - **AIM** defines on-chain infrastructure for tokenized autonomous agent identities
+> - **`aim_v1`** defines infrastructure for tokenized autonomous agent identities
 >
 > The `llm_chat_v1` module MAY utilize LLM providers that are themselves AIM-registered agents, enabling operators to interact with AIM-managed autonomous agents through this interface.
 

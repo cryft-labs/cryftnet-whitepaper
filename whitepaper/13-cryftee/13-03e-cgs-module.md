@@ -25,7 +25,7 @@ The CGS (Cryft Global Synchronizer) module implements Canton Network-inspired co
 - Domain-isolated synchronization contexts
 - TEE-secured mediator for conflict detection and finality
 
-#### 13.5.2 CGS Architecture within Cryftee
+#### 13.3.5.2 CGS Architecture within Cryftee
 
 CGS is embedded in Cryftee in two layers:
 
@@ -37,7 +37,7 @@ This mirrors Canton-style constructs while remaining pluggable. Embedding CGS in
 - Smart Slot scheduling (via slot commitments)
 - Intent routing
 
-#### 13.5.3 Key Concepts
+#### 13.3.5.3 Key Concepts
 
 **Sub-transaction Privacy:**
 Each party receives only an encrypted "view" of the portions relevant to them. No party sees the complete transaction unless explicitly authorized.
@@ -51,7 +51,7 @@ Isolated synchronization contexts with independent transaction ordering. Each do
 **Mediator Role:**
 TEE-secured mediators provide conflict detection and finality guarantees. Mediators see commitments but not transaction content, ensuring privacy while preventing double-spends.
 
-#### 13.5.4 Capabilities
+#### 13.3.5.4 Capabilities
 
 | Function | Description |
 |:---------|:------------|
@@ -65,7 +65,7 @@ TEE-secured mediators provide conflict detection and finality guarantees. Mediat
 | `sync_request` | Request synchronization state for a domain |
 | `mediator_submit` | Submit transaction to mediator for finality |
 
-#### 13.5.5 Domain Model
+#### 13.3.5.5 Domain Model
 
 Privacy domains define the scope and rules for private transactions:
 
@@ -82,7 +82,7 @@ PrivacyDomain {
 }
 ```
 
-#### 13.5.6 Canton-Style Transaction Flow
+#### 13.3.5.6 Canton-Style Transaction Flow
 
 The synchronization protocol follows Canton's multi-party confirmation model:
 
@@ -121,7 +121,7 @@ When all confirmations received:
 
 **Key Property:** No single party (including the mediator) sees the complete transaction. Atomicity is achieved through cryptographic commitments, not data sharing.
 
-#### 13.5.7 Integration with Smart Slots
+#### 13.3.5.7 Integration with Smart Slots
 
 CGS integrates with Smart Slot scheduling via slot commitments:
 
@@ -139,7 +139,7 @@ This allows:
 - Privacy-preserving mempool ordering
 - Deterministic execution across validators
 
-#### 13.5.8 Key Rotation
+#### 13.3.5.8 Key Rotation
 
 Domains support scheduled key rotation for forward secrecy:
 
@@ -157,7 +157,7 @@ Key rotation:
 - Enables participant addition/removal
 - Maintains viewing access to historical transactions
 
-#### 13.5.9 Mediator Flows
+#### 13.3.5.9 Mediator Flows
 
 For high-value or regulated transactions, domains may require mediator confirmation:
 
@@ -178,7 +178,7 @@ MediatorConfirmation {
 - Conflicts are detected without exposing competing transaction details
 - Finality certificates are cryptographically verifiable
 
-#### 13.5.10 Configuration
+#### 13.3.5.10 Configuration
 
 ```text
 CRYFTTEE_CGS_ENABLED=true

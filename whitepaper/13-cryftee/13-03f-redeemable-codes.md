@@ -27,7 +27,7 @@ The Redeemable Codes module implements an on-chain managed gift code system with
 - Blockchain-recorded redemption with immutable audit trail
 - Batch operations for large-scale distributions
 
-#### 13.8.2 Dual Smart Contract Architecture
+#### 13.3.6.2 Dual Smart Contract Architecture
 
 The module uses a novel dual-contract design to separate sensitive code storage from public management:
 
@@ -71,7 +71,7 @@ The module uses a novel dual-contract design to separate sensitive code storage 
 `---------------------------------------------------------┘
 ```
 
-#### 13.8.3 Code Structure
+#### 13.3.6.3 Code Structure
 
 Redeemable codes follow a structured format for efficient lookup and validation:
 
@@ -93,7 +93,7 @@ Example: A1B2-C3D4-E5F6-G7H8
 - Hash + salt prevents rainbow table attacks
 - TEE execution prevents extraction of code database
 
-#### 13.8.4 Capabilities
+#### 13.3.6.4 Capabilities
 
 **Code Generation:**
 
@@ -121,7 +121,7 @@ Example: A1B2-C3D4-E5F6-G7H8
 | `validator_code_redeem` | Validator-assisted redemption for cross-region codes |
 | `batch_redeem` | Redeem multiple codes in a single transaction |
 
-#### 13.8.5 Content Types
+#### 13.3.6.5 Content Types
 
 The module supports multiple content types for flexible distribution:
 
@@ -146,7 +146,7 @@ ContentAssignment {
 }
 ```
 
-#### 13.8.6 Redemption Flow
+#### 13.3.6.6 Redemption Flow
 
 **Standard Redemption:**
 
@@ -186,7 +186,7 @@ For cross-region codes, validators facilitate redemption:
 5. Validator receives small facilitation fee
 ```
 
-#### 13.8.7 Batch Operations
+#### 13.3.6.7 Batch Operations
 
 For large-scale distributions (airdrops, promotions):
 
@@ -209,7 +209,7 @@ Result: BatchResult {
 
 **Security Note:** Generated codes are returned exactly once during batch generation. The module does not retain plaintext codes after generation.
 
-#### 13.8.8 Audit Trail
+#### 13.3.6.8 Audit Trail
 
 All code operations are recorded on-chain for transparency:
 
@@ -231,7 +231,7 @@ CodeEvent {
 | `redemption_stats` | Aggregate statistics for a batch or campaign |
 | `active_codes` | Count of unredeemed codes by content type |
 
-#### 13.8.9 Security Considerations
+#### 13.3.6.9 Security Considerations
 
 **Threat Mitigations:**
 
@@ -250,7 +250,7 @@ CodeEvent {
 - Frozen codes should be investigated before unfreezing
 - Revoked codes cannot be recovered
 
-#### 13.8.10 Configuration
+#### 13.3.6.10 Configuration
 
 ```text
 CRYFTTEE_CODES_ENABLED=true
@@ -259,7 +259,7 @@ CRYFTTEE_CODES_DEFAULT_EXPIRY=31536000  # 1 year in seconds
 CRYFTTEE_CODES_RATE_LIMIT=100           # redemptions per minute per IP
 ```
 
-#### 13.8.11 Use Cases
+#### 13.3.6.11 Use Cases
 
 **Promotional Token Distribution:**
 - Generate codes for marketing campaigns

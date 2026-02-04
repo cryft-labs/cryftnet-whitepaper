@@ -25,7 +25,7 @@ The IPFS module embeds a standalone content-addressed storage node within Cryfte
 - Code Vault access for contract verification
 - Integration with CGS for content-addressed privacy payloads
 
-#### 13.4.2 Capabilities
+#### 13.3.4.2 Capabilities
 
 **Standard IPFS Operations:**
 
@@ -55,7 +55,7 @@ The IPFS module embeds a standalone content-addressed storage node within Cryfte
 | `storage_challenge` | Respond to a storage challenge with proof |
 | `claim_rewards` | Claim accumulated pinning rewards |
 
-#### 13.4.3 IPFS as a Cryftee Module
+#### 13.3.4.3 IPFS as a Cryftee Module
 
 IPFS runs inside Cryftee's module sandbox rather than as a separate service. This provides:
 
@@ -65,7 +65,7 @@ IPFS runs inside Cryftee's module sandbox rather than as a separate service. Thi
 - **Integration with other modules:** CGS and governance modules can directly access IPFS for content storage and retrieval
 - **No external dependencies:** Standalone embedded node eliminates daemon management
 
-#### 13.4.4 Node Modes
+#### 13.3.4.4 Node Modes
 
 Validators configure IPFS mode via Cryftee module settings:
 
@@ -91,7 +91,7 @@ CRYFTTEE_IPFS_STORAGE_LIMIT=100GB
 CRYFTTEE_IPFS_SWARM_PORT=4001
 ```
 
-#### 13.4.5 Incentivized Pinning Reward System
+#### 13.3.4.5 Incentivized Pinning Reward System
 
 The IPFS module integrates with the Cryft blockchain for storage incentives:
 
@@ -137,7 +137,7 @@ The module tracks per-validator metrics:
 - Challenges received and passed
 - Uptime and availability score
 
-#### 13.4.6 Content Availability Attestations
+#### 13.3.4.6 Content Availability Attestations
 
 Validators generate signed attestations proving content availability:
 
@@ -158,7 +158,7 @@ Attestations are:
 - Used to calculate pinning rewards
 - Evidence for storage challenge responses
 
-#### 13.4.7 Code Vault Integration
+#### 13.3.4.7 Code Vault Integration
 
 The IPFS module supports Code Vault lazy mirroring:
 
@@ -172,7 +172,7 @@ This enables:
 - Verified contract source availability
 - Cross-region contract mirroring
 
-#### 13.4.8 Pinning Provider Operations
+#### 13.3.4.8 Pinning Provider Operations
 
 Pin providers operate through the IPFS module:
 
