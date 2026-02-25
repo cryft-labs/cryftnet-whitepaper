@@ -868,26 +868,41 @@ VerifyPingEligibility(report):
 
 ### 16.8 v1 Monetary Policy
 
-No emission; 50% fee burn; formula a=1, b=0.5; slashing evidence structs.
+Continuous issuance (no supply cap); PoW phase: all fees to miner; PoS phase: EIP-1559 fee burn + issuance; slashing evidence structs.
 
 **Monetary Policy Parameters:**
 
 ```text
-Emission Rate: 0 CRYFT/block  // No new issuance
-Fee Burn Rate: 50%            // Half of tx fees burned
-Slashing Rate: 5%             // Of validator stake per offense
-Minimum Stake: 1000 CRYFT     // To become validator
+=== PoW Phase (v1 launch) ===
+Block Reward:    2 CRYFT/block     // Continuous issuance, no supply cap
+Fee Model:       First-price auction // All tx fees (gas_used * gas_price) to block miner
+Fee Burn Rate:   0%                 // No burning during PoW phase (same as Ethereum 2015-2021)
+Supply Cap:      NONE               // Uncapped, like Ethereum
+
+=== PoS Phase (post-transition) ===
+Issuance:        sqrt(total_staked) curve  // Ethereum-style validator rewards
+Fee Model:       EIP-1559            // base_fee burned, priority_fee to validator
+Slashing Rate:   1/32 of stake (~3.125%)   // Per provable misbehavior
+Minimum Stake:   32,000 CRYFT       // To become validator
 ```
 
 **Fee Distribution:**
 
 ```text
-For each transaction with fee F:
-  burned = F * 0.5
-  validator_reward = F * 0.3
-  treasury = F * 0.2
+PoW Phase:
+  For each transaction with fee F:
+    miner_reward = F     // 100% of fees to block miner
+    burned = 0           // No burn during PoW
+    Total miner income per block = block_reward (2 CRYFT) + sum(tx_fees)
 
-Total Supply: Fixed at genesis (no inflation)
+PoS Phase (EIP-1559):
+  For each transaction with fee F = base_fee + priority_fee:
+    burned = base_fee              // Algorithmically adjusted, burned permanently
+    validator_reward = priority_fee // Tip goes to block proposer
+    Total validator income per epoch = issuance_reward + sum(priority_fees)
+
+Total Supply: Uncapped (continuous issuance; net inflation/deflation determined by
+              issuance rate vs. burn rate once EIP-1559 activates)
 ```
 
 **Slashing Evidence Structures:**

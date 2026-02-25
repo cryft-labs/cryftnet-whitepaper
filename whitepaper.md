@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.32<br>
-<strong>Date:</strong> February 4, 2026<br>
+<strong>Revision:</strong> v1.33<br>
+<strong>Date:</strong> February 25, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.32):</strong> **CRYFTEE MODULE FILE REORGANIZATION:** All 6 core modules now have individual specification files using consistent 13.3.x numbering (13-03a through 13-03f). Modules: bls_tls_signer_v1 (13.3.1), debug_v1 (13.3.2), llm_chat_v1 (13.3.3), ipfs_v1 (13.3.4), private_sync_v1 (13.3.5), redeemable_codes_v1 (13.3.6). All modules designated as CORE MODULES required for full network capability. Added clear distinction between llm_chat_v1 (operator chat interface within Cryftee runtime) and AIM (on-chain agent identity infrastructure layer). Operations section renumbered to 13.4, AIM section renumbered to 13.5. Total: ~10,000 lines. Previous (v1.31): Cryftee module accuracy updates.
+<strong>Latest Changes (v1.33):</strong> **PROOF OF WORK LAUNCH & ETHEREUM-STYLE MONETARY MODEL:** Federal Chain and Primary Network now launch with Proof of Work (SHA3-256, 10s blocks, 2 CRYFT/block) for fair distribution of network gas to early participants, transitioning to Snowman/PoS after bootstrap criteria met (>=3.2M CRYFT in circulation, >=6 months, >=500 unique miners, 67% governance approval). Supply cap removed -- CRYFT now has uncapped continuous issuance following Ethereum's proven model. PoW phase follows Ethereum's original economics (2015-2021): all transaction fees go directly to miners, no EIP-1559, no fee burn. EIP-1559 activates at PoS transition. Post-PoS: sqrt(total_staked) issuance curve + base fee burn. Genesis pre-allocation: 125M CRYFT (all locked until PoS transition). Minimum stake: 32,000 CRYFT. Updated Sections 4, 6, 11, 15, 16. Previous (v1.32): Cryftee module file reorganization.
 </p>
 
 <p align="center"><em>
@@ -134,9 +134,25 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 | Chain | Purpose | VM | Consensus | Typical Operations |
 |:------|:--------|:---|:----------|:-------------------|
-| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | Snowman (v1 baseline) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
-| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | Snowman (v1 baseline) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
-| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | Snowman (v1 baseline) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
+| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | Proof of Work (v1 bootstrap) -> Snowman (post-bootstrap) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
+| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | Proof of Work (v1 bootstrap) -> Snowman (post-bootstrap) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
+| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | Proof of Work (v1 bootstrap) -> Snowman (post-bootstrap) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
+
+**Why Proof of Work at launch:**
+
+The Primary Network launches with Proof of Work consensus during the bootstrap phase (estimated 6-12 months) to ensure **proper and fair distribution of the native CRYFT gas token** to initial participants:
+
+1. **Fair distribution:** PoW mining allows anyone with commodity hardware to earn CRYFT from day one, preventing insider or VC-dominated token concentration. Early participants are rewarded proportionally to the computational work they contribute, establishing a broad and decentralized initial holder base.
+
+2. **Organic price discovery:** PoW ties token issuance to real economic costs (electricity, hardware), giving CRYFT a fundamental cost-of-production floor and enabling organic market price discovery before staking economics take over.
+
+3. **Sybil resistance without pre-existing stake:** PoS requires participants to already hold tokens to participate. At genesis, no one holds CRYFT. PoW bootstraps the initial token supply into circulation without requiring a centralized token sale or airdrop as the primary distribution mechanism.
+
+4. **Credible neutrality:** PoW mining is permissionless and meritocratic--no whitelists, no KYC gates, no allocation committees. This establishes CryftNet's credibility as a fairly launched network.
+
+5. **Battle-tested security:** PoW consensus (Nakamoto-style) is the most studied and battle-tested consensus mechanism in existence, providing robust security guarantees during the critical early network phase when validator sets are small and economic security from staking is limited.
+
+**Transition to Snowman (PoS):** After the bootstrap phase, governance will coordinate the transition to Snowman consensus (see Section 11.6 for the PoW-to-PoS transition plan). The transition is triggered when: (a) sufficient CRYFT has been distributed to enable meaningful staking participation (target: >= 30% of supply in circulation held by >= 1,000 distinct addresses), and (b) a governance supermajority (67%) approves the consensus upgrade. All mined CRYFT remains valid and stakeable after the transition.
 
 **Why three separate chains?**
 
@@ -3021,7 +3037,7 @@ CRVS remains the consensus backbone--DAS and ZK-EVMs are complementary technolog
 
 **Phase 0 (Current) – Phase 4 (Mainnet v1):**
 
-**The Primary Network launches with pure, unmodified Avalanche/Snowman consensus for each chain individually (the proven baseline used in AvalancheGo).** No rotor relays, votor aggregation, or other CRVS components are active in v1. All Primary Network chains (Federal, Mirror, EVM) use standard Snowman block production and finality; the atomic bundle coordinator that synchronizes their outputs is a separate layer above the consensus mechanism. **Regions may prototype CRVS components on testnet**, but production regions in v1 also use baseline Snowman.
+**The Primary Network launches with Proof of Work (PoW) consensus during the bootstrap phase** to ensure fair and broad distribution of CRYFT gas tokens to initial participants. All Primary Network chains (Federal, Mirror, EVM) use PoW block production during v1 bootstrap; the atomic bundle coordinator that synchronizes their outputs is a separate layer above the consensus mechanism. **After the bootstrap phase (estimated 6-12 months), the network transitions to Snowman consensus** (the proven baseline used in AvalancheGo) via governance-approved upgrade. No rotor relays, votor aggregation, or other CRVS components are active in v1 under either PoW or Snowman. **Regions may prototype CRVS components on testnet**, but production regions in v1 also use the current Primary Network consensus (PoW during bootstrap, Snowman after transition).
 
 The most practical path to mainnet is to:
 
@@ -5657,20 +5673,31 @@ fees: fees for anchoring checkpoints and relaying cross-chain messages. - CGS fe
 intent propagation, threshold services, and spam resistance. - Storage/pinning fees: budgets
 attached to pin jobs for IPFS availability.
 
-### 11.3 Validator rewards: Primary Network and regions
+### 11.3 Miner and validator rewards: Primary Network and regions
 
-**v1 Fixed Policy (Mainnet Launch):**
-CryftNet mainnet v1 launches with a **fixed monetary policy** (see Appendix 16.8 for canonical specification):
-- **No emission**: 0 CRYFT/block (no inflation)
-- **Fee distribution**: 50% burned, 30% to validator rewards, 20% to treasury
-- **Minimum stake**: 1,000 CRYFT for Primary Network validators
-- **Slashing rate**: 5% of stake per provable misbehavior (see Section 11.3.2 for v1 evidence specification)
+**v1 PoW Bootstrap Policy (Mainnet Launch):**
+CryftNet mainnet v1 launches with **Proof of Work consensus** and an **uncapped supply** with continuous issuance, following Ethereum's original launch model (see Appendix 16.8 for canonical specification):
+- **PoW block rewards**: 2 CRYFT/bundle block (matching Ethereum's pre-Merge 2 ETH/block reward), continuous issuance with no supply cap
+- **Fee distribution (PoW phase)**: All transaction fees go to the block miner (same as Ethereum pre-EIP-1559)
+- **Fee distribution (post-PoS transition)**: EIP-1559-style: base fee burned, priority fee to validator; plus issuance rewards proportional to staked amount
+- **Minimum stake (post-PoS)**: 32,000 CRYFT for Primary Network validators (mirroring Ethereum's 32 ETH threshold)
+- **Slashing rate (post-PoS)**: 1/32 of stake (~3.125%) per provable misbehavior, scaling with correlated failures (see Section 11.3.2 for evidence specification)
 
-This v1 policy provides economic predictability for mainnet launch.
+**Supply model:** CRYFT has **no maximum supply cap**. New CRYFT is continuously issued as block rewards (PoW phase) and validator rewards (PoS phase). During the PoW phase, there is no fee burn--all fees go to miners, exactly as Ethereum operated from 2015 to 2021. EIP-1559-style base fee burning is introduced at the PoS transition, adding a deflationary counterweight: when network usage is high, more CRYFT is burned than issued, making the supply net deflationary (as observed on Ethereum post-Merge).
 
-#### 11.3.1 v1 Slashing Evidence Specification (Snowman Consensus)
+The PoW bootstrap phase ensures fair CRYFT distribution to early participants before transitioning to PoS economics.
 
-**Provable Misbehavior Set for v1 (Snowman/Avalanche Consensus):**
+#### 11.3.1 v1 Misbehavior Specification (PoW Phase and Post-PoS Transition)
+
+**Provable Misbehavior Set for PoW Phase:**
+
+During the PoW bootstrap, misbehavior enforcement is limited to standard Nakamoto consensus rules:
+
+1. **Invalid block rejection:** Blocks with invalid PoW solutions, invalid state transitions, or violated cross-chain invariants are rejected by peers (standard consensus rule, no explicit slashing--miners lose only the wasted computation).
+
+2. **Checkpoint equivocation (post-PoS slashable):** If a miner signs conflicting checkpoints for the same height, the evidence is recorded for slashing once PoS activates. Miners who plan to become validators have incentive to behave honestly during PoW phase.
+
+**Provable Misbehavior Set for Post-PoS (Snowman/Avalanche Consensus):**
 
 Unlike BFT consensus protocols with explicit double-vote detection, Snowman consensus does not produce a simple "conflicting block signature" evidence surface. v1 slashing is limited to behaviors with **cryptographically verifiable on-chain evidence**.
 
@@ -5794,117 +5821,173 @@ rewards are designed to keep critical content (portals, module binaries, and app
 with measurable reliability. Key components: 1) Pin Provider Registry: providers stake/bond and
 advertise a service endpoint (or declare they operate via Cryftee ipfs_v1). 2) Pin Jobs: on-chain
 
-### 11.5 Economics with zero emission: validator incentives at launch (v1 bootstrap model)
+### 11.5 Ethereum-style issuance: continuous rewards with planned fee-burn upgrade (v1 bootstrap model)
 
-**Critical investor question:** "If there's no inflation, why do validators show up on day 1?"
+**Monetary philosophy:** CryftNet follows Ethereum's historical path. The network launches with pure Proof of Work and simple fee-to-miner economics (Ethereum 2015-2021), then introduces EIP-1559 fee burning at the PoS transition (Ethereum 2021+), and finally moves to PoS with continuous issuance plus fee burn (Ethereum post-Merge 2022+). There is **no supply cap**. During the PoW phase, supply grows through block rewards and all fees flow to miners, maximizing miner incentives for fair distribution. At the PoS transition, EIP-1559 is activated, introducing base fee burning as a deflationary counterweight.
 
-Zero-emission monetary policy is economically sustainable **only if** early validator economics are explicitly addressed. This section provides the v1 bootstrap model.
+This section details the v1 bootstrap economics under the PoW fair launch phase.
 
-#### 11.5.1 Fee volume expectations (launch economics)
+#### 11.5.1 Fee and reward expectations (launch economics)
 
-**Realistic fee projections (conservative model):**
+**Realistic revenue projections for miners (PoW phase, conservative model):**
 
-`	ext
+\\	ext
 Assumptions (Month 1 post-mainnet):
-- Primary Network transactions:  100-500 tx/block (~6,000-30,000 tx/day)
-- Average gas price:             20 gwei (~.05 per tx at  ETH-equivalent pricing)
-- Regional State transactions:   10-50 States active, 1,000-10,000 tx/day each
-- Cross-region transfers:        100-500/day (higher fees: -5 per transfer)
+- Block time: 10 seconds (8,640 blocks/day)
+- Block reward: 2 CRYFT/block = 17,280 CRYFT/day network-wide issuance
+- Primary Network transactions: 100-500 tx/block (~6,000-30,000 tx/day)
+- Average gas price: 20 gwei (~\.05 per tx at ETH-equivalent pricing)
+- All transaction fees go to miners (no burn during PoW phase)
 
-Daily fee revenue (Month 1):
-  Primary Network:   6,000 tx * .05 = /day
-  State chains:      10 States * 5,000 tx * .03 = ,500/day
-  Cross-region fees: 200 transfers *  = /day
-  Total daily fees:  ~,200/day = ,000/month
+Daily miner revenue (Month 1, network-wide):
+  Block rewards:     17,280 CRYFT/day (guaranteed by protocol)
+  Transaction fees:  ~300-1,500 CRYFT/day (depends on usage)
+  Total:             ~17,580-18,780 CRYFT/day
 
-Validator count (Month 1): 100 validators
-Fee distribution (50% burn, 30% validators, 20% treasury):
-  Validator pool: ,200 * 0.30 = /day
-  Per-validator:   / 100 = .60/day = /month
+Per-miner revenue (assuming 100 active miners, equal hashrate):
+  Block rewards:     ~172.8 CRYFT/day
+  Fee share:         ~3-15 CRYFT/day
+  Total:             ~176-188 CRYFT/day = ~5,280-5,640 CRYFT/month
 
-Cost to run validator (AWS c5.2xlarge + bandwidth): ~-200/month
-Break-even: Achieved at Month 1 with conservative usage
-`
-
+Mining hardware cost (GPU rig):  ~\,000 one-time
+Electricity:                     ~\-5/day (~\-150/month)
+Break-even: Day 1 at any CRYFT price > ~\.03
+\
 **Month 6 projections (growth scenario):**
 
-`	ext
+\\	ext
 Assumptions:
 - 10x transaction growth (early dApp adoption, DeFi migration)
-- 50 active States (regional expansion)
-- 5,000 cross-region transfers/day
+- 300 active miners (network growth)
+- Higher gas prices due to demand (~50 gwei average)
 
-Daily fee revenue (Month 6):
-  Primary Network:   60,000 tx * .05 = ,000/day
-  State chains:      50 States * 10,000 tx * .03 = ,000/day
-  Cross-region fees: 5,000 transfers *  = ,000/day
-  Total daily fees:  ~,000/day = ,000/month
+Daily miner revenue (Month 6, network-wide):
+  Block rewards:     17,280 CRYFT/day (unchanged -- constant 2 CRYFT/block)
+  Transaction fees:  ~3,000-15,000 CRYFT/day (10x volume, higher gas prices)
+  Total:             ~20,280-32,280 CRYFT/day
 
-Validator count (Month 6): 300 validators
-Per-validator (30% to validator pool):
-  ,000 * 0.30 / 300 = /day = /month
+Per-miner revenue (300 miners, equal hashrate):
+  ~68-108 CRYFT/day = ~2,040-3,240 CRYFT/month
 
-Validator profit margin:  -  (costs) = /month (+320% ROI)
-`
+Note: Per-miner CRYFT revenue decreases as more miners join (hashrate dilution),
+but CRYFT price appreciation typically compensates. This mirrors Ethereum's 2015-2017
+mining economics where ETH price growth outpaced hashrate dilution.
+\
+**Key insight:** During the PoW phase, miners earn both block rewards (2 CRYFT/block) AND all transaction fees--exactly as Ethereum operated from its 2015 launch through 2021. This maximizes miner income and incentivizes early participation. EIP-1559 fee burning is introduced later at the PoS transition.
 
-**Key insight:** Even with zero emission, validators are profitable at modest adoption levels due to fee-based rewards.
+#### 11.5.2 Genesis distribution and Proof of Work fair launch
 
-#### 11.5.2 Genesis distribution and validator bootstrap incentives
+**Problem:** Fair initial distribution of CRYFT tokens is critical for network legitimacy and long-term decentralization. Pre-mined allocations and insider-heavy genesis distributions concentrate power and undermine credible neutrality.
 
-**Problem:** Validators incur costs (hardware, bandwidth, staking capital) before fee revenue materializes.
+**Solution: Proof of Work mining as the primary distribution mechanism during bootstrap**
 
-**Solution: Genesis allocation includes validator bootstrap program**
+The Primary Network (Federal Chain, Mirror Chain, EVM Chain) launches with Proof of Work consensus. CRYFT tokens enter circulation exclusively through mining during the bootstrap phase (estimated 6-12 months). This ensures that early participants earn tokens proportional to the computational work they contribute, establishing a broad holder base before the transition to Proof of Stake.
 
-**Genesis CRYFT distribution (total supply: 1,000,000,000 CRYFT):**
+**Genesis allocation and continuous issuance (no supply cap):**
 
-| Allocation | Amount | % | Purpose | Vesting |
-|:-----------|:-------|:--|:--------|:--------|
-| **Genesis validators** | 100,000,000 | 10% | Rewards for first 100 validators (Days 0-180) | 6-month linear unlock |
-| **Treasury** | 300,000,000 | 30% | Protocol development, grants, ecosystem growth | DAO-controlled |
-| **Core team & advisors** | 150,000,000 | 15% | Cryft Labs team, strategic advisors | 4-year vest, 1-year cliff |
-| **Early investors** | 200,000,000 | 20% | Seed/Series A fundraising | 2-year vest, 6-month cliff |
-| **Community sale** | 150,000,000 | 15% | Public token sale (fair launch component) | No lockup |
-| **Ecosystem incentives** | 100,000,000 | 10% | Liquidity mining, State chain grants, developer rewards | DAO-controlled, 2-year distribution |
+CRYFT has **no maximum supply**. Supply grows continuously through block rewards (PoW phase) and validator issuance (PoS phase), following Ethereum's model. The genesis block mints only the pre-allocated amounts below; all other CRYFT enters circulation through mining and staking rewards over time.
 
-**Genesis validator program (v1 specific):**
+**Genesis pre-allocation (minted at Block 0, time-locked):**
 
-`	ext
-Validator Bootstrap Rewards (100M CRYFT / 180 days):
+| Allocation | Amount (CRYFT) | Purpose | Unlock Schedule |
+|:-----------|:---------------|:--------|:----------------|
+| **Treasury** | 50,000,000 | Protocol development, grants, ecosystem growth | DAO-controlled; locked until PoS transition |
+| **Core team & advisors** | 25,000,000 | Cryft Labs team, strategic advisors | 4-year vest, 1-year cliff; begins at PoS transition |
+| **Early investors** | 25,000,000 | Seed/Series A fundraising | 2-year vest, 6-month cliff; begins at PoS transition |
+| **Ecosystem incentives** | 25,000,000 | Liquidity mining, State chain grants, developer rewards | DAO-controlled, 2-year distribution post-transition |
+| **Total genesis pre-allocation** | **125,000,000** | | All locked until PoS transition |
 
-Formula:
-  daily_pool = 100,000,000 / 180 = 555,555 CRYFT/day
-  validator_share = (validator_uptime * validator_stake) / total_weighted_stake
+**Continuous issuance (no cap, Ethereum-style):**
 
-Minimum requirements:
-  - Stake: 1,000 CRYFT (genesis validators can stake from bootstrap allocation)
-  - Uptime: >95% (measured via missed block proposals and checkpoint signatures)
-  - Hardware: Meets CSS-1 specifications (8 vCPU, 32GB RAM, 1TB NVMe)
+| Phase | Issuance Rate | Mechanism | Fee Model |
+|:------|:-------------|:----------|:----------|
+| **PoW bootstrap** (Months 0-12) | 2 CRYFT/block (~6,307,200 CRYFT/year at 10s blocks) | Block rewards to miners | All fees to miner (pre-EIP-1559, like Ethereum 2015-2021) |
+| **PoS phase** (Month 12+) | ~3-4% annual yield on staked CRYFT (Ethereum-equivalent curve) | Validator issuance proportional to sqrt(total_staked) | EIP-1559: base fee burned, priority fee to validator |
 
-Reward cliff:
-  Days 0-30:   100% of formula (maximum rewards for early validators)
-  Days 31-90:  75% of formula (reduced as fee revenue grows)
-  Days 91-150: 50% of formula
-  Days 151-180: 25% of formula (phase-out as fees dominate)
-  Days 181+:    0% (pure fee-based economics)
+**Key design principle:** The vast majority of CRYFT in circulation is earned through permissionless participation (mining, then staking). Genesis pre-allocations are small (~125M) relative to cumulative issuance, and are fully locked until the PoS transition. By the time insider tokens unlock, miners will have earned hundreds of millions of CRYFT, ensuring a broad and decentralized holder base that prevents any single party from dominating governance or staking.
 
-Example validator (Day 15, 1,000 CRYFT stake, 98% uptime):
-  Assume 100 validators, all 1,000 stake, 95% avg uptime:
-  daily_pool = 555,555 CRYFT
-  validator_share = (0.98 * 1000) / (95 * 1000) = 1.03% (slightly above average)
-  daily_reward = 555,555 * 0.0103 = 5,722 CRYFT (~,400 at  CRYFT)
-  
-  Compare to Month 1 fee revenue: .60/day
-  Total validator income (Month 1): ,406/day (bootstrap) + .60/day (fees)
-  
-  Break-even time: Day 1 (bootstrap rewards cover all costs)
-`
+**PoW mining parameters (v1 bootstrap):**
 
-**Vesting and anti-gaming:**
+```text
+Mining Algorithm:    SHA3-256 (ASIC-resistant during early phase; governance may adjust)
+Block time target:   10 seconds (bundle blocks, like Ethereum's ~12s pre-Merge)
+Block reward:        2 CRYFT/block (matching Ethereum's pre-Merge 2 ETH/block)
+Reward schedule:     Constant 2 CRYFT/block -- NO halving, NO supply cap
+                     (Governance may adjust reward rate post-transition, as Ethereum
+                     adjusted from 5 -> 3 -> 2 ETH via EIP-2384/EIP-4345)
+Difficulty adjustment: Every 2,016 blocks (retarget to maintain 10s target block time)
+Annual PoW issuance: ~6,307,200 CRYFT/year (2 CRYFT * 6 blocks/min * 60 * 24 * 365)
 
-- Bootstrap rewards vest linearly over 6 months (cannot dump immediately)
-- Validators who drop below 90% uptime forfeit that day's rewards (redistributed to honest validators)
-- Validators slashed for misbehavior lose all unvested bootstrap allocation
-- Minimum participation period: 30 days (early exit forfeits 50% of earned rewards)
+Fee handling during PoW phase (pre-EIP-1559, same as Ethereum 2015-2021):
+  - Miners set a minimum gas price they accept (gas_price floor)
+  - Users bid gas_price to prioritize inclusion (first-price auction)
+  - ALL transaction fees (gas_used * gas_price) go to the block miner
+  - NO fee burning during the PoW phase
+  - Block reward (2 CRYFT) + all tx fees = total miner revenue per block
+  - EIP-1559 fee burning is introduced at the PoS transition (see Section 11.6)
+
+Projected supply growth (PoW phase, ~12 months):
+  Year 1 gross issuance: ~6,307,200 CRYFT (block rewards only)
+  Year 1 tx fee income:  100% to miners (no burn)
+  Year 1 total new supply: ~6,307,200 CRYFT (plus genesis 125M pre-allocation)
+  Total circulating after Year 1: ~125M (genesis, locked) + ~6.3M (mined) = ~131.3M CRYFT
+  Note: Only ~6.3M CRYFT is freely circulating; genesis allocations remain locked
+```
+
+**Mining accessibility (fair launch principles):**
+
+1. **CPU/GPU friendly:** SHA3-256 is chosen to resist early ASIC dominance, ensuring hobbyist miners can participate meaningfully during the critical initial distribution window.
+2. **No pre-mine:** Zero CRYFT exists before the genesis block. All tokens enter circulation through mining or are locked in vesting contracts that do not unlock until after the PoS transition.
+3. **No hidden allocation:** Treasury, team, and investor allocations are committed in the genesis block but are **time-locked and non-transferable** until the PoS transition governance vote passes.
+4. **Pool-friendly:** Mining is compatible with standard pool protocols, enabling smaller participants to earn proportional rewards.
+
+**Atomic bundle mining:**
+
+During the PoW phase, the bundle block system (Section 4.1) operates with PoW instead of Snowman voting:
+
+```text
+Bundle PoW Block Production:
+1. Miner collects pending transactions for Federal, Mirror, and EVM chains
+2. Miner executes all three VMs in order (Federal -> Mirror -> EVM)
+3. Miner constructs bundle_hash = keccak256(federal_header || mirror_header || evm_header)
+4. Miner performs PoW: find nonce such that H(bundle_hash || nonce) < difficulty_target
+5. Miner broadcasts solved bundle block to network
+6. Peers validate: PoW solution + all three VM state transitions + cross-chain invariants
+7. Longest valid chain rule determines canonical chain (Nakamoto consensus)
+
+Fork resolution: Standard longest-chain rule. Orphaned blocks' transactions return to mempool.
+Reorganization depth limit: 100 blocks (deeper reorgs rejected; governance intervention required).
+```
+
+**Miner economics (v1 PoW bootstrap):**
+
+```text
+Example miner (Month 1, GPU rig with 500 MH/s SHA3-256):
+
+Assumptions:
+  - Network hashrate: 50 GH/s (early phase, moderate competition)
+  - Miner share: 500 MH/s / 50 GH/s = 1% of network hashrate
+  - Block rewards: 2 CRYFT/block * 8,640 blocks/day = 17,280 CRYFT/day (network total)
+  - Miner daily block reward: 17,280 * 0.01 = 172.8 CRYFT/day
+  - Plus ALL transaction fees: ~5-20 CRYFT/day share (early network, 100% to miners)
+  - Total miner daily income: ~178-193 CRYFT/day
+
+  Hardware cost: ~$2,000 (mid-range GPU rig)
+  Electricity: ~$3-5/day
+  Monthly mining revenue: ~178 CRYFT/day * 30 = 5,340 CRYFT/month
+
+  At estimated early price (~$0.10/CRYFT): ~$534/month revenue, ~$150 electricity = $384 profit
+  At estimated $1.00/CRYFT (post-exchange listing): ~$5,340/month revenue
+
+Note: Like early Ethereum mining (2015-2021), all transaction fees go directly to miners.
+No fee burn occurs during the PoW phase. EIP-1559 activates at the PoS transition.
+```
+
+**Anti-gaming measures during PoW phase:**
+
+- **Selfish mining detection:** Nodes monitor for blocks that appear to be withheld and released strategically; anomalous patterns flagged for community review.
+- **Timestamp manipulation limits:** Block timestamps must be within +/- 15 seconds of network-adjusted time; violating blocks are rejected.
+- **Empty block penalties:** Miners who consistently produce empty blocks (to collect rewards without processing transactions) receive reduced difficulty credit after governance activation.
 
 #### 11.5.3 Regional State fee subsidies (opt-in mechanism)
 
@@ -5944,19 +6027,19 @@ contract StateFeeSubsidyPool {
 
 **Subsidy policy examples:**
 
-`	ext
+```text
 Example 1: Enterprise State (self-funded)
 - Deployer: MegaCorp deploys State 1042 for internal supply chain dApp
-- Subsidy budget: ,000 CRYFT (from MegaCorp treasury)
+- Subsidy budget: $50,000 CRYFT (from MegaCorp treasury)
 - Duration: 12 months
-- Validator incentive: ,000 / 12 months / 20 validators = /validator/month
+- Validator incentive: $50,000 / 12 months / 20 validators = $208/validator/month
 - MegaCorp benefits: Guaranteed validator participation, low fees for internal users
 
 Example 2: Community State (DAO grant)
 - Deployer: DeFi DAO deploys State 1101 for decentralized exchange
 - Subsidy budget: 500,000 CRYFT (approved via CryftNet DAO proposal)
 - Duration: 6 months (bootstrap only)
-- Validator incentive: Tapers from /month (Month 1) to /month (Month 6)
+- Validator incentive: Tapers from $2,000/month (Month 1) to $500/month (Month 6)
 - DAO benefits: Attracts early liquidity, then transitions to fee-based sustainability
 
 Example 3: No subsidy (organic growth)
@@ -5964,7 +6047,7 @@ Example 3: No subsidy (organic growth)
 - Subsidy budget: 0 CRYFT
 - Validator incentive: Pure fee-based (validators join only if volume justifies)
 - Result: Slower initial adoption but no artificial incentives
-`
+```
 
 **Governance controls:**
 
@@ -5981,24 +6064,24 @@ Example 3: No subsidy (organic growth)
 
 **Activation criteria (all must be true):**
 
-1. Network-wide fee revenue <,000/day for 14 consecutive days
+1. Network-wide fee revenue <$1,000/day for 14 consecutive days
 2. Validator count drops below 75 (security threshold: 100 minimum)
 3. DAO approves emergency stipend via 67% supermajority vote
 4. Treasury balance >5,000,000 CRYFT (sufficient runway)
 
 **Stipend structure (if activated):**
 
-`	ext
+```text
 Duration: Maximum 90 days (must resolve underlying usage problem, not prop up indefinitely)
-Amount: /validator/month (covers AWS costs + 50% margin)
+Amount: $500/validator/month (covers AWS costs + 50% margin)
 Eligibility: Validators with >95% uptime over previous 30 days
-Cap: 150 validators maximum (total cost: /month from treasury)
+Cap: 150 validators maximum (total cost: $75,000/month from treasury)
 
 Conditions:
   - DAO must simultaneously approve "usage recovery plan" (marketing, partnerships, fee reductions)
   - Stipend automatically sunsets after 90 days (requires re-vote to extend)
-  - If fee revenue recovers to >,000/day, stipend ends immediately (return unused funds to treasury)
-`
+  - If fee revenue recovers to >$1,000/day, stipend ends immediately (return unused funds to treasury)
+```
 
 **Why this works without long-term dependency:**
 
@@ -6009,43 +6092,185 @@ Conditions:
 
 **Historical precedent:** Similar emergency programs exist in other networks (Cosmos Hub community pool, Polkadot Treasury) but are rarely activated because fee revenue typically grows with adoption.
 
-#### 11.5.5 Long-term sustainability model (post-bootstrap)
+#### 11.5.5 Long-term sustainability model (post-PoS transition -- Ethereum-style issuance)
 
-**Timeline: Month 7+ (bootstrap fully phased out)**
+**Timeline: After PoS transition (estimated Month 7-12+)**
 
-Validator economics transition to **pure fee-based model:**
+After the Proof of Work bootstrap phase ends and the network transitions to Snowman (PoS) consensus, the issuance model shifts from PoW block rewards to **PoS validator issuance**, following Ethereum's post-Merge economics:
 
-`	ext
-Revenue sources (no emission):
-  1. Primary Network tx fees (50% burn, 30% validators, 20% treasury)
-  2. State chain tx fees (70% validators, 30% treasuryhigher validator share for region work)
-  3. Cross-region transfer fees (-10 per transfer, validator split)
-  4. Federation fees (contract mirroring, balance portabilitytreasury for protocol overhead)
-  5. Checkpoint fees (regions pay Federal Chain for settlementvalidator split)
+```text
+Post-PoS Issuance Model (Ethereum-equivalent):
 
-Cost optimization (expected by Month 12):
-  - Validator hardware costs decrease with software optimization (better parallelism, state pruning)
-  - Bandwidth costs amortized over higher transaction volume
-  - Staking capital requirements potentially reduced via governance (if network secure at lower stake)
+  Validator issuance formula (per epoch):
+    base_reward_per_validator = MAX_EFFECTIVE_BALANCE * BASE_REWARD_FACTOR / sqrt(total_staked)
+    
+    Where:
+      MAX_EFFECTIVE_BALANCE = 32,000 CRYFT (per validator)
+      BASE_REWARD_FACTOR = 64 (Ethereum's value; tunable by governance)
+      total_staked = sum of all validator stakes
+    
+    Annual yield curve (approximate, matching Ethereum):
+      1M CRYFT staked:   ~18% APR (~180,000 CRYFT/year issuance)
+      10M CRYFT staked:  ~5.6% APR (~560,000 CRYFT/year issuance)
+      50M CRYFT staked:  ~2.5% APR (~1,250,000 CRYFT/year issuance)
+      100M CRYFT staked: ~1.8% APR (~1,800,000 CRYFT/year issuance)
+    
+    Key property: Issuance scales with sqrt(total_staked), so:
+      - More stakers = lower per-validator yield but higher total security budget
+      - Fewer stakers = higher per-validator yield, incentivizing new stakers to join
+      - Self-correcting equilibrium (proven on Ethereum since September 2022)
+
+Revenue sources for validators (post-PoS transition):
+  1. Issuance rewards (continuous, no cap -- Ethereum-style sqrt curve)
+  2. Priority fees (tips) from transactions
+  3. MEV rewards (proposer-builder separation, if adopted)
+  4. State chain validation fees (regional validators)
+  5. Cross-region transfer fees (checkpoint validators)
+  6. Federation fees (contract mirroring, balance portability)
+
+Fee burn (EIP-1559, introduced at PoS transition):
+  - Base fee burned on every transaction (activated at PoS transition, not during PoW)
+  - When burns > issuance, supply is NET DEFLATIONARY
+  - Ethereum has been net deflationary for extended periods post-Merge
+  - CryftNet targets same equilibrium: low-usage = mild inflation; high-usage = deflation
+  - During PoW phase, all fees go to miners (no burn) -- same as Ethereum 2015-2021
 
 Profitability projection (Month 12, moderate success scenario):
-  Daily network fees: ,000 (conservative: 1/10th of Avalanche C-Chain at similar stage)
-  Validator count: 500
-  Per-validator revenue (30% to validator pool): ,000 * 0.30 / 500 = /day = /month
-  Validator costs (optimized): -150/month
-  Net profit: -800/month per validator (+500-800% ROI on costs, plus staking rewards)
-`
+  Staked CRYFT: 10M (assumes ~8% of circulating supply staked)
+  Validator count: 312 validators (10M / 32,000 per validator)
+  Annual issuance yield: ~5.6% APR
+  Per-validator annual issuance: 10M * 0.056 / 312 = ~1,795 CRYFT/year = ~150 CRYFT/month
+  Plus priority fees: ~$5-15/month per validator (early network)
+  Validator costs (optimized): $100-150/month
+  Break-even: Achieved when CRYFT > ~$1.00 (fees + issuance covers costs)
+```
+
+**Why uncapped Ethereum-style issuance is the right model:**
+
+1. **Proven at scale:** Ethereum's issuance model secures $400B+ in value with continuous issuance + fee burn. No supply cap has not prevented ETH from being valued at thousands of dollars.
+2. **Self-regulating:** The sqrt(total_staked) curve automatically adjusts yield to attract/retain the right amount of staking. No governance intervention needed for basic security budget.
+3. **Aligned incentives:** Validators are always incentivized to participate (guaranteed issuance), while users pay for network usage (fee burn post-EIP-1559). Neither side subsidizes the other.
+4. **Deflationary potential:** Once EIP-1559 activates at PoS transition, high network usage means more CRYFT burned than issued, creating positive price pressure without artificial scarcity.
+5. **No "final block" problem:** Capped-supply networks face a security crisis when block rewards approach zero (Bitcoin's long-term fee-only security debate). Continuous issuance eliminates this risk entirely.
+6. **Battle-tested phasing:** Ethereum proved this exact sequence works: launch with PoW + all-fees-to-miner (2015), add EIP-1559 fee burn (2021), transition to PoS (2022). CryftNet follows the same proven path.
 
 **Failure scenario and pivot options:**
 
-If fee revenue remains insufficient by Month 12:
+If fee revenue or staking participation is insufficient:
 
-1. **DAO can vote to introduce emission** (not permanently disabled, just initially zero)
-2. **Adjust fee distribution** (e.g., 40% to validators instead of 30%, reduce burn)
-3. **Reduce minimum stake** (lower capital requirements to improve validator economics)
+1. **Governance can adjust BASE_REWARD_FACTOR** to increase/decrease issuance rate
+2. **Adjust minimum stake** (lower from 32,000 CRYFT to encourage more validators)
+3. **Introduce MEV smoothing** (distribute MEV rewards across all validators, not just proposers)
 4. **Protocol optimization** (lower validator costs via client improvements)
 
-**Key principle:** Zero emission is the **default and target**, but governance retains flexibility to adapt if economic reality demands it. This is not ideological rigidityit's pragmatic long-term sustainability with clear bootstrap mechanics.
+**Key principle:** CryftNet follows Ethereum's proven evolutionary path: PoW with simple fee economics first, then EIP-1559 fee burn + PoS transition, then continuous issuance with deflationary counterweight. The PoW fair launch ensures broad initial distribution; the PoS + EIP-1559 model ensures long-term sustainability.
+
+### 11.6 Proof of Work to Proof of Stake transition plan
+
+The transition from PoW to PoS (Snowman consensus) is the most significant protocol upgrade in CryftNet's lifecycle. It must be carefully coordinated to preserve security, maintain fair economics, and ensure smooth network continuity.
+
+#### 11.6.1 Transition trigger conditions
+
+The PoW-to-PoS transition is activated when **all** of the following conditions are met:
+
+```text
+Transition Trigger Conditions (ALL required):
+
+1. Distribution threshold:
+   - >= 3,200,000 CRYFT in circulation from mining (enough for 100 validators at 32,000 CRYFT each)
+   - Held by >= 1,000 distinct addresses (not exchange hot wallets)
+   - No single address (excluding locked vesting contracts) holds > 5% of circulating supply
+
+2. Network maturity:
+   - >= 6 months since genesis block
+   - >= 500 unique miners have produced at least 1 block
+   - Network hashrate has been stable (< 50% variance) for >= 30 days
+
+3. Governance approval:
+   - PoS transition proposal submitted on Federal Chain
+   - 67% supermajority approval from CRYFT holders (weighted by balance, not hashrate)
+   - 14-day voting period with >= 20% of circulating supply participating
+
+4. Technical readiness:
+   - Snowman consensus implementation audited and tested on incentivized testnet for >= 90 days
+   - Staking contract deployed and tested on testnet
+   - At least 100 prospective validators have signaled intent to stake >= 32,000 CRYFT each
+```
+
+#### 11.6.2 Transition mechanics
+
+```text
+PoW-to-PoS Transition Sequence:
+
+Phase A: Announcement (Block H - 50,000 blocks, ~6 days before transition)
+  - Transition block height H published on Federal Chain
+  - Miners and future validators prepare infrastructure
+  - Staking deposits open: validators can pre-stake CRYFT to be active at block H
+
+Phase B: Final PoW blocks (Block H - 1,000 to Block H)
+  - Mining difficulty frozen (no more adjustments)
+  - Final PoW blocks mined normally
+  - Staking validator set finalized at Block H - 100
+
+Phase C: Transition block (Block H)
+  - Last PoW block mined at height H
+  - Network pauses for transition window (target: < 60 seconds)
+  - Snowman consensus activates at Block H + 1
+  - First PoS block produced by the initial validator set
+  - All state (balances, contracts, UTXOs) carries over without modification
+
+Phase D: Stabilization (Block H + 1 to Block H + 10,000)
+  - Conservative Snowman parameters (longer finality windows)
+  - Emergency rollback to PoW available via governance supermajority (80%)
+  - Monitoring for consensus issues, fork events, or liveness failures
+
+Phase E: Full PoS operations (Block H + 10,001+)
+  - Normal Snowman parameters activated
+  - PoS issuance begins (Ethereum-style sqrt curve, continuous, no cap)
+  - EIP-1559 fee model activates: base fee burned, priority fee to validators
+  - Team/investor vesting schedules begin unlocking
+  - PoW mining no longer produces valid blocks
+```
+
+#### 11.6.3 Miner-to-validator transition incentives
+
+To encourage PoW miners to become PoS validators (preserving operational expertise and infrastructure):
+
+```text
+Miner Transition Program:
+
+1. Staking bonus: Miners who stake >= 32,000 mined CRYFT within 30 days of PoS transition
+   receive a 10% staking bonus (funded from early issuance).
+   
+2. Hardware repurposing: PoS validator hardware requirements (8 vCPU, 32GB RAM, 1TB NVMe)
+   are intentionally compatible with typical mining rig specifications.
+
+3. Priority validator slots: Addresses that mined >= 100 blocks during PoW phase receive
+   priority inclusion in the initial PoS validator set (no queue).
+
+4. Legacy mining recognition: Miner addresses are permanently recorded in a genesis 
+   attestation on Federal Chain, recognizing their contribution to fair launch.
+```
+
+#### 11.6.4 Security during transition
+
+```text
+Transition Security Measures:
+
+1. Finality freeze: No cross-region transfers processed during the transition window
+   (< 60 seconds). Pending transfers resume after first PoS block is finalized.
+
+2. Checkpoint anchor: Final PoW state root is anchored as the genesis state for PoS.
+   All subsequent PoS blocks reference this anchor.
+
+3. Rollback capability: If PoS fails to produce blocks within 10 minutes of transition,
+   network automatically reverts to PoW at Block H. Governance can re-attempt transition
+   after resolving issues.
+
+4. Double-spend window: The transition block H has special handling--it requires
+   6 PoW confirmations AND the first PoS block to reference it before cross-chain
+   operations resume.
+```
 
 
 
@@ -8693,26 +8918,28 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 
 | Component | Mainnet v1 Status | Rationale |
 |:----------|:------------------|:----------|
-| **Consensus** | Proven baseline (Avalanche or similar) | No novel CRVS logic in safety kernel until Milestone 15.5 complete and audited |
+| **Consensus** | Proof of Work (bootstrap) -> Snowman (post-transition) | PoW for fair initial CRYFT distribution; transition to Snowman after distribution targets met (Section 11.6) |
 | **EVM Chain** | Standard EVM compatibility | Works with MetaMask, Hardhat, standard tooling; no surprises |
 | **Regions (CSS-1)** | ✅ YES (enabled) | This is where "web2 feel" comes from; already proven in subnet architectures |
 | **Federal Chain** | ✅ YES (validator management, checkpoints) | Core federation coordination; uses native VM (proven, not experimental) |
 | **Mirror Chain** | ✅ YES (native CRYFT transfers) | High-throughput UTXO chain; proven design |
 | **GBL/CMR** | ✅ YES (with enforced invariants) | Mirror Chain GBL with extended UTXO + EVM Chain CMR; partitioned balances + contract registry; ensure chain responsibilities consistent and invariants mechanically enforceable |
+| **PoW-to-PoS transition** | ✅ PLANNED (Month 6-12) | Governance-coordinated transition after fair distribution targets met (Section 11.6) |
 | **Smart Slots** | ⚠️ TESTNET-ONLY or WHITELISTED | Feature flag: disabled by default; enable only for governance-approved contracts with enforced under-claim detection (Section 7.3.5) |
 | **CGS (privacy)** | ❌ TESTNET-ONLY | Not mainnet until Section 9.9 gating criteria met; all txs use legacy (non-private) path initially |
-| **CRVS consensus** | ❌ DEFERRED | Deploy with proven consensus; upgrade to CRVS post-launch via governance after Milestone 15.5 validation complete |
+| **CRVS consensus** | ❌ DEFERRED | Deploy with PoW then Snowman; upgrade to CRVS post-launch via governance after Milestone 15.5 validation complete |
 | **DAS (Data Availability Sampling)** | ❌ OPTIONAL/POST-LAUNCH | Nice-to-have; not required for CSS-1; add incrementally |
 | **ZK-EVM validity proofs** | ❌ OPTIONAL/POST-LAUNCH | Checkpoint verification uses quorum signatures initially; ZK proofs added later |
 
 #### 15.9.2 What Mainnet v1 delivers
 
 **User-facing value:**
+- ✅ Fair launch via Proof of Work (anyone can mine CRYFT from day one--no whitelists, no KYC)
 - ✅ Low-latency regions (sub-second finality for region-local transactions)
 - ✅ EVM compatibility (deploy Solidity contracts, use MetaMask, no code changes)
 - ✅ Cross-region asset transfers (via Mirror GBL debit-checkpoint-credit flow)
 - ✅ Federation-verified contracts (deterministic addresses across regions)
-- ✅ Proven security (Avalanche-style consensus, no unvalidated experiments in safety kernel)
+- ✅ Battle-tested PoW security during bootstrap, transitioning to Snowman PoS after fair distribution
 
 **Developer-facing value:**
 - ✅ Standard EVM tooling works (Hardhat, Foundry, Remix, ethers.js, viem)
@@ -8721,7 +8948,7 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 - ✅ Clear operational model (checkpoints, cross-region messages, governance)
 
 **What Mainnet v1 does NOT deliver (deferred to post-launch):**
-- ❌ Novel consensus optimizations (CRVS) - proven baseline only
+- ❌ Novel consensus optimizations (CRVS) - PoW then Snowman baseline only
 - ❌ Privacy-aware propagation (CGS) - all txs public initially
 - ❌ Deterministic parallelism (Smart Slots) - serial EVM execution only, or whitelisted contracts
 - ❌ ZK validity proofs - quorum signatures for checkpoints initially
@@ -8730,7 +8957,7 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 #### 15.9.3 Conservative deployment principles
 
 **Principle 1: Proven core, experimental edges**
-- Use battle-tested consensus (Avalanche) for safety kernel
+- Use battle-tested Proof of Work for safety kernel during bootstrap; transition to proven Avalanche/Snowman consensus after fair distribution
 - Use standard EVM for execution (no experimental VM features in critical path)
 - Defer optimizations (CRVS, Smart Slots, CGS) until validated via decision machine (Section 16.2)
 
@@ -9849,26 +10076,41 @@ VerifyPingEligibility(report):
 
 ### 16.8 v1 Monetary Policy
 
-No emission; 50% fee burn; formula a=1, b=0.5; slashing evidence structs.
+Continuous issuance (no supply cap); PoW phase: all fees to miner; PoS phase: EIP-1559 fee burn + issuance; slashing evidence structs.
 
 **Monetary Policy Parameters:**
 
 ```text
-Emission Rate: 0 CRYFT/block  // No new issuance
-Fee Burn Rate: 50%            // Half of tx fees burned
-Slashing Rate: 5%             // Of validator stake per offense
-Minimum Stake: 1000 CRYFT     // To become validator
+=== PoW Phase (v1 launch) ===
+Block Reward:    2 CRYFT/block     // Continuous issuance, no supply cap
+Fee Model:       First-price auction // All tx fees (gas_used * gas_price) to block miner
+Fee Burn Rate:   0%                 // No burning during PoW phase (same as Ethereum 2015-2021)
+Supply Cap:      NONE               // Uncapped, like Ethereum
+
+=== PoS Phase (post-transition) ===
+Issuance:        sqrt(total_staked) curve  // Ethereum-style validator rewards
+Fee Model:       EIP-1559            // base_fee burned, priority_fee to validator
+Slashing Rate:   1/32 of stake (~3.125%)   // Per provable misbehavior
+Minimum Stake:   32,000 CRYFT       // To become validator
 ```
 
 **Fee Distribution:**
 
 ```text
-For each transaction with fee F:
-  burned = F * 0.5
-  validator_reward = F * 0.3
-  treasury = F * 0.2
+PoW Phase:
+  For each transaction with fee F:
+    miner_reward = F     // 100% of fees to block miner
+    burned = 0           // No burn during PoW
+    Total miner income per block = block_reward (2 CRYFT) + sum(tx_fees)
 
-Total Supply: Fixed at genesis (no inflation)
+PoS Phase (EIP-1559):
+  For each transaction with fee F = base_fee + priority_fee:
+    burned = base_fee              // Algorithmically adjusted, burned permanently
+    validator_reward = priority_fee // Tip goes to block proposer
+    Total validator income per epoch = issuance_reward + sum(priority_fees)
+
+Total Supply: Uncapped (continuous issuance; net inflation/deflation determined by
+              issuance rate vs. burn rate once EIP-1559 activates)
 ```
 
 **Slashing Evidence Structures:**

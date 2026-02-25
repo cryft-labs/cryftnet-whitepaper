@@ -147,7 +147,7 @@ CRVS remains the consensus backbone--DAS and ZK-EVMs are complementary technolog
 
 **Phase 0 (Current) – Phase 4 (Mainnet v1):**
 
-**The Primary Network launches with pure, unmodified Avalanche/Snowman consensus for each chain individually (the proven baseline used in AvalancheGo).** No rotor relays, votor aggregation, or other CRVS components are active in v1. All Primary Network chains (Federal, Mirror, EVM) use standard Snowman block production and finality; the atomic bundle coordinator that synchronizes their outputs is a separate layer above the consensus mechanism. **Regions may prototype CRVS components on testnet**, but production regions in v1 also use baseline Snowman.
+**The Primary Network launches with Proof of Work (PoW) consensus during the bootstrap phase** to ensure fair and broad distribution of CRYFT gas tokens to initial participants. All Primary Network chains (Federal, Mirror, EVM) use PoW block production during v1 bootstrap; the atomic bundle coordinator that synchronizes their outputs is a separate layer above the consensus mechanism. **After the bootstrap phase (estimated 6-12 months), the network transitions to Snowman consensus** (the proven baseline used in AvalancheGo) via governance-approved upgrade. No rotor relays, votor aggregation, or other CRVS components are active in v1 under either PoW or Snowman. **Regions may prototype CRVS components on testnet**, but production regions in v1 also use the current Primary Network consensus (PoW during bootstrap, Snowman after transition).
 
 The most practical path to mainnet is to:
 

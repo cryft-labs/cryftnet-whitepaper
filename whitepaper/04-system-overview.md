@@ -50,9 +50,25 @@ Inspired by Avalanche's multi-chain architecture, CryftNet's Primary Network is 
 
 | Chain | Purpose | VM | Consensus | Typical Operations |
 |:------|:--------|:---|:----------|:-------------------|
-| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | Snowman (v1 baseline) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
-| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | Snowman (v1 baseline) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
-| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | Snowman (v1 baseline) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
+| **Federal Chain** (Federal) | Validator set management, staking, subnet lifecycle, chain registration/metadata, governance coordination | Native | Proof of Work (v1 bootstrap) -> Snowman (post-bootstrap) | Validator add/remove, stake/unstake, subnet registration, governance proposals, slashing |
+| **Mirror Chain** (Mirror) | Native asset creation and transfers optimized for throughput (UTXO-style), base asset movements | Native (UTXO) | Proof of Work (v1 bootstrap) -> Snowman (post-bootstrap) | CRYFT transfers, asset issuance, cross-chain atomic swaps, high-frequency payments |
+| **EVM Chain** (EVM Execution) | Account-based smart contract execution compatible with Solidity/Vyper tooling (the dApp chain) | EVM | Proof of Work (v1 bootstrap) -> Snowman (post-bootstrap) | Token contracts, DEX swaps, NFTs, DeFi protocols, user dApp interactions |
+
+**Why Proof of Work at launch:**
+
+The Primary Network launches with Proof of Work consensus during the bootstrap phase (estimated 6-12 months) to ensure **proper and fair distribution of the native CRYFT gas token** to initial participants:
+
+1. **Fair distribution:** PoW mining allows anyone with commodity hardware to earn CRYFT from day one, preventing insider or VC-dominated token concentration. Early participants are rewarded proportionally to the computational work they contribute, establishing a broad and decentralized initial holder base.
+
+2. **Organic price discovery:** PoW ties token issuance to real economic costs (electricity, hardware), giving CRYFT a fundamental cost-of-production floor and enabling organic market price discovery before staking economics take over.
+
+3. **Sybil resistance without pre-existing stake:** PoS requires participants to already hold tokens to participate. At genesis, no one holds CRYFT. PoW bootstraps the initial token supply into circulation without requiring a centralized token sale or airdrop as the primary distribution mechanism.
+
+4. **Credible neutrality:** PoW mining is permissionless and meritocratic--no whitelists, no KYC gates, no allocation committees. This establishes CryftNet's credibility as a fairly launched network.
+
+5. **Battle-tested security:** PoW consensus (Nakamoto-style) is the most studied and battle-tested consensus mechanism in existence, providing robust security guarantees during the critical early network phase when validator sets are small and economic security from staking is limited.
+
+**Transition to Snowman (PoS):** After the bootstrap phase, governance will coordinate the transition to Snowman consensus (see Section 11.6 for the PoW-to-PoS transition plan). The transition is triggered when: (a) sufficient CRYFT has been distributed to enable meaningful staking participation (target: >= 30% of supply in circulation held by >= 1,000 distinct addresses), and (b) a governance supermajority (67%) approves the consensus upgrade. All mined CRYFT remains valid and stakeable after the transition.
 
 **Why three separate chains?**
 

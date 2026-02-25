@@ -114,14 +114,14 @@ def compile_whitepaper(base_dir):
     front_matter = """<h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.32<br>
-<strong>Date:</strong> February 4, 2026<br>
+<strong>Revision:</strong> v1.33<br>
+<strong>Date:</strong> February 25, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.32):</strong> **CRYFTEE MODULE FILE REORGANIZATION:** All 6 core modules now have individual specification files using consistent 13.3.x numbering (13-03a through 13-03f). Modules: bls_tls_signer_v1 (13.3.1), debug_v1 (13.3.2), llm_chat_v1 (13.3.3), ipfs_v1 (13.3.4), private_sync_v1 (13.3.5), redeemable_codes_v1 (13.3.6). All modules designated as CORE MODULES required for full network capability. Added clear distinction between llm_chat_v1 (operator chat interface within Cryftee runtime) and AIM (on-chain agent identity infrastructure layer). Operations section renumbered to 13.4, AIM section renumbered to 13.5. Total: ~10,000 lines. Previous (v1.31): Cryftee module accuracy updates.
+<strong>Latest Changes (v1.33):</strong> **PROOF OF WORK LAUNCH & ETHEREUM-STYLE MONETARY MODEL:** Federal Chain and Primary Network now launch with Proof of Work (SHA3-256, 10s blocks, 2 CRYFT/block) for fair distribution of network gas to early participants, transitioning to Snowman/PoS after bootstrap criteria met (>=3.2M CRYFT in circulation, >=6 months, >=500 unique miners, 67% governance approval). Supply cap removed -- CRYFT now has uncapped continuous issuance following Ethereum's proven model. PoW phase follows Ethereum's original economics (2015-2021): all transaction fees go directly to miners, no EIP-1559, no fee burn. EIP-1559 activates at PoS transition. Post-PoS: sqrt(total_staked) issuance curve + base fee burn. Genesis pre-allocation: 125M CRYFT (all locked until PoS transition). Minimum stake: 32,000 CRYFT. Updated Sections 4, 6, 11, 15, 16. Previous (v1.32): Cryftee module file reorganization.
 </p>
 
 <p align="center"><em>

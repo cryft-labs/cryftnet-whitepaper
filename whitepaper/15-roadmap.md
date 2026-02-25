@@ -110,26 +110,28 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 
 | Component | Mainnet v1 Status | Rationale |
 |:----------|:------------------|:----------|
-| **Consensus** | Proven baseline (Avalanche or similar) | No novel CRVS logic in safety kernel until Milestone 15.5 complete and audited |
+| **Consensus** | Proof of Work (bootstrap) -> Snowman (post-transition) | PoW for fair initial CRYFT distribution; transition to Snowman after distribution targets met (Section 11.6) |
 | **EVM Chain** | Standard EVM compatibility | Works with MetaMask, Hardhat, standard tooling; no surprises |
 | **Regions (CSS-1)** | ✅ YES (enabled) | This is where "web2 feel" comes from; already proven in subnet architectures |
 | **Federal Chain** | ✅ YES (validator management, checkpoints) | Core federation coordination; uses native VM (proven, not experimental) |
 | **Mirror Chain** | ✅ YES (native CRYFT transfers) | High-throughput UTXO chain; proven design |
 | **GBL/CMR** | ✅ YES (with enforced invariants) | Mirror Chain GBL with extended UTXO + EVM Chain CMR; partitioned balances + contract registry; ensure chain responsibilities consistent and invariants mechanically enforceable |
+| **PoW-to-PoS transition** | ✅ PLANNED (Month 6-12) | Governance-coordinated transition after fair distribution targets met (Section 11.6) |
 | **Smart Slots** | ⚠️ TESTNET-ONLY or WHITELISTED | Feature flag: disabled by default; enable only for governance-approved contracts with enforced under-claim detection (Section 7.3.5) |
 | **CGS (privacy)** | ❌ TESTNET-ONLY | Not mainnet until Section 9.9 gating criteria met; all txs use legacy (non-private) path initially |
-| **CRVS consensus** | ❌ DEFERRED | Deploy with proven consensus; upgrade to CRVS post-launch via governance after Milestone 15.5 validation complete |
+| **CRVS consensus** | ❌ DEFERRED | Deploy with PoW then Snowman; upgrade to CRVS post-launch via governance after Milestone 15.5 validation complete |
 | **DAS (Data Availability Sampling)** | ❌ OPTIONAL/POST-LAUNCH | Nice-to-have; not required for CSS-1; add incrementally |
 | **ZK-EVM validity proofs** | ❌ OPTIONAL/POST-LAUNCH | Checkpoint verification uses quorum signatures initially; ZK proofs added later |
 
 #### 15.9.2 What Mainnet v1 delivers
 
 **User-facing value:**
+- ✅ Fair launch via Proof of Work (anyone can mine CRYFT from day one--no whitelists, no KYC)
 - ✅ Low-latency regions (sub-second finality for region-local transactions)
 - ✅ EVM compatibility (deploy Solidity contracts, use MetaMask, no code changes)
 - ✅ Cross-region asset transfers (via Mirror GBL debit-checkpoint-credit flow)
 - ✅ Federation-verified contracts (deterministic addresses across regions)
-- ✅ Proven security (Avalanche-style consensus, no unvalidated experiments in safety kernel)
+- ✅ Battle-tested PoW security during bootstrap, transitioning to Snowman PoS after fair distribution
 
 **Developer-facing value:**
 - ✅ Standard EVM tooling works (Hardhat, Foundry, Remix, ethers.js, viem)
@@ -138,7 +140,7 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 - ✅ Clear operational model (checkpoints, cross-region messages, governance)
 
 **What Mainnet v1 does NOT deliver (deferred to post-launch):**
-- ❌ Novel consensus optimizations (CRVS) - proven baseline only
+- ❌ Novel consensus optimizations (CRVS) - PoW then Snowman baseline only
 - ❌ Privacy-aware propagation (CGS) - all txs public initially
 - ❌ Deterministic parallelism (Smart Slots) - serial EVM execution only, or whitelisted contracts
 - ❌ ZK validity proofs - quorum signatures for checkpoints initially
@@ -147,7 +149,7 @@ This section defines a **sane Mainnet v1** that avoids catastrophic risks while 
 #### 15.9.3 Conservative deployment principles
 
 **Principle 1: Proven core, experimental edges**
-- Use battle-tested consensus (Avalanche) for safety kernel
+- Use battle-tested Proof of Work for safety kernel during bootstrap; transition to proven Avalanche/Snowman consensus after fair distribution
 - Use standard EVM for execution (no experimental VM features in critical path)
 - Defer optimizations (CRVS, Smart Slots, CGS) until validated via decision machine (Section 16.2)
 
