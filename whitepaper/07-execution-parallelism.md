@@ -32,6 +32,15 @@ Validators derive the schedule deterministically from the ordered tx list in the
 
 Proposer selects and orders txs; validators verify the schedule matches lock rules. Invalid schedules result in invalid block rejection.
 
+**Design rationale (pre-lock vs. speculative execution):**
+
+CryftNet uses an **Ethereum-style pre-lock** conflict model, not Solana-style speculative execution. The distinction is critical:
+
+- **CryftNet (pre-lock):** Transactions declare their state dependencies upfront via slot claims. The scheduler acquires locks *before* execution. If a lock cannot be acquired (conflict), the transaction is **not executed at all**--it is returned to the mempool and included in a future block once the conflicting transaction has completed and its locks are released. No wasted computation, no rollbacks.
+- **Solana (speculative):** Transactions execute optimistically in parallel. If a runtime conflict is detected mid-execution, the conflicting transaction is **aborted, rolled back, and retried**--either later in the same block or in a subsequent block. This wastes compute on failed speculative executions and adds complexity for deterministic replay.
+
+The pre-lock model is simpler, wastes zero execution resources on conflicts, and guarantees that every transaction included in a block has already been verified conflict-free before execution begins. The trade-off is that conflicting transactions experience one-block latency instead of intra-block retry, which is acceptable given CryftNet's sub-second regional block times.
+
 Inputs:
 - block transactions T (in proposer-committed order)
 - deterministic ordering key: (process_id, keccak256(tx_hash))
@@ -49,7 +58,7 @@ Inputs:
 
                 schedule tx in lane p (may run in parallel with other lanes)
            else:
-                defer tx to next block (or later within block deterministically)
+                defer tx to next block (returned to mempool; included once conflict resolves)
 Acquire_all_locks(claims):
    for slot in sort_by_slot_id(claims):
        if claim.mode == READ:

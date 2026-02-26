@@ -1,14 +1,14 @@
 <h1 align="center">CryftNet (Cryft Network) Whitepaper</h1>
 
 <p align="center">
-<strong>Revision:</strong> v1.33<br>
-<strong>Date:</strong> February 25, 2026<br>
+<strong>Revision:</strong> v1.34<br>
+<strong>Date:</strong> February 26, 2026<br>
 <strong>Status:</strong> Draft (Production Audit Candidate)<br>
 <strong>Authors:</strong> Cryft Labs (Draft)
 </p>
 
 <p align="center">
-<strong>Latest Changes (v1.33):</strong> **PROOF OF WORK LAUNCH & ETHEREUM-STYLE MONETARY MODEL:** Federal Chain and Primary Network now launch with Proof of Work (SHA3-256, 10s blocks, 2 CRYFT/block) for fair distribution of network gas to early participants, transitioning to Snowman/PoS after bootstrap criteria met (>=3.2M CRYFT in circulation, >=6 months, >=500 unique miners, 67% governance approval). Supply cap removed -- CRYFT now has uncapped continuous issuance following Ethereum's proven model. PoW phase follows Ethereum's original economics (2015-2021): all transaction fees go directly to miners, no EIP-1559, no fee burn. EIP-1559 activates at PoS transition. Post-PoS: sqrt(total_staked) issuance curve + base fee burn. Genesis pre-allocation: 125M CRYFT (all locked until PoS transition). Minimum stake: 32,000 CRYFT. Updated Sections 4, 6, 11, 15, 16. Previous (v1.32): Cryftee module file reorganization.
+<strong>Latest Changes (v1.34):</strong> **PARALLELISM CONFLICT MODEL CLARITY (PRE-LOCK VS SPECULATIVE):** Section 7.3.6 now includes explicit design rationale contrasting CryftNet's Ethereum-style pre-lock conflict model with Solana-style speculative execution. CryftNet acquires locks before execution -- conflicting transactions are never executed and waste zero compute; they return to the mempool and are included in a future block once the conflict resolves. Solana speculatively executes transactions in parallel and aborts/retries on conflict, wasting compute on failed runs. Clarified that deferred transactions return to mempool (not retried intra-block). Trade-off: one-block latency for conflicts, acceptable given sub-second regional block times. Updated Section 7. Previous (v1.33): Proof of Work launch and Ethereum-style monetary model.
 </p>
 
 <p align="center"><em>
@@ -3356,6 +3356,15 @@ Validators derive the schedule deterministically from the ordered tx list in the
 
 Proposer selects and orders txs; validators verify the schedule matches lock rules. Invalid schedules result in invalid block rejection.
 
+**Design rationale (pre-lock vs. speculative execution):**
+
+CryftNet uses an **Ethereum-style pre-lock** conflict model, not Solana-style speculative execution. The distinction is critical:
+
+- **CryftNet (pre-lock):** Transactions declare their state dependencies upfront via slot claims. The scheduler acquires locks *before* execution. If a lock cannot be acquired (conflict), the transaction is **not executed at all**--it is returned to the mempool and included in a future block once the conflicting transaction has completed and its locks are released. No wasted computation, no rollbacks.
+- **Solana (speculative):** Transactions execute optimistically in parallel. If a runtime conflict is detected mid-execution, the conflicting transaction is **aborted, rolled back, and retried**--either later in the same block or in a subsequent block. This wastes compute on failed speculative executions and adds complexity for deterministic replay.
+
+The pre-lock model is simpler, wastes zero execution resources on conflicts, and guarantees that every transaction included in a block has already been verified conflict-free before execution begins. The trade-off is that conflicting transactions experience one-block latency instead of intra-block retry, which is acceptable given CryftNet's sub-second regional block times.
+
 Inputs:
 - block transactions T (in proposer-committed order)
 - deterministic ordering key: (process_id, keccak256(tx_hash))
@@ -3373,7 +3382,7 @@ Inputs:
 
                 schedule tx in lane p (may run in parallel with other lanes)
            else:
-                defer tx to next block (or later within block deterministically)
+                defer tx to next block (returned to mempool; included once conflict resolves)
 Acquire_all_locks(claims):
    for slot in sort_by_slot_id(claims):
        if claim.mode == READ:
